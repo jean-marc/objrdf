@@ -26,8 +26,14 @@ template<typename T> vector<T> concat(const vector<T>& a,const vector<T>& b){
 #define SET(r) //backward compatibility
 
 #define DEFAULT_SET template<typename U> void set(U u){help_set<U>::go(this,u);}//need to copy this line in any struct that specializes the function
-/*!!!!!must be a public member of the Class!!!!!*/
+/*
+ * 	must be a public member of the Class!!!!!
+ * 	multiple symbols will be defined
+ * 	if html is used inside the comment the namespace must be present eg:
+ * 		<p xmlns='http://www.w3.org/1999/xhtml'>....</p>
+ */
 #define COMMENT(str) static string get_comment(){return str;}
+#define HTML_COMMENT(str) static string get_comment(){return string("<p xmlns='http://www.w3.org/1999/xhtml'>")+str+"</p>";}
 #ifdef WIN32
 #pragma warning(disable: 4503)
 #endif
@@ -129,12 +135,18 @@ namespace objrdf{
 	};
 	template<typename P> struct p_array:vector<P>{
 		typedef p_array SELF;
+		static rdf::Property* get_property(){return P::get_property();}
+	/*	
+		virtual ~p_array(){
+			cerr<<"deleting p_array"<<endl;
+		}*/
 	};
 	template<typename T> struct help<p_array<T>,T>{enum{VALUE=2};};
 	class base_resource;
 	class generic_property{
 	public:
-		rdf::Property* p;
+		//rdf::Property* p;
+		shared_ptr<rdf::Property> p;
 		const bool literalp;
 		virtual void set_string(base_resource*,string s);
 		virtual void in(base_resource* subject,istream& is,int index);
@@ -194,7 +206,8 @@ namespace objrdf{
 			iterator(base_resource* _subject,V::iterator _i):V::iterator(_i){
 				subject=_subject;
 			}
-			rdf::Property* get_Property() const;
+			//rdf::Property* get_Property() const;
+			shared_ptr<rdf::Property> get_Property() const;
 			int get_size() const;
 			bool literalp() const;
 			inline void* current() const {return (char*)subject+BASE::operator*()->offset;}
@@ -224,7 +237,7 @@ namespace objrdf{
 					i->out(os);
 				else{
 					if(i->get_object()->id.empty())
-						os<<i->get_object().get();
+						os<<i->get_object().get();//print pointer
 					else
 						os<<i->get_object()->id;
 				}
@@ -252,6 +265,11 @@ namespace objrdf{
 		base_resource():n(0){}
 		//base_resource(uri _id,short _n=0):n(_n),id(_id){}
 		base_resource(uri _id):n(0),id(_id){}
+		virtual ~base_resource(){
+			#ifdef VERBOSE
+			cerr<<"delete resource `"<<id<<"'"<<endl;
+			#endif
+		}
 		uri id;
 		static V v;
 		//would be nice to have get<rdfs::type>
@@ -297,13 +315,23 @@ namespace objrdf{
 		struct destroy{
 			resource* r;
 			destroy(resource* _r):r(_r){}	
-			template<typename P> void go(){r->get<P>().~P();}//placement delete
+			template<typename P> void go(){
+				#ifdef VERBOSE
+				cerr<<"delete property `"<<P::get_property()->id<<"'"<<endl;
+				#endif
+				r->get<P>().~P();
+			}//placement delete
 		};
 		typedef resource SELF;
 		char bin[get_size<PROPERTIES>::VALUE];
 		resource(uri _id):SUBCLASS(_id){objrdf::for_each<PROPERTIES>(initialize(this));}
 		resource(){objrdf::for_each<PROPERTIES>(initialize(this));}
-		~resource(){objrdf::for_each<PROPERTIES>(destroy(this));}
+		~resource(){
+			#ifdef VERBOSE
+			cerr<<"delete "<<get_class()->id<<" `"<<SUBCLASS::id<<"'"<<endl;
+			#endif
+			objrdf::for_each<PROPERTIES>(destroy(this));
+		}
 		template<typename U> U& _get_(){return *(U*)(void*)(resource::bin+get_offset<PROPERTIES,U>::VALUE);}
 		template<typename U,int FOUND=help<PROPERTIES,U>::VALUE> struct _help_{typedef typename SUBCLASS::template _help_<U>::VALUE VALUE;};
 		template<typename U> struct _help_<U,1>{typedef resource VALUE;};
@@ -502,7 +530,7 @@ namespace rdfs{
 		static vector<Class*>& get_instances();
 		Class();
 		Class(string id);
-		Class(string id,subClassOf s,objrdf::fpt f);
+		Class(string id,subClassOf s,objrdf::fpt f,string comment);
 		bool operator==(Class& c) const;
 		bool operator<(Class& c) const;
 		bool operator<=(Class& c) const;
@@ -511,7 +539,7 @@ namespace rdfs{
 	};
 }//end namespace rdfs
 namespace rdf{
-	PROPERTY(p_index,short);//each class has a unique index useful for fast serialization/parsing
+	PROPERTY(p_index,short);//each property has a unique index useful for fast serialization/parsing
 	char _Property[]="Property";
 	struct Property:objrdf::resource<rdfs_namespace,_Property,objrdf::duo<rdfs::domain,objrdf::duo<rdfs::range,p_index> >,Property>{
 		Property();
@@ -532,7 +560,7 @@ namespace objrdf{
 	>
 	rdfs::Class* resource<NAMESPACE,NAME,PROPERTIES,SUPERCLASS,SUBCLASS>::get_class(){
 		typedef typename IfThenElse<equality<SUPERCLASS,NIL>::VALUE,resource,SUPERCLASS>::ResultT TMP;
-		static rdfs::Class* c=new rdfs::Class(NAME,rdfs::subClassOf(SUBCLASS::get_class()),get_constructor<TMP>());
+		static rdfs::Class* c=new rdfs::Class(NAME,rdfs::subClassOf(SUBCLASS::get_class()),get_constructor<TMP>(),TMP::get_comment!=SUBCLASS::get_comment ? TMP::get_comment() : "");
 		return c;
 	}
 	template<
@@ -543,7 +571,7 @@ namespace objrdf{
 	>
 	rdfs::Class* resource<NAMESPACE,NAME,NIL,SUPERCLASS,SUBCLASS>::get_class(){
 		typedef typename IfThenElse<equality<SUPERCLASS,NIL>::VALUE,resource,SUPERCLASS>::ResultT TMP;
-		static rdfs::Class* c=new rdfs::Class(NAME,rdfs::subClassOf(SUBCLASS::get_class()),get_constructor<TMP>());
+		static rdfs::Class* c=new rdfs::Class(NAME,rdfs::subClassOf(SUBCLASS::get_class()),get_constructor<TMP>(),TMP::get_comment!=SUBCLASS::get_comment ? TMP::get_comment() : "");
 		return c;
 	}
 	template<typename RANGE> struct selector{
@@ -726,6 +754,11 @@ namespace objrdf{
 		pseudo_property(rdfs::Class* _object);//:generic_property(rdfs::type::get_property(),false){object=_object;}
 		virtual int get_size(base_resource* subject);//{return 1;}
 		virtual shared_ptr<base_resource> get_object(base_resource* subject,int index);//{return object;}
+		virtual void set_object(base_resource* subject,base_resource* object,int index);
+		/*
+		virtual void in(base_resource*,istream& is,int); 
+		virtual void out(base_resource*,ostream& os,int);
+		*/
 	};
 	template<
 		const char* NAMESPACE,
@@ -740,9 +773,10 @@ namespace objrdf{
 		static V go(){
 			V v=get_generic_property<typename SUBCLASS::SELF>::go();
 			//problem there
-			//v.push_back(new pseudo_property(RESOURCE::get_class()));
+			v.push_back(new pseudo_property(RESOURCE::get_class()));
 			//v.push_back(new _property_<RESOURCE,rdfs::type,rdfs::type>());
 			//v.push_back(new _property_<RESOURCE,rdfs::type>());
+			//v.push_back(rdf::type);
 			return concat(v,objrdf::for_each<PROPERTIES>(_meta_<TMP>(TMP::get_offsetof())).v);
 		}
 	};
