@@ -72,6 +72,10 @@ bool rdf_xml_parser::start_resource(string name,ATTRIBUTES att){//use ATTRIBUTES
 		if(name=="Description"){
 			ATTRIBUTES::iterator i=att.find("id");
 			if(i!=att.end()){
+				/*
+ 				*	! this is not correct per RDF format, rdf:type is NOT a literal property,
+ 				*	we should remove all this code
+ 				*/ 
 				ATTRIBUTES::iterator j=att.find("type");
 				if(j!=att.end()){
 					base_resource* r=doc.find(j->second);
@@ -85,6 +89,7 @@ bool rdf_xml_parser::start_resource(string name,ATTRIBUTES att){//use ATTRIBUTES
 						st.push(subject);
 						doc.insert(subject);
 						for(base_resource::type_iterator i=subject->begin();i!=subject->end();++i){
+							//we should not go through `type' property
 							ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
 							if(j!=att.end()){
 								istringstream is(j->second);
