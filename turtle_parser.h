@@ -51,10 +51,10 @@ struct turtle_parser:char_iterator{
 	typedef plus_p<statement> turtle_doc;
 	turtle_parser(istream& is):char_iterator(is){}
 	bool go(){return turtle_doc::go(*this);}
-	void callback(subject,string s){cerr<<s<<endl;}
-	void callback(verb,string s){cerr<<"\t"<<s<<endl;}
-	void callback(event<object>,string s){cerr<<"\t\t"<<s<<endl;}
-	void callback(event<scharacter>,string s){cerr<<"string:\""<<s<<"\""<<endl;}
+	void callback(subject,string s){/*cerr<<s<<endl;*/}
+	void callback(verb,string s){/*cerr<<"\t"<<s<<endl;*/}
+	void callback(event<object>,string s){/*cerr<<"\t\t"<<s<<endl;*/}
+	void callback(event<scharacter>,string s){/*cerr<<"string:\""<<s<<"\""<<endl;*/}
 };
 
 
