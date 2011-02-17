@@ -8,16 +8,16 @@
 //using namespace std;
 /*
 	the RDF/XML syntax is fairly complicated and provides many different ways to describe the same graph
-	rdf:id
+	rdf:ID
 	rdf:about
-	rdf:type
+	rdfs:type
 	rdf:resource
 	rdf:Description
 	literal properties can be expressed as attributes or child element
-		<Description age='32'/>
-		<Description>
+		<rdf:Description age='32'/>
+		<rdf:Description>
 			<age>32</age>
-		</Description>
+		</rdf:Description>
 
 
 
@@ -30,9 +30,14 @@ namespace objrdf{
 		std::stack<shared_ptr<base_resource> > st;
 		typedef multimap<string,base_resource::instance_iterator> MISSING_OBJECT;
 		MISSING_OBJECT missing_object;//store all the properties waiting for object
-		base_resource::type_iterator current_property;
-		int depth;
 		rdf::RDF& doc;
+		/*
+ 		*	placeholder when a resource can not be created for any reason (eg: the rdfs:type
+ 		*	is not known yet) so that the parsing can go on.
+ 		*/ 
+		shared_ptr<base_resource> placeholder;
+		base_resource::type_iterator current_property;
+		int depth;//could use xml_parser<>::depth
 		void set_missing_object(shared_ptr<base_resource>); 
 		rdf_xml_parser(rdf::RDF& _doc,std::istream& is);
 		bool start_resource(string name,ATTRIBUTES att);

@@ -2,10 +2,10 @@
 #include <sstream>
 #include <algorithm>
 using namespace objrdf;
-rdf_xml_parser::rdf_xml_parser(rdf::RDF& _doc,std::istream& is):xml_parser<rdf_xml_parser>(is),doc(_doc),current_property(base_resource::nil->end()){
+rdf_xml_parser::rdf_xml_parser(rdf::RDF& _doc,std::istream& is):xml_parser<rdf_xml_parser>(is),doc(_doc),placeholder(new base_resource),current_property(placeholder->end()){
 	string_property=false;
 	depth=-1;
-	st.push(base_resource::nil);
+	st.push(placeholder);
 }
 bool rdf_xml_parser::go(){
 	bool r=xml_parser<rdf_xml_parser>::go();
@@ -20,7 +20,7 @@ bool rdf_xml_parser::start_resource(string name,ATTRIBUTES att){//use ATTRIBUTES
 			assert(current_property->get_Property()->get<rdfs::range>()->f);
 			shared_ptr<base_resource> r=current_property->get_Property()->get<rdfs::range>()->f();
 			LOG<<"new resource:"<<r.get()<<endl;
-			r->id=att["id"];//should use uri's instead
+			r->id=att["http://www.w3.org/1999/02/22-rdf-syntax-ns#ID"];
 			current_property->add_property()->set_object(r.get());
 			set_missing_object(r);
 			st.push(r);
@@ -48,7 +48,7 @@ bool rdf_xml_parser::start_resource(string name,ATTRIBUTES att){//use ATTRIBUTES
 					assert(c.f);
 					shared_ptr<base_resource> r=c.f();
 					LOG<<"new resource:"<<r.get()<<endl;
-					r->id=att["id"];//should use uri's instead
+					r->id=att["http://www.w3.org/1999/02/22-rdf-syntax-ns#ID"];
 					current_property->add_property()->set_object(r.get());
 					st.push(r);
 					doc.insert(r);
@@ -61,72 +61,42 @@ bool rdf_xml_parser::start_resource(string name,ATTRIBUTES att){//use ATTRIBUTES
 					}
 				}else{
 					ERROR_PARSER<<name<<" not a sub-class of "<<current_property->get_Property()->get<rdfs::range>()->id<<endl;
-					st.push(base_resource::nil);
+					st.push(placeholder);
 				}
 			}else{
-				ERROR_PARSER<<"Class "<<name<<" not found\n";
-				st.push(base_resource::nil);
+				ERROR_PARSER<<"Class `"<<name<<"' not found\n";
+				st.push(placeholder);
 			}
 		}
 	}else{
-		if(name=="Description"){
-			ATTRIBUTES::iterator i=att.find("id");
+		if(name=="http://www.w3.org/1999/02/22-rdf-syntax-ns#Description"){
+			ATTRIBUTES::iterator i=att.find("http://www.w3.org/1999/02/22-rdf-syntax-ns#about");
 			if(i!=att.end()){
-				/*
- 				*	! this is not correct per RDF format, rdf:type is NOT a literal property,
- 				*	we should remove all this code
- 				*/ 
-				ATTRIBUTES::iterator j=att.find("type");
-				if(j!=att.end()){
-					base_resource* r=doc.find(j->second);
-					if(r&&r->get_Class()==rdfs::Class::get_class()){
-						rdfs::Class& c=*static_cast<rdfs::Class*>(r);
-						assert(c.f);
-						shared_ptr<base_resource> subject=c.f();
-						LOG<<"new resource:"<<subject.get()<<endl;
-						subject->id=i->second;//should use uri's instead
-						set_missing_object(subject);
-						st.push(subject);
-						doc.insert(subject);
-						for(base_resource::type_iterator i=subject->begin();i!=subject->end();++i){
-							//we should not go through `type' property
-							ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
-							if(j!=att.end()){
-								istringstream is(j->second);
-								i->add_property()->in(is);
-							}
+				base_resource* subject=doc.find(i->second);
+				if(subject){
+					st.push(subject);
+					for(base_resource::type_iterator i=subject->begin();i!=subject->end();++i){
+						ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
+						if(j!=att.end()){
+							istringstream is(j->second);
+							i->add_property()->in(is);
 						}
-					}else{
-						ERROR_PARSER<<"Class `"<<j->second<<"' unknown"<<endl;
-						st.push(base_resource::nil);
 					}
 				}else{
-					ERROR_PARSER<<"type not given"<<endl;
-					st.push(base_resource::nil);
+					ERROR_PARSER<<"resource `"<<i->second<<"' not found"<<endl;
+					st.push(placeholder);
 				}
+				
 			}else{
-				ATTRIBUTES::iterator i=att.find("about");
+				ATTRIBUTES::iterator i=att.find("http://www.w3.org/1999/02/22-rdf-syntax-ns#ID");
 				if(i!=att.end()){
-					base_resource* subject=doc.find(i->second);
-					if(subject){
-						st.push(subject);
-						for(base_resource::type_iterator i=subject->begin();i!=subject->end();++i){
-							ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
-							if(j!=att.end()){
-								istringstream is(j->second);
-								i->add_property()->in(is);
-							}
-						}
-					}else{
-						ERROR_PARSER<<"resource `"<<i->second<<"' not found"<<endl;
-						st.push(base_resource::nil);
-					}
-					
+					placeholder->id=i->second;
 				}else{
-					ERROR_PARSER<<"anonymous/un-typed resource"<<endl;
-					st.push(base_resource::nil);
+					placeholder->id="";
 				}
-			}	
+				ERROR_PARSER<<"anonymous/un-typed resource"<<endl;
+				st.push(placeholder);
+			}
 		}else{
 			base_resource* r=doc.find(name);
 			if(r&&r->get_Class()==rdfs::Class::get_class()){
@@ -134,7 +104,7 @@ bool rdf_xml_parser::start_resource(string name,ATTRIBUTES att){//use ATTRIBUTES
 				assert(c.f);
 				shared_ptr<base_resource> subject=c.f();
 				LOG<<"new resource:"<<subject.get()<<endl;
-				subject->id=att["id"];//should use uri's instead
+				subject->id=att["http://www.w3.org/1999/02/22-rdf-syntax-ns#ID"];
 				set_missing_object(subject);
 				st.push(subject);
 				doc.insert(subject);
@@ -148,12 +118,15 @@ bool rdf_xml_parser::start_resource(string name,ATTRIBUTES att){//use ATTRIBUTES
 				}
 			}else{
 				ERROR_PARSER<<"Class `"<<name<<"' not found"<<endl;
-				st.push(base_resource::nil);
+				st.push(placeholder);
 			}
 		}
 	}
 	return true;
 }
+/*
+ *	
+ */
 void rdf_xml_parser::set_missing_object(shared_ptr<base_resource> object){
 	if(!object->id.empty()){
 		MISSING_OBJECT::iterator first=missing_object.find(object->id),last=missing_object.upper_bound(object->id);
@@ -167,7 +140,7 @@ bool rdf_xml_parser::end_resource(string name){
 	//cerr<<"end resource "<<name<<endl;
 	st.top()->end_resource();
 	st.pop();
-	current_property=base_resource::nil->end();
+	current_property=placeholder->end();
 	return true;
 }
 bool rdf_xml_parser::start_property(string name,ATTRIBUTES att){
@@ -185,8 +158,8 @@ bool rdf_xml_parser::start_property(string name,ATTRIBUTES att){
 				string_property=true;
 			}
 		}else{
-			//there could be an `rdf:resource' attribute
-			ATTRIBUTES::iterator i=att.find("resource");
+			//there could be an `http://www.w3.org/1999/02/22-rdf-syntax-ns#resource' attribute
+			ATTRIBUTES::iterator i=att.find("http://www.w3.org/1999/02/22-rdf-syntax-ns#resource");
 			if(i!=att.end()){
 				base_resource* object=doc.find(i->second);
 				if(object){
@@ -199,7 +172,30 @@ bool rdf_xml_parser::start_property(string name,ATTRIBUTES att){
 
 		}
 	}else{
-		ERROR_PARSER<<"property "<<name<<" not found"<<endl;
+		if((name=="http://www.w3.org/2000/01/rdf-schema#type")&&(st.top()==placeholder)){
+			/*
+ 			*	we have a generic resource, we can maybe swap it for a typed resource
+ 			*/ 
+			ATTRIBUTES::iterator j=att.find("http://www.w3.org/1999/02/22-rdf-syntax-ns#resource");
+			if(j!=att.end()){
+				base_resource* r=doc.find(j->second);
+				if(r&&r->get_Class()==rdfs::Class::get_class()){
+					rdfs::Class& c=*static_cast<rdfs::Class*>(r);
+					assert(c.f);
+					shared_ptr<base_resource> subject=c.f();
+					LOG<<"new resource:"<<subject.get()<<endl;
+					set_missing_object(subject);
+					subject->id=st.top()->id;
+					st.pop();
+					st.push(subject);
+					doc.insert(subject);
+				}else{
+
+				}
+			}
+		}else{
+			ERROR_PARSER<<"property `"<<name<<"' not found"<<endl;
+		}
 	}
 	return true;
 }
