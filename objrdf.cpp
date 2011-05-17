@@ -85,6 +85,8 @@ rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp):rdf::P
 base_resource::instance_iterator rdf::Property::get_self_iterator(){
 	return base_resource::instance_iterator(this,v.begin()+5,0);//should make sure position does not change!
 }
+shared_ptr<rdf::Property> rdf::Property::nil=shared_ptr<rdf::Property>(new rdf::Property());
+
 V base_resource::v;
 
 shared_ptr<base_resource> base_resource::nil=shared_ptr<base_resource>(new base_resource(uri("nil")));
@@ -92,11 +94,13 @@ namespace objrdf{
 	struct C;
 	_PROPERTY(p,C*);
 	char _C[]="C";
-	struct C:resource<_rdfs_namespace,_C,p,C>{};
+	struct C:resource<_rdfs_namespace,_C,p,C>{
+		C(){}
+		C(uri u):SELF(u){}
+	};
 }
 shared_ptr<objrdf::C> make_cycle(){
-	objrdf::C* a_C=new objrdf::C;
-	a_C->id=uri("cycle");
+	objrdf::C* a_C=new objrdf::C(uri("cycle"));
 	a_C->get<objrdf::p>()=a_C;
 	return a_C;
 }
@@ -199,11 +203,10 @@ void base_resource::to_rdf_xml(ostream& os){
 	os<<"</"<<get_Class()->id<<">";
 }
 void base_resource::to_rdf_xml_pretty(ostream& os){
-#ifdef WIN32
-	os<<"\n<"<<get_Class()->id<<" ID='";
-#else
-	os<<"\n\033[36m<"<<get_Class()->id<<" \033[32m"<<rdf::ID<<"=\033[31m'";//<<id<<"'>";
-#endif
+	/*
+ 	*	we can only use rdf:ID if the resource is local, that is if uri::index==0
+ 	*/ 
+	os<<"\n\033[36m<"<<get_Class()->id<<" \033[32m"<<(id.is_local() ? rdf::ID : rdf::about)<<"=\033[31m'";//<<id<<"'>";
 	if(id.empty())
 		os<<this;
 	else	
@@ -211,38 +214,23 @@ void base_resource::to_rdf_xml_pretty(ostream& os){
 #ifdef VERBOSE
 	os<<"' ref_count='"<<n;
 #endif
-#ifdef WIN32
-	os<<"'>";
-#else
 	os<<"'\033[36m>";
-#endif
 	for(base_resource::type_iterator i=begin();i!=end();++i){
 		for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
 			if(i->literalp())
-#ifdef WIN32
-				os<<"\n\t<"<<i->get_Property()->id<<">"<<*j<<"</"<<i->get_Property()->id<<">";
-#else
 				os<<"\n\t\033[36m<"<<i->get_Property()->id<<">\033[m"<<*j<<"\033[36m</"<<i->get_Property()->id<<">";
-#endif
 			else{
-#ifdef WIN32
-				os<<"\n\t<"<<i->get_Property()->id<<" resource='"<<*j<<"'/>";
-#else
 				os<<"\n\t\033[36m<"<<i->get_Property()->id<<" \033[32m"<<rdf::resource<<"=\033[31m'";
+				os<<(j->get_object()->id.is_local() ? "#" : "");
 				j->get_object()->id.to_uri(os);
 				os<<"'\033[36m/>";
-#endif
 			}
 		}
 	}
-#ifdef WIN32
-	os<<"\n</"<<get_Class()->id<<">";
-#else
 	os<<"\n\033[36m</"<<get_Class()->id<<">\033[m";
-#endif
 }
-void base_resource::to_xml(ostream& os){
-	os<<"<"<<get_Class()->id<<" ID='"<<id<<"'>";
+void base_resource::to_xml_leaf(ostream& os){
+	os<<"<"<<get_Class()->id<<" "<<rdf::ID<<"='"<<id<<"'>";
 	for(base_resource::type_iterator i=begin();i!=end();++i){
 		if(i->get_Property()!=rdf::type::get_property()){
 			for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
@@ -250,7 +238,25 @@ void base_resource::to_xml(ostream& os){
 					if(i->literalp())
 						j->out(os);	
 					else
-						j->get_object()->to_xml(os);//watch for loops!!!
+						j->get_object()->to_xml_leaf(os);//watch for loops!!!
+					os<<"</"<<i->get_Property()->id<<">";
+			}
+		}
+	}
+	os<<"</"<<get_Class()->id<<">";
+}
+void base_resource::to_xml(ostream& os){
+	os<<"<"<<get_Class()->id<<" ID='"<<id<<"'\n";
+	uri::ns_declaration(os);
+	os<<">";
+	for(base_resource::type_iterator i=begin();i!=end();++i){
+		if(i->get_Property()!=rdf::type::get_property()){
+			for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
+					os<<"<"<<i->get_Property()->id<<">";
+					if(i->literalp())
+						j->out(os);	
+					else
+						j->get_object()->to_xml_leaf(os);//watch for loops!!!
 					os<<"</"<<i->get_Property()->id<<">";
 			}
 		}

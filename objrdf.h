@@ -52,19 +52,15 @@ namespace objrdf{
 /*
  *	uri and prefix MUST be quoted, the macro could quote but forward slashes in URI confuse 
  *	syntax highlighting in VIM
+ *	hash namespace vs slash namespace, use hash for now because of optimization, could catch non hash uri at compile-time
+ *	or run-time
  */
 #define RDFS_NAMESPACE(uri,prefix) char _uri_[]=uri;char _prefix_[]=prefix;typedef objrdf::tpair<_uri_,_prefix_> rdfs_namespace;
 #define _RDFS_NAMESPACE(uri,prefix) char __uri_[]=uri;char __prefix_[]=prefix;typedef objrdf::tpair<__uri_,__prefix_> _rdfs_namespace;
 namespace rdf{
 	//multiple definitions!!!
-	//char rdfs_namespace[]="http://www.w3.org/1999/02/22-rdf-syntax-ns# rdf";//prefix, can cause problem when using it as regular namespace
-	/*
-	char rdfs_namespace_uri[]="http://www.w3.org/1999/02/22-rdf-syntax-ns#";
-	char rdfs_namespace_prefix[]="rdf";
-	typedef objrdf::tpair<rdfs_namespace_uri,rdfs_namespace_prefix> rdfs_namespace;
-	*/
 	RDFS_NAMESPACE("http://www.w3.org/1999/02/22-rdf-syntax-ns#","rdf");
-	const static objrdf::uri _RDF=objrdf::uri(rdfs_namespace::A,rdfs_namespace::B,"RDF");
+	const static objrdf::uri _RDF=objrdf::uri::t_uri<rdfs_namespace>("RDF");
 	const static objrdf::uri ID=objrdf::uri(rdfs_namespace::A,rdfs_namespace::B,"ID");
 	const static objrdf::uri about=objrdf::uri(rdfs_namespace::A,rdfs_namespace::B,"about");
 	const static objrdf::uri resource=objrdf::uri(rdfs_namespace::A,rdfs_namespace::B,"resource");
@@ -72,13 +68,10 @@ namespace rdf{
 	struct Property;
 }
 namespace rdfs{
-	//char rdfs_namespace[]="http://www.w3.org/2000/01/rdf-schema# rdfs";//prefix
-	RDFS_NAMESPACE("http://www.w3.org/2000/01/rdf-schema#","rdfs");//prefix
+	RDFS_NAMESPACE("http://www.w3.org/2000/01/rdf-schema#","rdfs");
 	struct Class;
 }
 namespace objrdf{
-	//
-	//char _rdfs_namespace[]="http://www.example.org/objrdf# obj";
 	 _RDFS_NAMESPACE("http://www.example.org/objrdf#","obj");
 	struct NIL{
 		typedef NIL SELF;
@@ -277,6 +270,7 @@ namespace objrdf{
 		static rdfs::Class* get_class();	
 		void to_turtle(ostream& os);
 		void to_xml(ostream& os);
+		void to_xml_leaf(ostream& os);
 		void to_rdf_xml(ostream& os);//the document should not have loops!!!
 		//to use in bash
 		void to_turtle_pretty(ostream& os);
@@ -501,7 +495,6 @@ namespace xsd{
  	*	http://www.w3.org/TR/2004/REC-rdf-mt-20040210/
  	*	not clear what the syntax should be
  	*/ 
-	//char rdfs_namespace[]="http://www.w3.org/2001/XMLSchema# xsd";//or xs?
 	RDFS_NAMESPACE("http://www.w3.org/2001/XMLSchema#","xsd");//or xs?
 	char _Double[]="double";typedef objrdf::resource<rdfs_namespace,_Double,objrdf::NIL,objrdf::NIL,rdf::Literal> Double;
 	char _Float[]="float";typedef objrdf::resource<rdfs_namespace,_Float,objrdf::NIL,objrdf::NIL,rdf::Literal> Float;
@@ -574,6 +567,7 @@ namespace rdf{
 		Property(objrdf::uri id,rdfs::range r,const bool _literalp);
 		static vector<Property*>& get_instances();
 		const bool literalp;
+		static objrdf::shared_ptr<Property> nil;
 		COMMENT("The class of RDF properties.");
 		objrdf::base_resource::instance_iterator get_self_iterator();
 	};
