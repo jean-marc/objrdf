@@ -16,11 +16,6 @@ using namespace special;//for shared_ptr
 template<typename T> vector<T> concat(/*const*/ vector<T>& a,const vector<T>& b){
 	a.insert(a.end(),b.begin(),b.end());
 	return a;
-	/*
-	vector<T> v=a;
-	for(typename vector<T>::const_iterator i=b.begin();i<b.end();++i) v.push_back(*i);
-	return v;
-	*/
 }
 #define PROPERTY(n,range) char _##n[]=#n;typedef objrdf::property<rdfs_namespace,_##n,range> n;
 #define _PROPERTY(n,range) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,range> n;
@@ -123,7 +118,7 @@ namespace objrdf{
  	*/ 
 	class generic_property{
 	public:
-		shared_ptr<rdf::Property> p;//should be made constant
+		const shared_ptr<rdf::Property> p;
 		const bool literalp;
 		int offset;
 		virtual void set_string(base_resource*,string s);
@@ -132,6 +127,7 @@ namespace objrdf{
 		virtual int get_size(base_resource* subject)=0;
 		virtual void add_property(base_resource* subject,int index);//could have insert instead
 		virtual shared_ptr<base_resource> get_object(base_resource* subject,int index);
+		virtual void erase(base_resource* subject,int first,int last);
 		virtual void set_object(base_resource* subject,shared_ptr<base_resource> object,int index);
 		generic_property(shared_ptr<rdf::Property> p,const bool literalp);
 		void print() const;
@@ -196,12 +192,15 @@ namespace objrdf{
 			inline void* current() const {return (char*)subject+BASE::operator*()->offset;}
 		};
 	public:
+		//to be investigated ...
+		//template<typename T> friend class special::shared_ptr<T>; 
 		typedef base_resource SELF;
 		//should be moved to .cpp
 		/*
  		*	private so it does not inherit iterator comparison operators
  		*/ 
 		struct instance_iterator:private base_resource::iterator{
+			friend class base_resource; //for base_resource::erase
 			unsigned int index;
 			instance_iterator():index(0){} //what can we do with this?, not much
 			instance_iterator(base_resource::iterator i,int index):base_resource::iterator(i),index(index){}
@@ -246,9 +245,9 @@ namespace objrdf{
 			instance_iterator end(){return instance_iterator(*this,get_size());}
 			instance_iterator add_property();
 		};
-		virtual type_iterator begin(){return type_iterator(this,v.begin());}
-		virtual type_iterator end(){return type_iterator(this,v.end());}
-
+		virtual type_iterator begin();
+		virtual type_iterator end();
+		void erase(instance_iterator first,instance_iterator last);
 		virtual void end_resource(){};//will be invoked when finished parsing the element
 		/*
  		* intrusive reference counting pg167 `Modern C++ design' Alexandrescu 
@@ -370,10 +369,6 @@ namespace objrdf{
 		static int get_offsetof(){return 0;}//ugly, should look into macro
 		static shared_ptr<rdfs::Class> get_class();	
 		virtual rdfs::Class* get_Class(){return get_class().get();};
-		//we still need a rdfs::type property
-		//static V v;
-		//base_resource::type_iterator begin(){return base_resource::type_iterator(this,v.begin());}
-		//base_resource::type_iterator end(){return base_resource::type_iterator(this,v.end());}
 	};
 	/*
 	template<
@@ -395,11 +390,8 @@ namespace objrdf{
 	};
 	template<typename RANGE> class base_property<RANGE*>:public shared_ptr<RANGE>{
 	public:
-		//not sure we need that
-		//RANGE* get() const{return shared_ptr<RANGE>::operator->();}
 		void set(const base_property& p){*this=p;}
 		base_property(){}
-		//base_property(RANGE* r):shared_ptr<RANGE>(r){}
 		base_property(const shared_ptr<RANGE>& s):shared_ptr<RANGE>(s){}
 	};
 	template<
@@ -554,7 +546,7 @@ namespace rdfs{
 }//end namespace rdfs
 namespace objrdf{
 	_PROPERTY(p_index,short);//each property has a unique index useful for fast serialization/parsing
-	_PROPERTY(p_self,rdf::Property*);//points to itself, used by sparql_engine.cpp but creates loop that crashes!
+	_PROPERTY(p_self,rdf::Property*);
 }
 namespace rdf{
 	char _Property[]="Property";
@@ -677,6 +669,10 @@ namespace objrdf{
 		virtual int get_size(base_resource* subject){
 			return static_cast<SUBJECT*>(subject)->template get<PREDICATE>().get()!=0;
 		}
+		virtual void erase(base_resource* subject,int first,int last){
+			cerr<<"erase:"<<subject<<"\t"<<first<<"\t"<<last<<endl;
+			static_cast<SUBJECT*>(subject)->template get<PREDICATE>()=shared_ptr<typename PREDICATE::element_type>();
+		}
 	};
 	/*
 	template<
@@ -716,6 +712,10 @@ namespace objrdf{
 		virtual void add_property(base_resource* subject,int index){
 			static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>().push_back(PREDICATE());
 		}
+		virtual void erase(base_resource* subject,int first,int last){
+			PREDICATE_ARRAY& v=static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>();
+			v.erase(v.begin()+first,v.begin()+last);
+		}
 	};
 	template<
 		typename SUBJECT,
@@ -740,6 +740,10 @@ namespace objrdf{
 		}
 		virtual void add_property(base_resource* subject,int index){
 			static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>().push_back(PREDICATE());
+		}
+		virtual void erase(base_resource* subject,int first,int last){
+			PREDICATE_ARRAY& v=static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>();
+			v.erase(v.begin()+first,v.begin()+last);
 		}
 	};
 	/*
