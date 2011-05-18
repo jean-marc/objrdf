@@ -22,13 +22,14 @@
 
 
 */
-#define LOG if(0) cerr
+//#define LOG if(0) cerr
+#define LOG cerr
 #define ERROR_PARSER cerr
 namespace objrdf{
 	struct rdf_xml_parser:xml_parser<rdf_xml_parser>{
 		bool string_property;
 		std::stack<shared_ptr<base_resource> > st;
-		typedef multimap<string,base_resource::instance_iterator> MISSING_OBJECT;
+		typedef multimap<uri,base_resource::instance_iterator> MISSING_OBJECT;
 		MISSING_OBJECT missing_object;//store all the properties waiting for object
 		rdf::RDF& doc;
 		/*
@@ -37,15 +38,15 @@ namespace objrdf{
  		*/ 
 		shared_ptr<base_resource> placeholder;
 		base_resource::type_iterator current_property;
-		int depth;//could use xml_parser<>::depth
+		//int depth;//could use xml_parser<>::depth
 		void set_missing_object(shared_ptr<base_resource>); 
 		rdf_xml_parser(rdf::RDF& _doc,std::istream& is);
-		bool start_resource(string name,ATTRIBUTES att);
-		bool end_resource(string name);
-		bool start_property(string name,ATTRIBUTES att);
-		bool end_property(string name);
-		bool start_element(string name,ATTRIBUTES att);
-		bool end_element(string name);
+		bool start_resource(uri name,ATTRIBUTES att);
+		bool end_resource(uri name);
+		bool start_property(uri name,ATTRIBUTES att);
+		bool end_property(uri name);
+		bool start_element(uri name,ATTRIBUTES att);
+		bool end_element(uri name);
 		bool characters(string s);
 		bool go();
 	};
