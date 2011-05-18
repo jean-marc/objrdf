@@ -16,15 +16,15 @@ void generic_property::set_string(base_resource*,string s){};
 void generic_property::in(base_resource*,istream& is,int){assert(0);}; 
 void generic_property::out(base_resource*,ostream& os,int){assert(0);};
 void generic_property::add_property(base_resource*,int){};
-shared_ptr<base_resource> generic_property::get_object(base_resource*,int){return 0;};
-void generic_property::set_object(base_resource*,base_resource*,int){};
-generic_property::generic_property(rdf::Property* p,const bool literalp):p(p),literalp(literalp),offset(0){}
+shared_ptr<base_resource> generic_property::get_object(base_resource*,int){return shared_ptr<base_resource>();};
+void generic_property::set_object(base_resource*,RES_PTR,int){};
+generic_property::generic_property(shared_ptr<rdf::Property> p,const bool literalp):p(p),literalp(literalp),offset(0){}
 void generic_property::print() const{
 	cerr<<p.get()<<"\t"<<p->id<<"\t\t"<<literalp<<"\t"<<offset<<endl;
 }
-pseudo_property::pseudo_property(rdfs::Class* object):generic_property(rdf::type::get_property(),false),object(object){}
+pseudo_property::pseudo_property(shared_ptr<rdfs::Class> object):generic_property(rdf::type::get_property(),false),object(object){}
 int pseudo_property::get_size(base_resource* subject){return 1;}
-void pseudo_property::set_object(base_resource* subject,base_resource* object,int index){
+void pseudo_property::set_object(base_resource* subject,RES_PTR object,int index){
 	cerr<<"the type can not be changed!"<<endl;
 }
 /*
@@ -33,19 +33,25 @@ void pseudo_property::out(base_resource*,ostream& os,int){}
 */
 shared_ptr<base_resource> pseudo_property::get_object(base_resource* subject,int index){return object;}
 
-vector<rdfs::Class*>& rdfs::Class::get_instances(){
-	static vector<Class*> v;
+vector<shared_ptr<rdfs::Class> >& rdfs::Class::get_instances(){
+	static vector<shared_ptr<rdfs::Class> > v;
 	return v;
 }
+/*
 rdfs::Class::Class():f(0){
 	get<c_index>().t=get_instances().size();
 	get_instances().push_back(this);
+}
+*/
+rdfs::Class::Class(uri u):SELF(u),f(0){
+	get<c_index>().t=get_instances().size();
+	get_instances().push_back(shared_ptr<rdfs::Class>(this));
 }
 rdfs::Class::Class(objrdf::uri id,rdfs::subClassOf s,objrdf::fpt f,string comment_str):rdfs::Class::SELF(id),f(f){
 	//cerr<<"creating Class "<<id<<" ref count:"<<n<<endl;
 	//objrdf::uri::print();
 	get<c_index>().t=get_instances().size();
-	get_instances().push_back(this);
+	get_instances().push_back(shared_ptr<rdfs::Class>(this));
 	get<comment>().t=comment_str;
 	get<subClassOf>()=s;
 }
@@ -59,37 +65,54 @@ bool rdfs::Class::operator<=(rdfs::Class& c) const{
 	return (*this==c)||(*this<c);
 }
 bool rdfs::Class::literalp(){
-	return (this==rdf::Literal::get_class()) || (get<subClassOf>().get() && get<subClassOf>()->literalp());
+	return (this==rdf::Literal::get_class().get()) || (get<subClassOf>() && get<subClassOf>()->literalp());
 }
-rdfs::Class* base_resource::get_class(){
-	//static rdfs::Class* c=new rdfs::Class(objrdf::uri::_uri_(rdfs::rdfs_namespace,"Resource"),shared_ptr<rdfs::Class>(0),get_constructor<base_resource>(),get_comment());
-	static rdfs::Class* c=new rdfs::Class(objrdf::uri(rdfs::rdfs_namespace::A,rdfs::rdfs_namespace::B,"Resource"),shared_ptr<rdfs::Class>(0),get_constructor<base_resource>(),get_comment());
+shared_ptr<rdfs::Class> base_resource::get_class(){
+	static shared_ptr<rdfs::Class> c(new rdfs::Class(objrdf::get_uri<rdfs::rdfs_namespace>("Resource"),shared_ptr<rdfs::Class>(),get_constructor<base_resource>(),get_comment()));
 	return c;
 }
-vector<rdf::Property*>& rdf::Property::get_instances(){
-	static vector<rdf::Property*> v;
+vector<shared_ptr<rdf::Property> >& rdf::Property::get_instances(){
+	static vector<shared_ptr<rdf::Property> > v;
 	return v;
 }
+/*
 rdf::Property::Property():literalp(true){
 	get<p_index>().t=get_instances().size();
 	get<p_self>()=this;
 	get_instances().push_back(this);
 }
+*/
+rdf::Property::Property(objrdf::uri id):SELF(id),literalp(true){
+	get<p_index>().t=get_instances().size();
+	#ifdef VERBOSE
+	cerr<<get<p_self>().use_count()<<endl;
+	#endif
+	//that does not work with shared_ptr
+	get<p_self>()=shared_ptr<rdf::Property>(this);
+	#ifdef VERBOSE
+	cerr<<get<p_self>().use_count()<<endl;
+	#endif
+	get_instances().push_back(shared_ptr<rdf::Property>(this));
+	#ifdef VERBOSE
+	cerr<<get<p_self>().use_count()<<endl;
+	#endif
+}
 rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp):rdf::Property::SELF(id),literalp(literalp){
 	//cerr<<"creating Property "<<id<<" ref count:"<<n<<" range:"<<r->id<<" range ref count:"<<r->n<<endl;
 	get<rdfs::range>()=r;
 	get<p_index>().t=get_instances().size();
-	get<p_self>()=this;
-	get_instances().push_back(this);
+	get<p_self>()=shared_ptr<rdf::Property>(this);
+	get_instances().push_back(shared_ptr<rdf::Property>(this));
 }
 base_resource::instance_iterator rdf::Property::get_self_iterator(){
 	return base_resource::instance_iterator(this,v.begin()+5,0);//should make sure position does not change!
 }
-shared_ptr<rdf::Property> rdf::Property::nil=shared_ptr<rdf::Property>(new rdf::Property());
+shared_ptr<rdf::Property> rdf::Property::nil=shared_ptr<rdf::Property>(new rdf::Property(uri("nil_p")));
 
 V base_resource::v;
 
 shared_ptr<base_resource> base_resource::nil=shared_ptr<base_resource>(new base_resource(uri("nil")));
+/*
 namespace objrdf{
 	struct C;
 	_PROPERTY(p,C*);
@@ -102,12 +125,13 @@ namespace objrdf{
 shared_ptr<objrdf::C> make_cycle(){
 	objrdf::C* a_C=new objrdf::C(uri("cycle"));
 	a_C->get<objrdf::p>()=a_C;
-	return a_C;
+	return shared_ptr<objrdf::C>(a_C);
 }
 shared_ptr<base_resource> base_resource::cycle=make_cycle();
 base_resource::instance_iterator base_resource::instance_iterator::help(){
 	return base_resource::instance_iterator(base_resource::cycle.get(),C::v.begin()+1,0);
 }
+*/
 shared_ptr<rdf::Property> base_resource::iterator::get_Property() const{return BASE::operator*()->p;}
 shared_ptr<rdf::Property> base_resource::instance_iterator::get_Property() const{return BASE::operator*()->p;}
 
@@ -131,7 +155,7 @@ void base_resource::instance_iterator::set_string(string s){
 shared_ptr<base_resource> base_resource::instance_iterator::get_object() const{
 	return BASE::operator*()->get_object(subject,index);
 }
-void base_resource::instance_iterator::set_object(base_resource* r){
+void base_resource::instance_iterator::set_object(RES_PTR r){
 	BASE::operator*()->set_object(subject,r,index);
 }
 base_resource::instance_iterator base_resource::type_iterator::add_property(){
@@ -212,7 +236,7 @@ void base_resource::to_rdf_xml_pretty(ostream& os){
 	else	
 		id.to_uri(os);
 #ifdef VERBOSE
-	os<<"' ref_count='"<<n;
+	//os<<"' ref_count='"<<n;
 #endif
 	os<<"'\033[36m>";
 	for(base_resource::type_iterator i=begin();i!=end();++i){
@@ -263,7 +287,7 @@ void base_resource::to_xml(ostream& os){
 	}
 	os<<"</"<<get_Class()->id<<">";
 }
-void rdf::RDF::insert(objrdf::shared_ptr<objrdf::base_resource> r){
+void rdf::RDF::insert(shared_ptr<objrdf::base_resource> r){
 	if(r->id.empty()){
 		//v.push_back(r);//maybe should be given id: pointer
 		get<V>().push_back(r);
@@ -272,19 +296,21 @@ void rdf::RDF::insert(objrdf::shared_ptr<objrdf::base_resource> r){
 		if(i==m.end()){
 			//v.push_back(r);
 			get<V>().push_back(r);
-			m[r->id]=r.get();
+			m[r->id]=r;
 		}else{
-			//duplicate resource
+			#ifdef VERBOSE
+			cerr<<"duplicate resource :'"<<r->id<<"'"<<endl;
+			#endif
 			//delete r when goes out of scope!
 		}
 	}
 };	
-objrdf::base_resource* rdf::RDF::find(uri s){
+shared_ptr<base_resource> rdf::RDF::find(uri s){
 	/*
- 	*	
+ 	*		
  	*/
 	MAP::iterator i=m.find(s);
-	return (i!=m.end()) ? i->second : 0;
+	return (i!=m.end()) ? shared_ptr<base_resource>(i->second) : RES_PTR();
 };
 void rdf::RDF::to_rdf_xml(ostream& os){
 	os<<"<"<<_RDF<<"\n";
@@ -315,22 +341,30 @@ void rdf::RDF::to_rdf_xml_pretty(ostream& os){
 //#endif
 	os<<endl;
 }
-objrdf::shared_ptr<objrdf::base_resource> rdf::RDF::query(uri _i){
+shared_ptr<objrdf::base_resource> rdf::RDF::query(uri _i){
 	MAP::iterator i=m.find(_i);	
-	return (i!=m.end()) ? i->second : 0;
+	return (i!=m.end()) ? RES_PTR(i->second) : RES_PTR();
 }
-rdf::RDF::RDF(){
-	/*
- 	*	DO NOT CHANGE THE ORDER, used by sparql_engine.cpp to get iterators
- 	*/
-	for(vector<rdf::Property*>::iterator i=rdf::Property::get_instances().begin();i<rdf::Property::get_instances().end();++i){
-		insert(*i);
-	}
-	for(vector<rdfs::Class*>::iterator i=rdfs::Class::get_instances().begin();i<rdfs::Class::get_instances().end();++i){
-		insert(*i);
-	}
+rdf::RDF::RDF(uri u):SELF(u){
+	for(auto i=rdf::Property::get_instances().begin();i<rdf::Property::get_instances().end();++i) insert(*i);
+	for(auto i=rdfs::Class::get_instances().begin();i<rdfs::Class::get_instances().end();++i) insert(*i);
 	insert(base_resource::nil);
-	//insert(base_resource::cycle);
+}
+rdf::RDF::~RDF(){
+	/*
+ 	*	before deleting resources all the links need to be severed
+ 	*/ 
+	for(auto i=get<V>().begin();i!=get<V>().end();++i){
+		for(auto j=(*i)->begin();j<(*i)->end();++j){
+			for(auto k=j->begin();k<j->end();++k){
+				if(!k->literalp()){
+					k->set_object(shared_ptr<objrdf::base_resource>());
+				}
+			}
+		}
+	}
+	to_rdf_xml_pretty(cerr);
+	cerr<<"~RDF()"<<endl;
 }
 /*
 int main(){
