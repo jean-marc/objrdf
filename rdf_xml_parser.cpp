@@ -17,7 +17,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 	if(current_property!=st.top()->end()){
 		if(current_property->get_Property()->get<rdfs::range>().get()->id==name){
 			assert(current_property->get_Property()->get<rdfs::range>()->f);
-			shared_ptr<base_resource> r=shared_ptr<base_resource>(current_property->get_Property()->get<rdfs::range>()->f(att[rdf::ID]));
+			shared_ptr<base_resource> r=shared_ptr<base_resource>(current_property->get_Property()->get<rdfs::range>()->f(uri(att[rdf::ID])));
 			//LOG<<"new resource:"<<r->id<<endl;
 			current_property->add_property()->set_object(r);
 			set_missing_object(r);
@@ -99,7 +99,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 				rdfs::Class& c=*static_cast<rdfs::Class*>(r.get());
 				if(*current_property->get_Property()->get<rdfs::range>() < c){
 					assert(c.f);
-					shared_ptr<base_resource> r=shared_ptr<base_resource>(c.f(att[rdf::ID]));
+					shared_ptr<base_resource> r=shared_ptr<base_resource>(c.f(uri(att[rdf::ID])));
 					//LOG<<"new resource:"<<r->id<<endl;
 					//r->id=att[rdf::ID];
 					current_property->add_property()->set_object(r);
@@ -176,7 +176,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 			if(r&&r->get_Class()==rdfs::Class::get_class().get()){
 				rdfs::Class& c=*static_cast<rdfs::Class*>(r.get());
 				assert(c.f);
-				shared_ptr<base_resource> subject(c.f(att[rdf::ID]));
+				shared_ptr<base_resource> subject(c.f(uri(att[rdf::ID])));
 				//LOG<<"new resource:"<<subject->id<<endl;
 				//subject->id=att[rdf::ID];
 				set_missing_object(subject);
