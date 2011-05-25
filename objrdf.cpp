@@ -160,7 +160,8 @@ base_resource::instance_iterator base_resource::type_iterator::add_property(){
 	return instance_iterator(*this,get_size()-1);
 }
 void base_resource::_tmp_::operator=(const string& value){
-	base_resource::type_iterator i=std::find_if(r.begin(),r.end(),namep(key));
+	/*
+  	base_resource::type_iterator i=std::find_if(r.begin(),r.end(),namep(key));
 	if(i!=r.end()){
 		if(i->literalp()){
 			istringstream is(value);
@@ -172,6 +173,7 @@ void base_resource::_tmp_::operator=(const string& value){
 	}else{
 		cerr<<"property not found\n";
 	}
+	*/
 }
 void base_resource::to_turtle(ostream& os){
 	os<<id<<" ";
