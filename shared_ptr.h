@@ -4,6 +4,13 @@
 	a generic shared pointer , the type T MUST have a member int T::n 
 	intrusive reference counting pg167 `Modern C++ design' Alexandrescu 
 */
+/*
+ *	since it is customized anyway we could have some special behaviour when
+ *	n reaches 1 or 2, because it might mean that the resource is only referenced
+ *	by the RDF document (in the map and the vector) and it is ready for 
+ *	deletion. It might be desirable to leave a resource dangling for later reuse.
+ *
+ */
 #ifdef VERBOSE
 #include <iostream>
 #endif
@@ -32,24 +39,37 @@ namespace special{
  			*	works also if `this' and `s' point to same object 
  			*/	
 			if(t){
+				#ifdef VERBOSE
+				std::cerr<<t<<"\tattempting to delete `"<<t->id<<"'\t"<<t->n<<std::endl;
+				#endif
 				--(t->n);
-				if(t->n==0) delete t;
+				if(t->n==0){
+					delete t;
+					#ifdef VERBOSE
+					std::cerr<<"deleted"<<std::endl;
+					#endif
+				}
 			}
 			t=s.t;
 			if(t) ++(t->n);
 			return *this;
 		}
 		bool operator==(const shared_ptr & s) const{return t==s.t;}
-		bool operator!=(const shared_ptr & s) const{return t==s.t;}
+		bool operator!=(const shared_ptr & s) const{return t!=s.t;}
 		bool operator!()const{return t==0;}
 		operator bool()const{return t;}
 		~shared_ptr(){
 			if(t){
 				#ifdef VERBOSE
-				std::cerr<<"attempting to delete "<<t->id<<"\t"<<t->n<<std::endl;
+				std::cerr<<t<<"\tattempting to delete `"<<t->id<<"'\t"<<t->n<<std::endl;
 				#endif
 				--(t->n);
-				if(t->n==0) delete t;
+				if(t->n==0){
+					delete t;
+					#ifdef VERBOSE
+					std::cerr<<"deleted"<<std::endl;
+					#endif
+				}
 			}
 		}
 	};
