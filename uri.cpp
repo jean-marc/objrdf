@@ -60,7 +60,7 @@ uri uri::hash_uri(string s){
 	size_t i=s.find_first_of('#');
 	switch(i){
 		case 0:return uri(s.substr(i+1));
-		case string::npos:return s; //not sure what to do here?
+		case string::npos:return uri(s); //not sure what to do here?
 		default:return uri(s.substr(0,i+1),s.substr(i+1));
 	}
 	//return (i!=string::npos) ? uri(s.substr(0,i+1),s.substr(i+1)) : uri(s);

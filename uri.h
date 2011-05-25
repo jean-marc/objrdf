@@ -13,7 +13,7 @@ namespace objrdf{
  		*	how to build uri from `http://www.w3.org/2000/01/rdf-schema#Class'?
  		*	there are 2 types of uri hash uri
  		*/ 
-		uri(string local);
+		explicit uri(string local);
 		uri(string ns,string local);
 		uri(string ns,string prefix,string local);
 		/*
