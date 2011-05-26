@@ -172,6 +172,68 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 				//st.push(placeholder);
 			}
 		}else{
+			/*
+ 			*	missing case where rdf:about present!
+ 			*/ 
+			ATTRIBUTES::iterator i=att.find(rdf::about);
+			if(i!=att.end()){
+				shared_ptr<base_resource> subject=doc.find(uri::hash_uri(i->second));
+				if(subject){
+					st.push(subject);
+					for(base_resource::type_iterator i=subject->begin();i!=subject->end();++i){
+						ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
+						if(j!=att.end()){
+							istringstream is(j->second);
+							i->add_property()->in(is);
+						}
+					}
+				}else{
+					shared_ptr<rdfs::Class> r=doc.query_t<rdfs::Class>(name);
+					if(r){
+						assert(r->f);
+						shared_ptr<base_resource> subject(r->f(uri::hash_uri(i->second)));
+						set_missing_object(subject);
+						st.push(subject);
+						doc.insert(subject);
+						for(base_resource::type_iterator i=subject->begin();i!=subject->end();++i){
+							ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
+							if(j!=att.end()){
+								istringstream is(j->second);
+								i->add_property()->in(is);
+							}
+						}
+					}else{
+						ERROR_PARSER<<"Class `"<<name<<"' not found"<<endl;
+						st.push(shared_ptr<base_resource>(new base_resource(uri::hash_uri(i->second))));
+					}
+				}
+			}else{
+				ATTRIBUTES::iterator i=att.find(rdf::ID);
+				if(i!=att.end()){
+					shared_ptr<rdfs::Class> r=doc.query_t<rdfs::Class>(name);
+					if(r){
+						assert(r->f);
+						shared_ptr<base_resource> subject(r->f(uri::hash_uri(i->second)));
+						set_missing_object(subject);
+						st.push(subject);
+						doc.insert(subject);
+						for(base_resource::type_iterator i=subject->begin();i!=subject->end();++i){
+							ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
+							if(j!=att.end()){
+								istringstream is(j->second);
+								i->add_property()->in(is);
+							}
+						}
+					}else{
+						ERROR_PARSER<<"Class `"<<name<<"' not found"<<endl;
+						st.push(shared_ptr<base_resource>(new base_resource(uri::hash_uri(i->second))));
+					}
+
+				}else{
+					st.push(placeholder);
+				}
+			}
+			/*
 			shared_ptr<base_resource> r=doc.find(name);
 			if(r&&r->get_Class()==rdfs::Class::get_class().get()){
 				rdfs::Class& c=*static_cast<rdfs::Class*>(r.get());
@@ -193,7 +255,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 			}else{
 				ERROR_PARSER<<"Class `"<<name<<"' not found"<<endl;
 				st.push(placeholder);
-			}
+			}*/
 		}
 	}
 	return true;
