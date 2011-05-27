@@ -19,7 +19,6 @@ namespace objrdf{
 		/*
  		*	named constructor idiom: http://www.parashift.com/c++-faq-lite/ctors.html#faq-10.8
  		*/ 
-		//static uri _uri_(string ns_and_prefix,string local);//deprecated
 		static uri hash_uri(string s);
 		bool empty() const;
 		bool is_local() const;

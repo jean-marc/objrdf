@@ -46,13 +46,6 @@ uri::uri(string ns,string prefix,string local):local(local){
 		index=i-_ns_v_.begin();
 	}
 }
-//uri uri::_uri_(string ns_and_prefix,string local){
-	/*
- 	*	looks for white space that separates URI from prefix 
- 	*/
-	//size_t i=ns_and_prefix.find_first_of(' ');
-	//return (i!=string::npos) ? uri(ns_and_prefix.substr(0,i),ns_and_prefix.substr(i+1),local) : uri(ns_and_prefix,local);
-//}
 uri uri::hash_uri(string s){
 	/*
  	*	
@@ -84,17 +77,27 @@ void uri::print(){
 	for(vector<ns_prefix>::iterator i=ns_v().begin();i<ns_v().end();++i)
 		cout<<(i-ns_v().begin())<<"\t"<<i->second<<"\t"<<i->first<<endl;
 }
+bool comp(const uri::ns_prefix& a,const uri::ns_prefix& b){return a.second<b.second;}
+struct pred{
+	const string s;
+	pred(const string s):s(s){}
+	bool operator()(const uri::ns_prefix& u){return u.second==s;}
+};
 void uri::check(){
 	int index=0;
+	//print();
+	/*
+ 	*	make sure all prefixes are unique
+ 	*	it could also be nice t
+ 	*/ 
 	for(vector<ns_prefix>::iterator i=ns_v().begin()+1;i<ns_v().end();++i){
-		if(i->second.empty()){
+		if(count_if(ns_v().begin()+1,ns_v().end(),pred(i->second))>1){
 			ostringstream os;
 			os<<"_"<<index<<":";
 			i->second=os.str();
 			++index;
 		}
 	}
-	
 }
 void uri::ns_declaration(ostream& os){
 	check();
