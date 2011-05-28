@@ -428,7 +428,7 @@ namespace rdf{
 	struct RDF:objrdf::resource<rdfs_namespace,_RDF_,objrdf::p_array<objrdf::pp>,RDF>{//document
 		/*	it would be neat to have an iterator based on a sparql query but with
 		 *	casting if all the types are the same, should the query be run first and 
-		 *	the result stored in a temporary array
+		 *	the result stored in a temporary array?
 		 */
 		RDF(objrdf::uri id=objrdf::uri("rdf_doc"));
 		~RDF();
@@ -441,7 +441,17 @@ namespace rdf{
 		void to_rdf_xml_pretty(ostream& os);//the document should not have loops!!!
 		void to_turtle(ostream& os);
 		void to_turtle_pretty(ostream& os);
-		shared_ptr<objrdf::base_resource> query(objrdf::uri _i);
+		shared_ptr<objrdf::base_resource> query(objrdf::uri id);
+		/*
+ 		* 	templated static version, the query is only run once, a type (or enum)
+ 		* 	needs to be associated with the resource (similar to some_class::get_class())
+ 		*	so each query has its own function.
+ 		*	shared_ptr<base_resource> r=query_static<some_resource>(); 	
+ 		*	the returned could also be typed 
+ 		*/ 	
+		template<typename T> shared_ptr<objrdf::base_resource> query_static(){
+
+		}
 		template<typename T> shared_ptr<T> query_t(objrdf::uri id){
 			shared_ptr<objrdf::base_resource> tmp=query(id);
 			return (tmp.operator->()&&(*T::get_class()<=*tmp->get_Class()))? static_pointer_cast<T>(tmp) : shared_ptr<T>();
@@ -584,6 +594,7 @@ namespace objrdf{
 	>
 	shared_ptr<rdfs::Class> resource<NAMESPACE,NAME,NIL,SUPERCLASS,SUBCLASS>::get_class(){
 		typedef typename IfThenElse<equality<SUPERCLASS,NIL>::VALUE,resource,SUPERCLASS>::ResultT TMP;
+		//the static variable c will exist until program exits
 		static shared_ptr<rdfs::Class> c(new rdfs::Class(objrdf::get_uri<NAMESPACE>(NAME),rdfs::subClassOf(SUBCLASS::get_class()),get_constructor<TMP>(),TMP::get_comment!=SUBCLASS::get_comment ? TMP::get_comment() : ""));
 		return c;
 	}
@@ -799,7 +810,7 @@ namespace objrdf{
 		static V go(){
 			V v=get_generic_property<typename SUBCLASS::SELF>::go();
 			//problem there
-			v.push_back(new pseudo_property(RESOURCE::get_class()));
+			v.insert(v.begin(),new pseudo_property(RESOURCE::get_class()));
 			//v.push_back(new _property_<RESOURCE,rdfs::type,rdfs::type>());
 			//v.push_back(new _property_<RESOURCE,rdfs::type>());
 			//v.push_back(rdf::type);
