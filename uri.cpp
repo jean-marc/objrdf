@@ -22,8 +22,15 @@ struct match_ns{
 	match_ns(const string ns):ns(ns){}
 	bool operator()(uri::ns_prefix& n)const{return ns==n.first;}
 };
-uri::uri():index(0){}
-uri::uri(string local):local(local),index(0){}
+uri::uri():index(0){
+	cerr<<"new uri `"<<local<<"'"<<endl;
+}
+string get(void* p){
+	ostringstream os;
+	os<<p;
+	return os.str();
+}
+uri::uri(string local):local(local.empty()?get(this):local),index(0){}
 uri::uri(string ns,string local):local(local){
 	//for performance
 	static vector<ns_prefix>& _ns_v_=ns_v();
