@@ -2,7 +2,7 @@
 #include <sstream>
 #include <algorithm>
 namespace objrdf{
-	//color scheme in bash, can be customized by namespace
+	//color scheme in bash, could be customized by namespace
 	char start_id[]="\033[32m";
 	char stop_id[]="\033[m";
 }
@@ -81,16 +81,16 @@ rdf::Property::Property():literalp(true){
 */
 rdf::Property::Property(objrdf::uri id):SELF(id),literalp(true){
 	get<p_index>().t=get_instances().size();
-	#ifdef VERBOSE
+	#ifdef OBJRDF_VERB
 	cerr<<get<p_self>().use_count()<<endl;
 	#endif
 	//that does not work with shared_ptr
 	get<p_self>()=shared_ptr<rdf::Property>(this);
-	#ifdef VERBOSE
+	#ifdef OBJRDF_VERB
 	cerr<<get<p_self>().use_count()<<endl;
 	#endif
 	get_instances().push_back(shared_ptr<rdf::Property>(this));
-	#ifdef VERBOSE
+	#ifdef OBJRDF_VERB
 	cerr<<get<p_self>().use_count()<<endl;
 	#endif
 }
@@ -109,26 +109,6 @@ shared_ptr<rdf::Property> rdf::Property::nil=shared_ptr<rdf::Property>(new rdf::
 V base_resource::v;
 
 shared_ptr<base_resource> base_resource::nil=shared_ptr<base_resource>(new base_resource(uri("nil")));
-/*
-namespace objrdf{
-	struct C;
-	_PROPERTY(p,C*);
-	char _C[]="C";
-	struct C:resource<_rdfs_namespace,_C,p,C>{
-		C(){}
-		C(uri u):SELF(u){}
-	};
-}
-shared_ptr<objrdf::C> make_cycle(){
-	objrdf::C* a_C=new objrdf::C(uri("cycle"));
-	a_C->get<objrdf::p>()=a_C;
-	return shared_ptr<objrdf::C>(a_C);
-}
-shared_ptr<base_resource> base_resource::cycle=make_cycle();
-base_resource::instance_iterator base_resource::instance_iterator::help(){
-	return base_resource::instance_iterator(base_resource::cycle.get(),C::v.begin()+1,0);
-}
-*/
 shared_ptr<rdf::Property> base_resource::iterator::get_Property() const{return BASE::operator*()->p;}
 shared_ptr<rdf::Property> base_resource::instance_iterator::get_Property() const{return BASE::operator*()->p;}
 
@@ -205,36 +185,29 @@ void base_resource::to_turtle_pretty(ostream& os){
 	*/
 }
 void base_resource::to_rdf_xml(ostream& os){
-	os<<"<"<<get_Class()->id<<" ";//<<rdf::ID<<"='";
-	os<<(id.is_local() ? rdf::ID : rdf::about)<<"='";
-	if(id.empty())
-		os<<this;
-	else	
-		id.to_uri(os);
+	os<<"\n<"<<get_Class()->id<<" "<<(id.is_local() ? rdf::ID : rdf::about)<<"='";
+	id.to_uri(os);
 	os<<"'>";
 	for(base_resource::type_iterator i=begin();i!=end();++i){
 		for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
 			if(i->literalp())
-				os<<"<"<<i->get_Property()->id<<">"<<*j<<"</"<<i->get_Property()->id<<">";
+				os<<"\n\t<"<<i->get_Property()->id<<">"<<*j<<"</"<<i->get_Property()->id<<">";
 			else{
-				os<<"<"<<i->get_Property()->id<<" "<<rdf::resource<<"='"<<(j->get_object()->id.is_local() ? "#" : "");
+				os<<"\n\t<"<<i->get_Property()->id<<" "<<rdf::resource<<"='"<<(j->get_object()->id.is_local() ? "#" : "");
 				j->get_object()->id.to_uri(os);
 				os<<"'/>";
 			}
 		}
 	}
-	os<<"</"<<get_Class()->id<<">";
+	os<<"\n</"<<get_Class()->id<<">";
 }
 void base_resource::to_rdf_xml_pretty(ostream& os){
 	/*
  	*	we can only use rdf:ID if the resource is local, that is if uri::index==0
  	*/ 
-	os<<"\n\033[36m<"<<get_Class()->id<<" \033[32m"<<(id.is_local() ? rdf::ID : rdf::about)<<"=\033[31m'";//<<id<<"'>";
-	if(id.empty())
-		os<<this;
-	else	
-		id.to_uri(os);
-#ifdef VERBOSE
+	os<<"\n\033[36m<"<<get_Class()->id<<" \033[32m"<<(id.is_local() ? rdf::ID : rdf::about)<<"=\033[31m'";
+	id.to_uri(os);
+#ifdef OBJRDF_VERB
 	//os<<"' ref_count='"<<n;
 #endif
 	os<<"'\033[36m>";
@@ -243,8 +216,7 @@ void base_resource::to_rdf_xml_pretty(ostream& os){
 			if(i->literalp())
 				os<<"\n\t\033[36m<"<<i->get_Property()->id<<">\033[m"<<*j<<"\033[36m</"<<i->get_Property()->id<<">";
 			else{
-				os<<"\n\t\033[36m<"<<i->get_Property()->id<<" \033[32m"<<rdf::resource<<"=\033[31m'";
-				os<<(j->get_object()->id.is_local() ? "#" : "");
+				os<<"\n\t\033[36m<"<<i->get_Property()->id<<" \033[32m"<<rdf::resource<<"=\033[31m'"<<(j->get_object()->id.is_local() ? "#" : "");
 				j->get_object()->id.to_uri(os);
 				os<<"'\033[36m/>";
 			}
@@ -288,16 +260,14 @@ void base_resource::to_xml(ostream& os){
 }
 void rdf::RDF::insert(shared_ptr<objrdf::base_resource> r){
 	if(r->id.empty()){
-		//v.push_back(r);//maybe should be given id: pointer
 		get<V>().push_back(r);
 	}else{
 		MAP::iterator i=m.find(r->id);
 		if(i==m.end()){
-			//v.push_back(r);
 			get<V>().push_back(r);
 			m[r->id]=r;
 		}else{
-			#ifdef VERBOSE
+			#ifdef OBJRDF_VERB
 			cerr<<"duplicate resource :'"<<r->id<<"'"<<endl;
 			#endif
 			//delete r when goes out of scope!
@@ -311,62 +281,60 @@ shared_ptr<base_resource> rdf::RDF::find(uri s){
 	MAP::iterator i=m.find(s);
 	return (i!=m.end()) ? shared_ptr<base_resource>(i->second) : shared_ptr<base_resource>();
 };
-void rdf::RDF::to_rdf_xml(ostream& os){
-	os<<"<"<<_RDF<<"\n";
-	uri::ns_declaration(os);
-	os<<">";
-	//for(V::iterator i=v.begin();i!=v.end();++i) (*i)->to_rdf_xml(os);
-	for(V::iterator i=get<V>().begin();i!=get<V>().end();++i) (*i)->to_rdf_xml(os);
-	os<<"</"<<_RDF<<">";
-}
 void rdf::RDF::to_turtle(ostream& os){
 	//for(V::iterator i=v.begin();i!=v.end();++i) (*i)->to_turtle(os);
 }
 void rdf::RDF::to_turtle_pretty(ostream& os){
 	//for(V::iterator i=v.begin();i!=v.end();++i) (*i)->to_turtle_pretty(os);
 }
+void rdf::RDF::to_rdf_xml(ostream& os){
+	os<<"<"<<_RDF<<"\n";
+	uri::ns_declaration(os);
+	os<<">";
+	for(V::iterator i=get<V>().begin();i!=get<V>().end();++i) (*i)->to_rdf_xml(os);
+	os<<"\n</"<<_RDF<<">\n";
+}
 void rdf::RDF::to_rdf_xml_pretty(ostream& os){
-//#ifdef WIN32
-//	os<<"<RDF>";
-//	for(V::iterator i=v.begin();i!=v.end();++i) (*i)->to_rdf_xml_pretty(os);
-//	os<<"\n</RDF>";
-//#else
+	#ifdef __MINGW32__ 
+	return to_rdf_xml(os);
+	#endif
 	os<<"\033[36m<"<<_RDF<<"\n";
 	uri::ns_declaration(os);
 	os<<">";
-	//for(V::iterator i=v.begin();i!=v.end();++i) (*i)->to_rdf_xml_pretty(os);
 	for(V::iterator i=get<V>().begin();i!=get<V>().end();++i) (*i)->to_rdf_xml_pretty(os);
-	os<<"\n\033[36m</"<<_RDF<<">\033[m";
-//#endif
-	os<<endl;
+	os<<"\n\033[36m</"<<_RDF<<">\033[m\n";
 }
 shared_ptr<objrdf::base_resource> rdf::RDF::query(uri _i){
 	MAP::iterator i=m.find(_i);	
 	return (i!=m.end()) ? shared_ptr<base_resource>(i->second) : shared_ptr<base_resource>();
 }
 rdf::RDF::RDF(uri u):SELF(u){
+	#ifdef __GXX_EXPERIMENTAL_CXX0X__
 	for(auto i=rdf::Property::get_instances().begin();i<rdf::Property::get_instances().end();++i) insert(*i);
 	for(auto i=rdfs::Class::get_instances().begin();i<rdfs::Class::get_instances().end();++i) insert(*i);
+	#else
+	for(vector<shared_ptr<rdf::Property> >::iterator i=rdf::Property::get_instances().begin();i<rdf::Property::get_instances().end();++i) insert(*i);
+	for(vector<shared_ptr<rdfs::Class> >::iterator i=rdfs::Class::get_instances().begin();i<rdfs::Class::get_instances().end();++i) insert(*i);
+	#endif
 	insert(base_resource::nil);
 }
 rdf::RDF::~RDF(){
 	/*
  	*	before deleting resources all the links need to be severed
  	*/ 
+	#ifdef __GXX_EXPERIMENTAL_CXX0X__
 	for(auto i=get<V>().begin();i!=get<V>().end();++i){
 		for(auto j=(*i)->begin();j<(*i)->end();++j){
 			(*i)->erase(j->begin(),j->end());
-			/*
-			for(auto k=j->begin();k<j->end();++k){
-				if(!k->literalp()){
-					k->set_object(shared_ptr<objrdf::base_resource>());
-				}
-			}
-			*/
 		}
 	}
-	//to_rdf_xml_pretty(cerr);
-	cerr<<"~RDF()"<<endl;
+	#else
+	for(V::iterator i=get<V>().begin();i!=get<V>().end();++i){
+		for(base_resource::type_iterator j=(*i)->begin();j<(*i)->end();++j){
+			(*i)->erase(j->begin(),j->end());
+		}
+	}
+	#endif
 }
 /*
 int main(){

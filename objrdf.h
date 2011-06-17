@@ -253,15 +253,16 @@ namespace objrdf{
  		* intrusive reference counting pg167 `Modern C++ design' Alexandrescu 
  		* problem: n is a pretty common variable name, should change or use setter/getter
  		* should use std::shared_ptr<> instead: no it does not work!!!
+ 		* must be made private!
  		*/
 		short n;
 		base_resource(uri id):n(0),id(id){
-			#ifdef VERBOSE
+			#ifdef OBJRDF_VERB
 			cerr<<"create resource `"<<id<<"' "<<this<<endl;
 			#endif
 		}
 		virtual ~base_resource(){
-			#ifdef VERBOSE
+			#ifdef OBJRDF_VERB
 			cerr<<"delete resource `"<<id<<"' "<<this<<endl;
 			#endif
 		}
@@ -310,7 +311,7 @@ namespace objrdf{
 			resource* r;
 			destroy(resource* r):r(r){}	
 			template<typename P> void go(){
-				#ifdef VERBOSE
+				#ifdef OBJRDF_VERB
 				cerr<<"delete property `"<<P::get_property()->id<<"' from "<<r<<endl;
 				#endif
 				r->get<P>().~P();
@@ -320,7 +321,7 @@ namespace objrdf{
 		char bin[get_size<PROPERTIES>::VALUE];
 		resource(uri id):SUBCLASS(id){objrdf::for_each<PROPERTIES>(initialize(this));}
 		~resource(){
-			#ifdef VERBOSE
+			#ifdef OBJRDF_VERB
 			cerr<<"delete "<<get_class()->id<<" `"<<SUBCLASS::id<<"' "<<this<<endl;
 			#endif
 			objrdf::for_each<PROPERTIES>(destroy(this));
@@ -450,7 +451,7 @@ namespace rdf{
  		*	the returned could also be typed 
  		*/ 	
 		template<typename T> shared_ptr<objrdf::base_resource> query_static(){
-
+			return base_resource::nil;
 		}
 		template<typename T> shared_ptr<T> query_t(objrdf::uri id){
 			shared_ptr<objrdf::base_resource> tmp=query(id);
@@ -681,7 +682,7 @@ namespace objrdf{
 			return static_cast<SUBJECT*>(subject)->template get<PREDICATE>().get()!=0;
 		}
 		virtual void erase(base_resource* subject,int first,int last){
-			cerr<<"erase:"<<subject<<"\t"<<first<<"\t"<<last<<endl;
+			//cerr<<"erase:"<<subject<<"\t"<<first<<"\t"<<last<<endl;
 			static_cast<SUBJECT*>(subject)->template get<PREDICATE>()=shared_ptr<typename PREDICATE::element_type>();
 		}
 	};
