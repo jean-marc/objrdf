@@ -11,7 +11,7 @@
  *	deletion. It might be desirable to leave a resource dangling for later reuse.
  *
  */
-#ifdef VERBOSE
+#ifdef OBJRDF_VERB
 #include <iostream>
 #endif
 namespace special{
@@ -22,6 +22,7 @@ namespace special{
 		typedef T element_type;
 		shared_ptr():t(0){}
 		explicit shared_ptr(T* t):t(t){
+			//std::cerr<<"shared_ptr "<<this<<"\t"<<t<<std::endl;
 			if(t) ++t->n;
 		}
 		inline T* operator->() const{return t;}
@@ -29,6 +30,7 @@ namespace special{
 		inline T& operator*() const{return *t;}
 		int use_count() const{return t ? t->n : 0;}
 		shared_ptr(const shared_ptr& s):t(s.t){
+			//std::cerr<<"shared_ptr "<<this<<"\t"<<t<<std::endl;
 			if(t) ++(t->n);
 		}
 		template<typename S> shared_ptr(const shared_ptr<S>& s):t(s.get()){
@@ -39,13 +41,13 @@ namespace special{
  			*	works also if `this' and `s' point to same object 
  			*/	
 			if(t){
-				#ifdef VERBOSE
+				#ifdef OBJRDF_VERB
 				std::cerr<<t<<"\tattempting to delete `"<<t->id<<"'\t"<<t->n<<std::endl;
 				#endif
 				--(t->n);
 				if(t->n==0){
 					delete t;
-					#ifdef VERBOSE
+					#ifdef OBJRDF_VERB
 					std::cerr<<"deleted"<<std::endl;
 					#endif
 				}
@@ -60,14 +62,14 @@ namespace special{
 		operator bool()const{return t;}
 		~shared_ptr(){
 			if(t){
-				#ifdef VERBOSE
+				#ifdef OBJRDF_VERB
 				std::cerr<<t<<"\tattempting to delete `"<<t->id<<"'\t"<<t->n<<std::endl;
 				#endif
 				--(t->n);
 				if(t->n==0){
 					delete t;
-					#ifdef VERBOSE
-					std::cerr<<"deleted"<<std::endl;
+					#ifdef OBJRDF_VERB
+					std::cerr<<"deleted from "<<this<<std::endl;
 					#endif
 				}
 			}

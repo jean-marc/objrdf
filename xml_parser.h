@@ -207,14 +207,14 @@ template<typename SAX_HANDLER> struct xml_parser:char_iterator{
 		}
 	};
 	bool callback(end_tag,string s){
-		static_cast<SAX_HANDLER*>(this)->end_element(element_name_s);
+		static_cast<SAX_HANDLER*>(this)->end_element(objrdf::uri(element_name_s));
 		//remove all namespaces deeper than current depth
 		depth--;
 		ns_v.remove_if(deeper(depth-1));	
 		return true;
 	}
 	bool callback(empty_end_tag,string s){
-		static_cast<SAX_HANDLER*>(this)->end_element(element_name_s);
+		static_cast<SAX_HANDLER*>(this)->end_element(objrdf::uri(element_name_s));
 		depth--;
 		ns_v.remove_if(deeper(depth-1));	
 		return true;

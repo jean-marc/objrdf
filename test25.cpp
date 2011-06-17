@@ -1,7 +1,5 @@
 /*
  *	a simple schema to handle license information
- *
- *
  */
 #include "objrdf.h"
 #include "hex_format.h"
@@ -18,29 +16,18 @@ PROPERTY(feature_code,hex_format<unsigned int>);//32 bit?
 CLASS0(Feature);
 PROPERTY(feature,Feature*);
 CLASS6(License,product,p_array<key>,issue_date,expiry_date,feature_code,p_array<feature>);
-//.cpp
-SET(Product);
-SET(product);
-SET(key);
-SET(issue_date);
-SET(expiry_date);
-SET(feature_code);
-SET(Feature);
-SET(feature);
-SET(License);
 
 int main(int argc,char* argv[]){
 	cout<<Product::v.size()<<endl;
-	Product::get_class()->to_turtle_pretty(cout);
+	Product::get_class()->to_rdf_xml_pretty(cout);
 	Product p;
 	p.to_turtle_pretty(cout);
-	return 0;
 	rdf::RDF doc;
-	doc.insert(License::get_class());
-	doc.insert(Product::get_class());
-	doc.insert(key::get_property());
-	doc.insert(issue_date::get_property());
-	doc.insert(expiry_date::get_property());
+	//doc.insert(License::get_class());
+	//doc.insert(Product::get_class());
+	//doc.insert(key::get_property());
+	//doc.insert(issue_date::get_property());
+	//doc.insert(expiry_date::get_property());
 	for(int i=1;i<argc;++i){
 		ifstream in(argv[i]);
 		if(in.good()){

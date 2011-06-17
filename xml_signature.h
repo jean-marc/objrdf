@@ -11,9 +11,11 @@
  *	the same code can be used to sign and check signature, there should be a way to make sure signature is present in the document
  *
  */
-#include "xml_parser.h"
 #include <sstream>
+#include <stdio.h>
+#include "xml_parser.h"
 #include "Md5.h"
+const objrdf::uri sgntr("http://www.example.org/objrdf#","obj","signature");
 template<typename SAX_HANDLER> struct xml_signature:xml_parser<xml_signature<SAX_HANDLER> >{
 	typedef xml_parser<xml_signature<SAX_HANDLER> > BASE;
 	bool checking;
@@ -21,16 +23,17 @@ template<typename SAX_HANDLER> struct xml_signature:xml_parser<xml_signature<SAX
 	int depth;
 	string signature;
 	xml_signature(istream& is):BASE(is),checking(false),depth(0){}
-	bool start_element(string name,ATTRIBUTES att){
+	bool start_element(objrdf::uri name,ATTRIBUTES att){
 		if(checking){
 			ss<<"<"<<name;
-			for(ATTRIBUTES::iterator i=att.begin();i!=att.end();++i)
+			for(ATTRIBUTES::iterator i=att.begin();i!=att.end();++i){
 				ss<<" "<<i->first<<"='"<<i->second<<"'";
+			}
 			ss<<">";
 			++depth;
 			return true;
 		}else{
-			ATTRIBUTES::iterator i=att.find("signature");	
+			ATTRIBUTES::iterator i=att.find(sgntr);	
 			if(i!=att.end()){
 				signature=i->second;
 				att.erase(i);
@@ -41,8 +44,9 @@ template<typename SAX_HANDLER> struct xml_signature:xml_parser<xml_signature<SAX
 				return static_cast<SAX_HANDLER*>(this)->start_element(name,att);
 			}
 		}	
+		return true;
 	}
-	bool end_element(string name){
+	bool end_element(objrdf::uri name){
 		if(checking){
 			ss<<"</"<<name<<">";
 			--depth;

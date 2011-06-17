@@ -63,8 +63,8 @@ struct _resource{
 	ret _bind(base_resource::instance_iterator);
 };
 struct predicate{
-	string name;
 	shared_ptr<_resource> object;
+	string name;
 	predicate():object(0){}
 	predicate(string s,shared_ptr<_resource> _object):object(_object),name(s){}
 	friend ostream& operator<<(ostream& os,predicate& p);

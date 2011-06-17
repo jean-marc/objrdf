@@ -14,17 +14,24 @@ struct turtle_parser:char_iterator{
 				char_p<'_'>
 			 > 
 		> name;
-	typedef or_p<char_p<' '>,or_p<char_p<'\t'>,or_p<char_p<'\r'>,char_p<'\n'> > > > white_space;
-	typedef kleene_p<not_p<char_p<'>'> > > relativeURI;
-	typedef seq<char_p<'<'>,relativeURI,char_p<'>'> > uriref;
-	typedef name prefixName;
-	typedef seq<or_p<prefixName,true_p>,char_p<':'>,name> qname;
-	//typedef or_p<uriref,qname> resource;
-	typedef uriref resource;//for now
+	typedef char_p<'\''> sq;
+	typedef char_p<'\"'> dq;
+	typedef or_p<range_p<'a','z'>,range_p<'A','Z'> > pn_char_base;
+	//typedef or_p<char_p<' '>,or_p<char_p<'\t'>,or_p<char_p<'\r'>,char_p<'\n'> > > > white_space;
+	//dangerous! "<aaaa " will cause it to read forever
+	typedef event_1<kleene_p<not_p<or_p<char_p<'>'>,white_space> > >,__COUNTER__> uriref;
+	typedef seq<char_p<'<'>,uriref,char_p<'>'> > _uriref_;
+	typedef event_1<or_p<seq<pn_char_base,name>,true_p>,__COUNTER__> prefixName;
+	//[99]    PN_PREFIX     ::=       PN_CHARS_BASE ((PN_CHARS|'.')* PN_CHARS)?
+	typedef seq<prefixName,char_p<':'> > pname_ns;
+	typedef event_1<name,__COUNTER__> pname_local;	
+	typedef event_1<seq<pname_ns,pname_local>,__COUNTER__> qname;
+	typedef or_p<_uriref_,qname> resource;
+	//typedef uriref resource;//for now
 	typedef resource predicate;
 	typedef seq<char_p<'#'>,kleene_p<not_p<or_p<char_p<'\r'>,char_p<'\n'> > > > > comment;
-	typedef kleene_p<not_p<char_p<'\"'> > > scharacter;
-	typedef seq<char_p<'\"'>,event<scharacter>,char_p<'\"'> > quotedString;
+	typedef event_1<kleene_p<not_p<sq> >,__COUNTER__> string_literal_1;
+	typedef event_1<kleene_p<not_p<dq> >,__COUNTER__> string_literal_2;
 	typedef seq_p<choice<char_p<'-'>,char_p<'+'>,true_p>,plus_p<range_p<'0','9'> > > integer;
 	typedef seq<
 			choice<char_p<'-'>,char_p<'+'>,true_p>,
@@ -34,27 +41,27 @@ struct turtle_parser:char_iterator{
 				true_p
 			>
 		> decimal;
-	typedef choice<quotedString/*,integer*/,decimal> literal;
-	typedef seq<or_p<char_p<'$'>,char_p<'?'> >,name> variable;//SPARQL
-	typedef event<or_p<predicate,variable> > verb;
+	typedef event_1<choice<seq<sq,string_literal_1,sq>,seq<dq,string_literal_2,dq>,decimal>,__COUNTER__> literal;
+	typedef event_1<seq<or_p<char_p<'$'>,char_p<'?'> >,name>,__COUNTER__ > variable;//SPARQL
+	typedef event_1<char_p<'a'>,__COUNTER__> is_a;
+	typedef event_1<choice<_uriref_,qname,variable,is_a>,__COUNTER__ > verb;
 	template<typename OBJECT> 
 	struct objectList:seq<OBJECT,or_p<seq<char_p<','>,objectList<OBJECT> >,true_p> >{};
 	template<typename OBJECT> 
 	struct predicateObjectList:seq<verb,white_space,objectList<OBJECT>,or_p<seq<char_p<';'>,predicateObjectList<OBJECT> >,true_p> >{};
 	template<typename OBJECT> 
 	struct blank:seq<char_p<'['>,predicateObjectList<event<OBJECT> >,char_p<']'> >{};
-	//struct object:choice<resource,blank<object>,variable,literal>{};
-	struct object:choice<resource,blank<object>,literal,variable>{};
-	typedef event<choice<resource,blank<object>,variable> > subject;
+	struct _object_:choice<resource,blank<_object_>,literal,variable>{};
+	typedef event_1<_object_,__COUNTER__> object;
+	typedef event_1<choice<resource,blank<object>,variable>,__COUNTER__ > subject;
 	typedef seq<subject,white_space,predicateObjectList<event<object> > > triples;
 	typedef seq<triples,white_space,char_p<'.'>,kleene_p<white_space> > statement;
 	typedef plus_p<statement> turtle_doc;
 	turtle_parser(istream& is):char_iterator(is){}
 	bool go(){return turtle_doc::go(*this);}
-	void callback(subject,string s){/*cerr<<s<<endl;*/}
-	void callback(verb,string s){/*cerr<<"\t"<<s<<endl;*/}
-	void callback(event<object>,string s){/*cerr<<"\t\t"<<s<<endl;*/}
-	void callback(event<scharacter>,string s){/*cerr<<"string:\""<<s<<"\""<<endl;*/}
+	template<typename T> void callback(T,string){}
+	bool callback(char_iterator::V& v){return true;}
+	bool callback(PARSE_RES_TREE& r){return true;}
 };
 
 
