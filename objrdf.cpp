@@ -15,7 +15,11 @@ bool type_p::operator() (shared_ptr<base_resource> r) const{return *t<=*r->get_C
 base_resource::type_iterator base_resource::begin(){return base_resource::type_iterator(this,v.begin());}
 base_resource::type_iterator base_resource::end(){return base_resource::type_iterator(this,v.end());}
 void base_resource::erase(instance_iterator first,instance_iterator last){
+#ifdef WIN32
+
+#else
 	first->V::iterator::operator*()->erase(this,first.index,last.index);
+#endif
 }
 
 generic_property::generic_property(shared_ptr<rdf::Property> p,const bool literalp):p(p),literalp(literalp),offset(0){}

@@ -58,11 +58,17 @@ uri uri::hash_uri(string s){
  	*	
  	*/	 
 	size_t i=s.find_first_of('#');
+#ifdef WIN32
+	if(i==0) return uri(s.substr(i+1));
+	if(i==string::npos) return uri(s);
+	return uri(s.substr(0,i+1),s.substr(i+1));
+#else
 	switch(i){
 		case 0:return uri(s.substr(i+1));
 		case string::npos:return uri(s); //not sure what to do here?
 		default:return uri(s.substr(0,i+1),s.substr(i+1));
 	}
+#endif
 	//return (i!=string::npos) ? uri(s.substr(0,i+1),s.substr(i+1)) : uri(s);
 }
 bool uri::empty() const{
