@@ -299,7 +299,7 @@ void rdf::RDF::to_rdf_xml(ostream& os){
 	os<<"\n</"<<_RDF<<">\n";
 }
 void rdf::RDF::to_rdf_xml_pretty(ostream& os){
-	#ifdef __MINGW32__ 
+	#ifdef WIN32 
 	return to_rdf_xml(os);
 	#endif
 	os<<"\033[36m<"<<_RDF<<"\n";
