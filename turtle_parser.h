@@ -41,7 +41,7 @@ struct turtle_parser:char_iterator{
 				true_p
 			>
 		> decimal;
-	typedef event_1<choice<seq<sq,string_literal_1,sq>,seq<dq,string_literal_2,dq>,decimal>,__COUNTER__> literal;
+	typedef event_1<choice<seq<sq,string_literal_1,sq>,seq<dq,string_literal_2,dq>,event_1<decimal,__COUNTER__> >,__COUNTER__> literal;
 	typedef event_1<seq<or_p<char_p<'$'>,char_p<'?'> >,name>,__COUNTER__ > variable;//SPARQL
 	typedef event_1<char_p<'a'>,__COUNTER__> is_a;
 	typedef event_1<choice<_uriref_,qname,variable,is_a>,__COUNTER__ > verb;
