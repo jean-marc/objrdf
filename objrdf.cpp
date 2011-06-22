@@ -21,6 +21,13 @@ void base_resource::erase(instance_iterator first,instance_iterator last){
 	first->V::iterator::operator*()->erase(this,first.index,last.index);
 #endif
 }
+void base_resource::erase(instance_iterator position){
+#ifdef WIN32
+
+#else
+	position->V::iterator::operator*()->erase(this,position.index,position.index+1);
+#endif
+}
 
 generic_property::generic_property(shared_ptr<rdf::Property> p,const bool literalp):p(p),literalp(literalp),offset(0){}
 void generic_property::set_string(base_resource*,string s){};
@@ -309,6 +316,10 @@ void rdf::RDF::to_rdf_xml_pretty(ostream& os){
 	os<<"\n\033[36m</"<<_RDF<<">\033[m\n";
 }
 shared_ptr<objrdf::base_resource> rdf::RDF::query(uri _i){
+	/*
+ 	*	optimization for rdf::Property and rdfs::Class, they are the first resources
+ 	*
+ 	*/
 	MAP::iterator i=m.find(_i);	
 	return (i!=m.end()) ? shared_ptr<base_resource>(i->second) : shared_ptr<base_resource>();
 }

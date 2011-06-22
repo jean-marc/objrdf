@@ -248,6 +248,7 @@ namespace objrdf{
 		virtual type_iterator begin();
 		virtual type_iterator end();
 		void erase(instance_iterator first,instance_iterator last);
+		void erase(instance_iterator position);
 		virtual void end_resource(){};//will be invoked when finished parsing the element
 		/*
  		* intrusive reference counting pg167 `Modern C++ design' Alexandrescu 
