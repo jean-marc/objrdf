@@ -18,6 +18,7 @@ using namespace std;
  */
 class char_iterator{
 public:
+	enum{CASE_INSENSITIVE=false};
 	/*
  	*	should be put somewhere else
  	*/ 
