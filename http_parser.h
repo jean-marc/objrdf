@@ -25,7 +25,7 @@ struct http_parser:char_iterator/*<128>*/{
 	typedef event<plus_p<not_p<or_p<char_p<'&'>,char_p<' '> > > > > _value;
 	typedef seq<_key,char_p<'='>,_value> _pair_;
 	struct _pairs_:seq<_pair_,or_p<seq<char_p<'&'>,_pairs_>,true_p> >{}; //recursive
-	typedef	seq<char_p<'?'>,_pairs_> arguments; 
+	typedef	seq<char_p<'?'>,or_p<_pairs_,true_p> > arguments; 
 	typedef event<plus_p<not_p<or_p<char_p<' '>,char_p<'?'> > > > > path;
 	typedef seq<path,or_p<arguments,true_p> > url;
 	typedef str version;
