@@ -45,30 +45,13 @@ typedef vector<vector<base_resource::instance_iterator> > RESULT;
 ostream& operator<<(ostream& os,const RESULT& r){
 	for(auto i=r.begin();i<r.end();++i){
 		for(auto j=i->begin();j<i->end();++j){
-			os<<*j<<"\t|";
+			if(j->get_Property()->get<rdfs::range>()=rdfs::XML_Literal::get_class())
+				os<<"XML_Literal ...\t|";
+			else
+				os<<*j<<"\t|";
 		}
 	}
 	return os;
-}
-void to_xml(ostream& os,const RESULT& r){
-	os<</*"<?xml version=\"1.0\"?>\n*/"<sparql xmlns=\"http://www.w3.org/2005/sparql-results#\"><head></head><results>";
-	for(auto i=r.begin();i<r.end();++i){
-		os<<"<result>";
-		for(auto j=i->begin();j<i->end();++j){
-			os<<"<binding name=''>";
-			if(j->literalp())
-				os<<"<literal>"<<*j<<"</literal>";
-			else{
-				os<<"<uri>";
-				j->get_object()->id.to_uri(os);
-				os<<"</uri>";
-			}
-			os<<"</binding>";
-		}
-		os<<"</result>"<<endl;
-	}
-	os<<"</results></sparql>";
-
 }
 struct verb{
 	shared_ptr<rdf::Property> p;//0 -> not bound
@@ -81,6 +64,7 @@ struct verb{
 	verb();
 	RESULT run(base_resource* r);
 	int size();
+	vector<string> get_variables() const;
 };
 struct subject{
 	base_resource* r;//0 -> not bound	
@@ -94,17 +78,20 @@ struct subject{
 	subject(base_resource* r=0);
 	subject(string s);
 	RESULT run(base_resource::instance_iterator i);
-	RESULT run(rdf::RDF& doc,int n=1000);
+	RESULT run(rdf::RDF& doc,size_t n=1000);
 	void del();
 	void ins();
 	int size();
+	vector<string> get_variables() const;
 };
-
+void to_xml(ostream& os,const RESULT& r,const subject&);
+void to_json(ostream& os,const RESULT& r,const subject&){}
 class sparql_parser:public char_iterator{
 /*
  *	see http://www.w3.org/TR/rdf-sparql-query/#sparqlGrammar
  */
 public:
+	enum{CASE_INSENSITIVE=true};
 	typedef map<string,subject*> INDEX;
 	INDEX index;
 	typedef seq_c<'P','R','E','F','I','X'> PREFIX;
@@ -123,7 +110,7 @@ public:
 	typedef	event_1<seqw<DELETE,DATA,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'> >,__COUNTER__> delete_data_query; 
 	typedef	event_1<seqw<INSERT,DATA,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'> >,__COUNTER__> insert_data_query; 
 	typedef event_1<seqw<SELECT,or_p<plus_pw<turtle_parser::variable>,char_p<'*'> >,where_statement>,__COUNTER__> select_query;	
-	typedef event_1<seqw<DESCRIBE,turtle_parser::_uriref_>,__COUNTER__> simple_describe_query;	
+	typedef event_1<seqw<DESCRIBE,or_p<turtle_parser::_uriref_,turtle_parser::qname> >,__COUNTER__> simple_describe_query;	
 	typedef event_1<seqw<DESCRIBE,or_p<plus_pw<turtle_parser::variable>,char_p<'*'> >,where_statement>,__COUNTER__> describe_query;	
 	//typedef seqw<or_p<delete_statement,true_p>,or_p<insert_statement,true_p>,where_statement> update_query;
 	typedef seqw<
