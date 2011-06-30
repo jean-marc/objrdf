@@ -18,7 +18,23 @@ int verb::size(){
 	int n=is_selected && !p;
 	return n+object->size();
 }
-RESULT subject::run(rdf::RDF& doc,int n){
+vector<string> subject::get_variables() const{
+	vector<string> v;
+	if(!bound && is_selected) v.push_back(name.substr(1));
+	for(vector<verb>::const_iterator j=verbs.begin();j<verbs.end();++j){
+		vector<string> tmp=j->get_variables();
+		v.insert(v.end(),tmp.begin(),tmp.end());
+	}
+	return v;
+}
+vector<string> verb::get_variables() const{
+	vector<string> v;
+	if(!bound && is_selected) v.push_back(name.substr(1));
+	vector<string> tmp=object->get_variables();
+	v.insert(v.end(),tmp.begin(),tmp.end());
+	return v;	
+}
+RESULT subject::run(rdf::RDF& doc,size_t n){
 	RESULT r;
 	//optimization when subject is bound
 	//but we need an iterator to it
@@ -48,7 +64,11 @@ RESULT subject::run(base_resource::instance_iterator i){
 				LOG<<"bound\tR "<<this<<" to `"<<s<<"'"<<endl;
 				return (i.str()==s) ? RESULT(1) : RESULT(0);
 			}else{
-				LOG<<"binding R "<<this<<" to `"<<i.str()<<"'"<<endl;
+				if(i.get_Property()->get<rdfs::range>()==rdfs::XML_Literal::get_class()){
+					LOG<<"binding R "<<this<<" to XML_Literal ..."<<endl;
+				}else{
+					LOG<<"binding R "<<this<<" to `"<<i.str()<<"'"<<endl;
+				}
 				return is_selected ? RESULT(1,vector<base_resource::instance_iterator>(1,i)) : RESULT(1);
 			}
 		}
@@ -123,6 +143,31 @@ RESULT verb::run(base_resource* r){
 	}
 }
 
+void to_xml(ostream& os,const RESULT& r,const subject& s){
+	//get all variables
+	os<</*"<?xml version=\"1.0\"?>\n*/"<sparql xmlns=\"http://www.w3.org/2005/sparql-results#\">\n<head>\n";
+	vector<string> v=s.get_variables();	
+	for(vector<string>::const_iterator i=v.begin();i<v.end();++i) os<<"<variable name='"<<*i<<"'/>\n";
+	os<<"</head>\n<results>\n";
+	for(auto i=r.begin();i<r.end();++i){
+		os<<"<result>\n";
+		int v_i=0;
+		for(auto j=i->begin();j<i->end();++j){
+			os<<"<binding name='"<<v[v_i++]<<"'>";
+			if(j->literalp())
+				os<<"<literal>"<<*j<<"</literal>";
+			else{
+				os<<"<uri>";
+				j->get_object()->id.to_uri(os);
+				os<<"</uri>";
+			}
+			os<<"</binding>\n";
+		}
+		os<<"</result>\n";
+	}
+	os<<"</results>\n</sparql>\n";
+
+}
 sparql_parser::sparql_parser(rdf::RDF& doc,istream& is):char_iterator(is),doc(doc),sbj(0),current_sbj(0),q(no_q){
 	//non standard but helpful
 	prefix_ns["rdf"]="http://www.w3.org/1999/02/22-rdf-syntax-ns#";
@@ -137,7 +182,7 @@ void sparql_parser::out(ostream& os){//sparql XML serialization
 	//if(sbj){
 		switch(q){
 			case select_q:
-			to_xml(os,sbj->run(doc));
+			to_xml(os,sbj->run(doc),*sbj);
 			break;
 			case simple_describe_q:{
 				os<<"<"<<rdf::_RDF<<"\n";
@@ -195,7 +240,8 @@ bool sparql_parser::callback(PARSE_RES_TREE& r){
 				variable_set.insert(i->t.second);
 				++i;
 			}
-			d_resource=doc.query(uri::hash_uri(r.v[0].t.second));	
+			//d_resource=doc.query(uri::hash_uri(r.v[0].t.second));	
+			d_resource=parse_object(*i);
 		}break;
 		case describe_query::id:{
 			q=describe_q;
@@ -484,7 +530,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 						current_property=std::find_if(sub->begin(),sub->end(),namep(u));
 						if(current_property==sub->end()){
 							cerr<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
-							return false;
+							//return false;
 						}
 					}break;
 					case turtle_parser::qname::id:{
@@ -495,7 +541,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 							current_property=std::find_if(sub->begin(),sub->end(),namep(u));
 							if(current_property==sub->end()){
 								cerr<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
-								return false;
+								//return false;
 							}
 						}else{
 							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
@@ -540,6 +586,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 									sub->erase(j);
 									break;
 								}	
+								++j;
 							}
 						}else{
 							shared_ptr<base_resource> r=doc.query(u);
