@@ -19,6 +19,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 			assert(current_property->get_Property()->get<rdfs::range>()->f);
 			shared_ptr<base_resource> r=shared_ptr<base_resource>(current_property->get_Property()->get<rdfs::range>()->f(uri(att[rdf::ID])));
 			//LOG<<"new resource:"<<r->id<<endl;
+			//not safe: we must check types
 			current_property->add_property()->set_object(r);
 			set_missing_object(r);
 			st.push(r);
@@ -265,13 +266,15 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
  */
 void rdf_xml_parser::set_missing_object(shared_ptr<base_resource> object){
 	LOG<<"missing object:"<<object.get()<<"\t"<<object->id<<endl;
-	if(!object->id.empty()){
+	//if(!object->id.empty()){
 		MISSING_OBJECT::iterator first=missing_object.find(object->id),last=missing_object.upper_bound(object->id);
-		for(MISSING_OBJECT::iterator i=first;i!=last;++i)
+		for(MISSING_OBJECT::iterator i=first;i!=last;++i){
+			LOG<<"setting object of resource `"<<i->first<<"'"<<endl;
 			i->second->set_object(object);//???
 		//need to clean up
+		}
 		missing_object.erase(first,last);
-	}
+	//}
 } 
 bool rdf_xml_parser::end_resource(uri name){
 	//cerr<<"end resource "<<name<<endl;
@@ -302,7 +305,8 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 				if(object){
 					current_property->add_property()->set_object(object);//NEED TO CHECK THE TYPE!!!!
 				}else{
-					missing_object.insert(MISSING_OBJECT::value_type(uri::hash_uri(i->second),current_property->add_property()));
+					//problem with current_property->add_property()
+					//missing_object.insert(MISSING_OBJECT::value_type(uri::hash_uri(i->second),current_property->add_property()));
 					//ERROR_PARSER<<"resource "<<i->second<<" not found"<<endl;
 				}
 			}	
@@ -345,13 +349,14 @@ bool rdf_xml_parser::end_property(uri name){
 	return true;
 }
 bool rdf_xml_parser::start_element(uri name,ATTRIBUTES att){
-	//++depth;
+	//something fishy
+	if(depth==1) current_property=placeholder->end();
+
 	if(depth) //?? what for
 		return (depth&1) ? start_resource(name,att) : start_property(name,att); 
 	return true;
 }
 bool rdf_xml_parser::end_element(uri name){
-	//--depth;
 	if(depth>=0)	
 		return (depth&1) ? end_property(name) : end_resource(name); 
 	return true;
