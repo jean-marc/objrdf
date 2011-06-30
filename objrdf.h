@@ -221,7 +221,6 @@ namespace objrdf{
 			//need those sometime
 			shared_ptr<rdf::Property> get_Property() const;
 			bool literalp() const;
-			//
 			friend ostream& operator<<(ostream& os,const instance_iterator& i){
 				if(i.literalp()) 
 					i.out(os);
@@ -279,6 +278,10 @@ namespace objrdf{
 		void to_turtle_pretty(ostream& os);
 		void to_rdf_xml_pretty(ostream& os);//the document should not have loops!!!
 		static shared_ptr<base_resource> nil/*,cycle*/;
+		/*
+ 		*	local resources can have content accessible through a URL scheme 
+ 		*/ 
+		virtual void get_output(ostream& os);
 		template<typename U,int FOUND=0> struct _help_{
 			//should never get here make sure compilation stops here
 			typedef typename U::IT_IS_NOT_A_MEMBER VALUE;

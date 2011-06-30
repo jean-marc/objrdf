@@ -28,7 +28,9 @@ void base_resource::erase(instance_iterator position){
 	position->V::iterator::operator*()->erase(this,position.index,position.index+1);
 #endif
 }
-
+void base_resource::get_output(ostream& os){
+	//what would be most appropriate HTTP message?	
+}
 generic_property::generic_property(shared_ptr<rdf::Property> p,const bool literalp):p(p),literalp(literalp),offset(0){}
 void generic_property::set_string(base_resource*,string s){};
 void generic_property::in(base_resource*,istream& is,int){assert(0);}; 
