@@ -1,7 +1,6 @@
 /*
  *	main access point to a RDF document
- *	single-threaded for now	
- *
+ *	creates new thread for each connection
  */
 #ifndef HTTPD_H
 #define HTTPD_H
@@ -12,12 +11,11 @@
 namespace objrdf{
 	struct httpd{
 		typedef pair<httpd*,TCPSocketWrapper*> request_info;
-		int port;
 		rdf::RDF& doc;
+		short port;
 		pthread_mutex_t mutex;	
-		httpd(rdf::RDF& _doc,short _port=1080):doc(_doc){
+		httpd(rdf::RDF& doc,short port=1080):doc(doc),port(port){
 			socketsInit();
-			port=_port;
 			pthread_mutex_init(&mutex,NULL);
 		}
 		static void* server(void* s);
