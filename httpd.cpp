@@ -216,9 +216,11 @@ void httpd::post(http_parser& h,iostream& io){
 		sparql_parser p(doc,io);
 		if(p.go()){
 			io<<"HTTP/1.1 200 OK\r\n";
-			io<<"Content-Type: text/xml\r\n";
+			//io<<"Content-Type: text/xml\r\n";
 			ostringstream out;
 			p.out(out);
+			//an XML document can not be empty
+			io<<"Content-Type: "<<(out.str().size() ? "text/xml":"text/plain")<<"\r\n";
 			io<<"Content-Length: "<<out.str().size()/*/2*/<<"\r\n";//to force close socket early
 			io<<"\r\n";
 			io<<out.str();//for some reason throws here and not caught anywhere?
