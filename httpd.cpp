@@ -66,6 +66,13 @@ inline ostream& http_404(ostream& stream){
 	stream.flush();
 	return stream;
 }
+inline ostream& http_400(ostream& stream){
+	stream<<"HTTP/1.1 400 Bad Request\r\n";
+	stream<<"Content-Length: 0\r\n";
+	stream<<"\r\n";
+	stream.flush();
+	return stream;
+}
 void* httpd::request(void* s){
 	cerr<<"new request"<<endl;
 	request_info* r=static_cast<request_info*>(s);
@@ -210,10 +217,32 @@ void httpd::get(http_parser& h,iostream& io){
 	}
 }	
 void httpd::post(http_parser& h,iostream& io){
+	/*
+ 	*	can we chain queries? it would make client code simpler
+ 	*	because we don't have to wait for reply and it guarantees synchronization
+ 	*	we know the request length
+ 	*
+ 	*/ 
+	/*
+ 	*	might be better to read the whole POST message and parse it
+ 	*	it would be nice to have a generic parser that can use char*
+ 	*
+ 	*/
+	/*
+	if(!h.headers["Content-Length"].empty()){
+		istringstream in(h.headers["Content-Length"]);
+		int l=0;
+		in>>l;
+		string message=io.read(l);
+	}else{
+		//error
+	}
+	*/
 	try{
 		//throw SocketRunTimeException("test");
 		pthread_mutex_lock(&mutex);
 		sparql_parser p(doc,io);
+		cerr<<"peek:`"<<io.peek()<<"'"<<endl;
 		if(p.go()){
 			io<<"HTTP/1.1 200 OK\r\n";
 			//io<<"Content-Type: text/xml\r\n";
@@ -225,18 +254,27 @@ void httpd::post(http_parser& h,iostream& io){
 			io<<"\r\n";
 			io<<out.str();//for some reason throws here and not caught anywhere?
 			io.flush();
+			//there might be characters left in the pipe
 			if(!h.headers["Content-Length"].empty()){
 				istringstream in(h.headers["Content-Length"]);
 				int l=0;
 				in>>l;
-				io.ignore(l-p.n_read);
+				l-=p.n_read;
+				cerr<<"ignoring "<<l<<" extra characters:";
+				for(int i=0;i<l;++i) cerr<<(char)io.get();
 			}
 		}else{
 			cerr<<"could not parse sparql query\n";
-			io<<"HTTP/1.1 400 Bad Request\r\n";
-			//could send more information
-			io.flush();
-			io.setstate(ios::badbit);
+			io<<http_400;
+			//there might be characters left in the pipe
+			if(!h.headers["Content-Length"].empty()){
+				istringstream in(h.headers["Content-Length"]);
+				int l=0;
+				in>>l;
+				l-=p.n_read;
+				cerr<<"ignoring "<<l<<" extra characters:";
+				for(int i=0;i<l;++i) cerr<<(char)io.get();
+			}
 		}
 		pthread_mutex_unlock(&mutex);
 	}catch(SocketRunTimeException& e){
