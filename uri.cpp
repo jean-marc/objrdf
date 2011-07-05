@@ -71,6 +71,9 @@ uri uri::hash_uri(string s){
 #endif
 	//return (i!=string::npos) ? uri(s.substr(0,i+1),s.substr(i+1)) : uri(s);
 }
+string uri::ns() const{
+	return ns_v()[index].first;
+}
 bool uri::empty() const{
 	return local.empty();
 }
