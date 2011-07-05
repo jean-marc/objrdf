@@ -315,6 +315,7 @@ void rdf::RDF::to_rdf_xml_pretty(ostream& os){
 	uri::ns_declaration(os);
 	os<<">";
 	for(V::iterator i=get<V>().begin();i!=get<V>().end();++i) (*i)->to_rdf_xml_pretty(os);
+	//for(auto i=m.begin();i!=m.end();++i) i->second->to_rdf_xml_pretty(os);//maybe we can get rid of vector<shared_ptr<base_resource> > and use solely map<>
 	os<<"\n\033[36m</"<<_RDF<<">\033[m\n";
 }
 shared_ptr<objrdf::base_resource> rdf::RDF::query(uri _i){
