@@ -65,6 +65,9 @@ RESULT subject::run(base_resource::instance_iterator i){
 				return (i.str()==s) ? RESULT(1) : RESULT(0);
 			}else{
 				if(i.get_Property()->get<rdfs::range>()==rdfs::XML_Literal::get_class()){
+					/*
+ 					*	shouldn't bind if empty, shouldn't be here in the first place
+ 					*/ 
 					LOG<<"binding R "<<this<<" to XML_Literal ..."<<endl;
 				}else{
 					LOG<<"binding R "<<this<<" to `"<<i.str()<<"'"<<endl;
@@ -144,7 +147,11 @@ RESULT verb::run(base_resource* r){
 }
 
 void to_xml(ostream& os,const RESULT& r,const subject& s){
-	//get all variables
+	/*
+ 	*	we should not serialize empty literal but hard to know
+ 	*	before serializing (could use buffer), 
+ 	*	could play with instance iterators...
+ 	*/
 	os<</*"<?xml version=\"1.0\"?>\n*/"<sparql xmlns=\"http://www.w3.org/2005/sparql-results#\">\n<head>\n";
 	vector<string> v=s.get_variables();	
 	for(vector<string>::const_iterator i=v.begin();i<v.end();++i) os<<"<variable name='"<<*i<<"'/>\n";
@@ -182,7 +189,7 @@ void sparql_parser::out(ostream& os){//sparql XML serialization
 	//if(sbj){
 		switch(q){
 			case select_q:
-			to_xml(os,sbj->run(doc),*sbj);
+				to_xml(os,sbj->run(doc),*sbj);
 			break;
 			case simple_describe_q:{
 				os<<"<"<<rdf::_RDF<<"\n";
@@ -207,10 +214,8 @@ void sparql_parser::out(ostream& os){//sparql XML serialization
 				os<<"\n</"<<rdf::_RDF<<">\n";
 			}break;
 			case insert_data_q:{
-				//not supposed to return anything, maybe just a 200 OK
 			}break;
 			case delete_data_q:{
-
 			}break;
 			default:break;
 		}
@@ -447,6 +452,10 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 		cerr<<"!!!current:\n"<<*i<<endl;
 		switch(i->t.first){
 			case turtle_parser::subject::id:{
+				/*
+ 				*	we should keep the map::iterator to the subject in case we
+ 				*	need to remove it from the document
+ 				*/ 
 				switch(i->v[0].t.first){
 					case turtle_parser::uriref::id:{
 						uri u=uri::hash_uri(i->v[0].t.second);
@@ -530,7 +539,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 						current_property=std::find_if(sub->begin(),sub->end(),namep(u));
 						if(current_property==sub->end()){
 							cerr<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
-							//return false;
+							return false;
 						}
 					}break;
 					case turtle_parser::qname::id:{
@@ -541,7 +550,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 							current_property=std::find_if(sub->begin(),sub->end(),namep(u));
 							if(current_property==sub->end()){
 								cerr<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
-								//return false;
+								return false;
 							}
 						}else{
 							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
