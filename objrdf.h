@@ -38,7 +38,9 @@ template<typename T> vector<T> concat(/*const*/ vector<T>& a,const vector<T>& b)
 #pragma warning(disable: 4503)
 #endif
 namespace objrdf{
-	template<const char* _A,const char* _B> struct tpair{};
+	template<const char* _A,const char* _B> struct tpair{
+		//enum{N=(int)_A}; would be nice to have enums for Class/Property so we can use switch statements
+	};
 	template<typename T> struct get_uri_help;
 	template<const char* A,const char* B> struct get_uri_help<tpair<A,B> >{static uri go(string name){return uri(A,B,name);}};
 	template<typename T> uri get_uri(string name){return get_uri_help<T>::go(name);}	
@@ -224,12 +226,8 @@ namespace objrdf{
 			friend ostream& operator<<(ostream& os,const instance_iterator& i){
 				if(i.literalp()) 
 					i.out(os);
-				else{
-					if(i.get_object()->id.empty())
-						os<<i.get_object().get();//print pointer
-					else
-						os<<i.get_object()->id;
-				}
+				else
+					os<<i.get_object()->id;
 				return os;
 			}
 			string str();
@@ -268,7 +266,7 @@ namespace objrdf{
 		}
 		uri id;
 		static V v;
-		virtual rdfs::Class* get_Class(){return get_class().get();};
+		virtual rdfs::Class* get_Class() const{return get_class().get();};
 		static shared_ptr<rdfs::Class> get_class();	
 		void to_turtle(ostream& os);
 		void to_xml(ostream& os);
@@ -286,6 +284,8 @@ namespace objrdf{
 			//should never get here make sure compilation stops here
 			typedef typename U::IT_IS_NOT_A_MEMBER VALUE;
 		};
+		int p_to_xml_size(const shared_ptr<rdf::Property> p);
+		bool is_a(const shared_ptr<rdfs::Class>&) const;
 		COMMENT("The class resource, everything.");
 	private:
 		struct _tmp_{
@@ -337,7 +337,7 @@ namespace objrdf{
 		static V v;
 		base_resource::type_iterator begin(){return base_resource::type_iterator(this,v.begin());}
 		base_resource::type_iterator end(){return base_resource::type_iterator(this,v.end());}  
-		virtual rdfs::Class* get_Class(){return get_class().get();};
+		virtual rdfs::Class* get_Class() const{return get_class().get();};
 		static shared_ptr<rdfs::Class> get_class();	
 		static int get_offsetof(){return offsetof(resource,bin);}//ugly, should look into macro
 		template<typename U,int FOUND=help<PROPERTIES,U>::VALUE> struct help_set{
@@ -373,7 +373,7 @@ namespace objrdf{
 		resource(uri id):SUBCLASS(id){}
 		static int get_offsetof(){return 0;}//ugly, should look into macro
 		static shared_ptr<rdfs::Class> get_class();	
-		virtual rdfs::Class* get_Class(){return get_class().get();};
+		virtual rdfs::Class* get_Class() const{return get_class().get();};
 	};
 	/*
 	template<
@@ -386,7 +386,7 @@ namespace objrdf{
 	*/
 	template<typename RANGE> struct base_property{
 		RANGE t;
-		base_property(RANGE _t=RANGE()):t(_t){}
+		base_property(RANGE t=RANGE()):t(t){}
 		void in(istream& is){is>>t;}
 		void out(ostream& os){os<<t;}
 		//could we do something with generic_property?
@@ -677,7 +677,11 @@ namespace objrdf{
 		_property_():generic_property(PREDICATE::get_property(),false){p->get<rdfs::domain>()=SUBJECT::get_class();}
 		virtual void set_object(base_resource* subject,shared_ptr<base_resource> object,int index){
 			//PREDICATE::RANGE is a pointer!
-			static_cast<SUBJECT*>(subject)->set(PREDICATE(static_pointer_cast<typename PREDICATE::element_type>(object)));
+			//check the type first
+			if(object->is_a(RANGE::get_class()))
+				static_cast<SUBJECT*>(subject)->set(PREDICATE(static_pointer_cast<typename PREDICATE::element_type>(object)));
+			else
+				cerr<<"wrong type"<<endl;
 		}
 		virtual shared_ptr<base_resource> get_object(base_resource* subject,int index){
 			return static_cast<SUBJECT*>(subject)->template get<PREDICATE>();
@@ -784,9 +788,10 @@ namespace objrdf{
 	> class _property_<SUBJECT,PREDICATE,property<NAMESPACE,NAME,rdfs::XMLLiteral> >:public generic_property{
 	public:
 		_property_():generic_property(PREDICATE::get_property(),true){p->get<rdfs::domain>()=SUBJECT::get_class();}
-		virtual int get_size(base_resource* subject){return 1;}
+		virtual int get_size(base_resource* subject){
+			return static_cast<SUBJECT*>(subject)->p_to_xml_size(PREDICATE::get_property());
+		}
 		virtual void out(base_resource* subject,ostream& os,int index){
-			//static_cast<SUBJECT*>(subject)->template p_to_xml<PREDICATE>(os);
 			static_cast<SUBJECT*>(subject)->p_to_xml(PREDICATE::get_property(),os);
 		}
 	};

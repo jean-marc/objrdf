@@ -168,6 +168,10 @@ void base_resource::_tmp_::operator=(const string& value){
 	}
 	*/
 }
+int base_resource::p_to_xml_size(const shared_ptr<rdf::Property> p){return 1;}
+bool base_resource::is_a(const shared_ptr<rdfs::Class>& c) const{
+	return *c<=*get_Class();
+}
 void base_resource::to_turtle(ostream& os){
 	os<<id<<" ";
 	base_resource::type_iterator t_begin=begin();
