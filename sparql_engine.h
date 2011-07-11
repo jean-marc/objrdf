@@ -34,6 +34,10 @@
  *	  } 
  *
  */
+/*
+ *	should catch cycles in graph!
+ *
+ */
 using namespace objrdf;
 struct match_property{
 	const rdf::Property* p;
