@@ -1,12 +1,12 @@
-CC = g++ -std=c++0x
+CC = g++ -g -std=c++0x #-O3
 IMPL=IMPL_IN_HEADER
-CFLAGS = -D$(IMPL) -DBIND_TEST -Wall -Wno-invalid-offsetof -Xlinker -zmuldefs -D$(IMPL) -O3 -I../../common -DVERBOSE
+CFLAGS = -D$(IMPL) -DBIND_TEST -Wall -Wno-invalid-offsetof -Xlinker -zmuldefs -D$(IMPL)  -I../../common -DVERBOSE
 OBJ1 = objrdf.o uri.o
 OBJ2 = sigmon.o
 OBJ3 = wbdf_message.o
 OBJ5 = ../../common/Sockets.o
 OBJ6 = httpd.o
-OBJ7 = sparql_parser.o
+OBJ7 = sparql_engine.o
 OBJ8 = rdf_xml_parser.o
 OBJ9 = ../../../license/Md5.o
 OBJS = $(OBJ1) $(OBJ2) $(OBJ3)
@@ -38,6 +38,8 @@ xml_parser.test:xml_parser.test.cpp xml_parser.h ebnf_template.h char_iterator.h
 	$(CC) $(CFLAGS) xml_parser.test.cpp uri.o -o xml_parser.test
 rdf_xml_parser.test:rdf_xml_parser.test.cpp rdf_xml_parser.o objrdf.o xml_parser.h ebnf_template.h char_iterator.h uri.o
 	$(CC) $(CFLAGS) rdf_xml_parser.test.cpp uri.o rdf_xml_parser.o objrdf.o -o rdf_xml_parser.test
+httpd.o:httpd.cpp httpd.h http_parser.h
+	$(CC) -c $(CFLAGS) $< -o $@
 http_parser.test:http_parser.test.cpp http_parser.h ebnf_template.h
 	$(CC) $(CFLAGS) http_parser.test.cpp $(OBJ5) -o http_parser.test 
 httpd.test:$(OBJ1) $(OBJ5) $(OBJ6) $(OBJ7) httpd.test.cpp httpd.h http_parser.h ebnf_template.h
