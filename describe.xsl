@@ -25,9 +25,9 @@
 <xsl:template match='s:variable'><th><xsl:value-of select='@name'/></th>
 </xsl:template>
 <xsl:template match='s:result'><tr><xsl:apply-templates/></tr></xsl:template>
+<xsl:template match='s:binding'><xsl:apply-templates/></xsl:template>
 <xsl:template match='s:uri'><td><a href='#'><xsl:value-of select='.'/></a></td></xsl:template>
-<xsl:template match='s:literal[text()]'><td><xsl:value-of select='text()'/></td></xsl:template>
-<xsl:template match='s:literal'><td><xsl:copy-of select='*'/></td></xsl:template>
+<xsl:template match='s:literal'><td><xsl:apply-templates/></td></xsl:template>
 <xsl:template match='rdf:RDF'>
 	<xsl:apply-templates mode='resource'/>
 </xsl:template>
