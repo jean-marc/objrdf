@@ -139,7 +139,8 @@ public:
 	typedef set<string> VARIABLE_SET;
 	VARIABLE_SET variable_set;
 	PREFIX_NS prefix_ns;
-	sparql_parser(rdf::RDF& doc,istream& is);
+	generic_property::PROVENANCE p;
+	sparql_parser(rdf::RDF& doc,istream& is,generic_property::PROVENANCE p=2);
 	bool go();
 	void out(ostream& os);
 	bool callback(PARSE_RES_TREE& r);

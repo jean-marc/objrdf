@@ -175,7 +175,7 @@ void to_xml(ostream& os,const RESULT& r,const subject& s){
 	os<<"</results>\n</sparql>\n";
 
 }
-sparql_parser::sparql_parser(rdf::RDF& doc,istream& is):char_iterator(is),doc(doc),sbj(0),current_sbj(0),q(no_q){
+sparql_parser::sparql_parser(rdf::RDF& doc,istream& is,generic_property::PROVENANCE p):char_iterator(is),doc(doc),sbj(0),current_sbj(0),q(no_q),p(p){
 	//non standard but helpful
 	prefix_ns["rdf"]="http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 	prefix_ns["rdfs"]="http://www.w3.org/2000/01/rdf-schema#";
@@ -573,7 +573,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 
 							}else{
 								istringstream is(i->v[0].v[0].t.second);
-								current_property->add_property()->in(is);
+								current_property->add_property(p)->in(is);
 								//could check if any char left in stream
 							}
 						}else{
@@ -600,7 +600,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 						}else{
 							shared_ptr<base_resource> r=doc.query(u);
 							if(r.get()){
-								current_property->add_property()->set_object(r);
+								current_property->add_property(p)->set_object(r);
 							}else{
 								cerr<<"resource `"<<u<<"' not found"<<endl;
 								return false;
@@ -627,7 +627,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 							}else{
 								shared_ptr<base_resource> r=doc.query(u);
 								if(r.get()){
-									current_property->add_property()->set_object(r);
+									current_property->add_property(p)->set_object(r);
 								}else{
 									cerr<<"resource `"<<u<<"' not found"<<endl;
 									return false;
