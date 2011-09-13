@@ -2,7 +2,7 @@
 #include <sstream>
 #include <algorithm>
 using namespace objrdf;
-rdf_xml_parser::rdf_xml_parser(rdf::RDF& doc,std::istream& is):xml_parser<rdf_xml_parser>(is),doc(doc),placeholder(new base_resource(uri("??"))),current_property(placeholder->end()){
+rdf_xml_parser::rdf_xml_parser(rdf::RDF& doc,std::istream& is,generic_property::PROVENANCE p):xml_parser<rdf_xml_parser>(is),doc(doc),placeholder(new base_resource(uri("??"))),current_property(placeholder->end()),p(p){
 	string_property=false;
 	st.push(placeholder);
 }
@@ -19,8 +19,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 			assert(current_property->get_Property()->get<rdfs::range>()->f);
 			shared_ptr<base_resource> r=shared_ptr<base_resource>(current_property->get_Property()->get<rdfs::range>()->f(uri(att[rdf::ID])));
 			//LOG<<"new resource:"<<r->id<<endl;
-			//not safe: we must check types
-			current_property->add_property()->set_object(r);
+			current_property->add_property(p)->set_object(r);
 			set_missing_object(r);
 			st.push(r);
 			doc.insert(r);
@@ -33,7 +32,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 				ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
 				if(j!=att.end()){
 					istringstream is(j->second);
-					i->add_property()->in(is);
+					i->add_property(p)->in(is);
 				}
 			}
 		}else if(name==rdf::Description){
@@ -50,7 +49,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 						ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
 						if(j!=att.end()){
 							istringstream is(j->second);
-							i->add_property()->in(is);
+							i->add_property(p)->in(is);
 						}
 					}
 				}else{
@@ -103,14 +102,14 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 					shared_ptr<base_resource> r=shared_ptr<base_resource>(c.f(uri(att[rdf::ID])));
 					//LOG<<"new resource:"<<r->id<<endl;
 					//r->id=att[rdf::ID];
-					current_property->add_property()->set_object(r);
+					current_property->add_property(p)->set_object(r);
 					st.push(r);
 					doc.insert(r);
 					for(base_resource::type_iterator i=r->begin();i!=r->end();++i){
 						ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
 						if(j!=att.end()){
 							istringstream is(j->second);
-							i->add_property()->in(is);
+							i->add_property(p)->in(is);
 						}
 					}
 				}else{
@@ -141,7 +140,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 						ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
 						if(j!=att.end()){
 							istringstream is(j->second);
-							i->add_property()->in(is);
+							i->add_property(p)->in(is);
 						}
 					}
 				}else{
@@ -185,7 +184,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 						ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
 						if(j!=att.end()){
 							istringstream is(j->second);
-							i->add_property()->in(is);
+							i->add_property(p)->in(is);
 						}
 					}
 				}else{
@@ -200,7 +199,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 							ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
 							if(j!=att.end()){
 								istringstream is(j->second);
-								i->add_property()->in(is);
+								i->add_property(p)->in(is);
 							}
 						}
 					}else{
@@ -222,7 +221,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 							ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
 							if(j!=att.end()){
 								istringstream is(j->second);
-								i->add_property()->in(is);
+								i->add_property(p)->in(is);
 							}
 						}
 					}else{
@@ -265,16 +264,20 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
  *	
  */
 void rdf_xml_parser::set_missing_object(shared_ptr<base_resource> object){
-	LOG<<"missing object:"<<object.get()<<"\t"<<object->id<<endl;
-	//if(!object->id.empty()){
-		MISSING_OBJECT::iterator first=missing_object.find(object->id),last=missing_object.upper_bound(object->id);
+	//something fishy here
+	//for(MISSING_OBJECT::iterator i=missing_object.begin();i!=missing_object.end();++i)
+		//cerr<<"\tmissing objects: `"<<i->first<<"'"<<endl;
+	LOG<<"missing object:"<<object.get()<<"\t`"<<object->id<<"'"<<endl;
+	MISSING_OBJECT::iterator first=missing_object.find(object->id),last=missing_object.upper_bound(object->id);
+	cerr<<(first==missing_object.end())<<"\t"<<(last==missing_object.end())<<"\t"<<(first==last)<<endl;
+	if(first!=missing_object.end()){//why do we need that???
 		for(MISSING_OBJECT::iterator i=first;i!=last;++i){
 			LOG<<"setting object of resource `"<<i->first<<"'"<<endl;
 			i->second->set_object(object);//???
-		//need to clean up
 		}
+		//need to clean up
 		missing_object.erase(first,last);
-	//}
+	}
 } 
 bool rdf_xml_parser::end_resource(uri name){
 	//cerr<<"end resource "<<name<<endl;
@@ -289,7 +292,7 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 	if(current_property!=st.top()->end()){
 		if(current_property.literalp()){
 			if(current_property->get_Property()->get<rdfs::range>()!=xsd::String::get_class()){//if the RANGE is string it could consume the next `<'
-				current_property->add_property()->in(is);
+				current_property->add_property(p)->in(is);
 				if(!is.good()){
 					ERROR_PARSER<<"wrong type"<<endl;
 					is.clear();
@@ -303,10 +306,10 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 			if(i!=att.end()){
 				shared_ptr<base_resource> object=doc.find(uri::hash_uri(i->second));
 				if(object){
-					current_property->add_property()->set_object(object);//NEED TO CHECK THE TYPE!!!!
+					current_property->add_property(p)->set_object(object);//NEED TO CHECK THE TYPE!!!!
 				}else{
 					//problem with current_property->add_property()
-					//missing_object.insert(MISSING_OBJECT::value_type(uri::hash_uri(i->second),current_property->add_property()));
+					missing_object.insert(MISSING_OBJECT::value_type(uri::hash_uri(i->second),current_property->add_property(p)));
 					//ERROR_PARSER<<"resource "<<i->second<<" not found"<<endl;
 				}
 			}	
@@ -365,7 +368,7 @@ bool rdf_xml_parser::end_element(uri name){
 bool rdf_xml_parser::characters(string s){
 	//cerr<<"characters "<<s<<endl;
 	if(string_property){
-		current_property->add_property()->set_string(s);
+		current_property->add_property(p)->set_string(s);
 		/*istringstream is(s);
 		current_property->add_property()->in(is);
 		if(!is.good()){
