@@ -120,6 +120,7 @@ namespace objrdf{
  	*/ 
 	class generic_property{
 	public:
+		typedef short PROVENANCE;
 		const shared_ptr<rdf::Property> p;
 		const bool literalp;
 		int offset;
@@ -127,12 +128,27 @@ namespace objrdf{
 		virtual void in(base_resource* subject,istream& is,int index);
 		virtual void out(base_resource* subject,ostream& os,int index);
 		virtual int get_size(base_resource* subject)=0;
-		virtual void add_property(base_resource* subject,int index);//could have insert instead
+		virtual void add_property(base_resource* subject,int index,PROVENANCE p);//could have insert instead
 		virtual shared_ptr<base_resource> get_object(base_resource* subject,int index);
-		virtual void erase(base_resource* subject,int first,int last);
 		virtual void set_object(base_resource* subject,shared_ptr<base_resource> object,int index);
+		virtual void erase(base_resource* subject,int first,int last);
 		generic_property(shared_ptr<rdf::Property> p,const bool literalp);
 		void print() const;
+		/*
+ 		*	returns a number that indicates the origin of the statement (distinct from resource ownership), 
+ 		*	a statement can be created from:
+ 		*	.parsing a document
+ 		*	.SPARQL update query
+ 		*	.program instructions
+ 		*
+ 		*	0->default value
+ 		*	1->main program(static variables,...)
+ 		*	2->...
+ 		*
+ 		*	it can help memory management: a literal property with default value can be discarded because
+ 		*	it wasn't created by anybody
+ 		*/ 
+		virtual PROVENANCE get_provenance(base_resource* subject,int index)=0;
 	};
 	template<
 		typename SUBJECT,
@@ -233,6 +249,7 @@ namespace objrdf{
 			string str();
 			void set_string(string s);
 			static instance_iterator help();
+			generic_property::PROVENANCE get_provenance();
 		};
 		//should be moved to .cpp
 		struct type_iterator:base_resource::iterator{
@@ -240,7 +257,7 @@ namespace objrdf{
 			type_iterator* operator->(){return this;}
 			instance_iterator begin(){return instance_iterator(*this,0);}
 			instance_iterator end(){return instance_iterator(*this,get_size());}
-			instance_iterator add_property();
+			instance_iterator add_property(generic_property::PROVENANCE p);
 		};
 		virtual type_iterator begin();
 		virtual type_iterator end();
@@ -384,20 +401,25 @@ namespace objrdf{
 	//creates some weird problem, to be investigated
 	> V resource<NAMESPACE,NAME,NIL,SUPERCLASS,SUBCLASS>::v;//=get_generic_property<resource<NAMESPACE,NAME,NIL,SUPERCLASS,SUBCLASS> >::go();
 	*/
+	/*
+ 	*	we could add a field for provenance: who created the statement (not the resource)
+ 	*	we have to be careful with the memory footprint, it could be optional, 
+ 	*/ 
 	template<typename RANGE> struct base_property{
 		RANGE t;
-		base_property(RANGE t=RANGE()):t(t){}
+		//should it be constant?
+		generic_property::PROVENANCE p;
+		base_property(RANGE t=RANGE()):t(t),p(0){}
 		void in(istream& is){is>>t;}
 		void out(ostream& os){os<<t;}
-		//could we do something with generic_property?
-		//what about copy operator?
-		//base_property(const 
 	};
 	template<typename RANGE> class base_property<RANGE*>:public shared_ptr<RANGE>{
 	public:
-		void set(const base_property& p){*this=p;}
-		base_property(){}
-		base_property(const shared_ptr<RANGE>& s):shared_ptr<RANGE>(s){}
+		//should it be constant?
+		generic_property::PROVENANCE p;
+		void set(const base_property& pr){*this=pr;}
+		base_property():p(0){}
+		base_property(const shared_ptr<RANGE>& s):shared_ptr<RANGE>(s),p(0){}
 	};
 	template<
 		typename NAMESPACE,
@@ -426,8 +448,16 @@ namespace objrdf{
 }
 namespace rdf{
 	/*
- 	*	we could define RDF as a special element with
- 	*	resource<,,p_array<property<,,base_resource*> > >
+ 	*	the advantage of the vector storage is it provides some information
+ 	*	about timing hence provenance: all the resources created at a given
+ 	*	time but we can not use iterators as the container is modified	
+ 	*/
+	/*
+ 	*	the biggest problem now is how to deal with static resources created at
+ 	*	run time, they will be serialized and create problems	
+ 	*	we need to turn the representation into triples, we can use iterators for that
+ 	*
+ 	*
  	*/
 	char _RDF_[]="RDF";
 	struct RDF:objrdf::resource<rdfs_namespace,_RDF_,objrdf::p_array<objrdf::pp>,RDF>{//document
@@ -633,15 +663,24 @@ namespace objrdf{
 	> class _property_<SUBJECT,PREDICATE,property<NAMESPACE,NAME,RANGE> >:public generic_property{
 	public:
 		_property_():generic_property(PREDICATE::get_property(),true){p->get<rdfs::domain>()=SUBJECT::get_class();}
-		virtual void in(base_resource* subject,istream& is,int){
+		virtual void add_property(base_resource* subject,int index,PROVENANCE p){
+			cerr<<subject->id<<" set provenance:"<<p<<endl;
+			static_cast<SUBJECT*>(subject)->template get<PREDICATE>().p=p;	
+		}
+		virtual void in(base_resource* subject,istream& is,int index){
 			PREDICATE tmp;
 			tmp.in(is);
+			tmp.p=get_provenance(subject,index);
 			static_cast<SUBJECT*>(subject)->set(tmp);	
 		} 
 		virtual void out(base_resource* subject,ostream& os,int){
 			static_cast<SUBJECT*>(subject)->template get<PREDICATE>().out(os);	
 		}
 		virtual int get_size(base_resource*){return 1;}
+		virtual PROVENANCE get_provenance(base_resource* subject,int){
+			//cerr<<"get_provenance:"<<static_cast<SUBJECT*>(subject)->template get<PREDICATE>().p<<endl;	
+			return static_cast<SUBJECT*>(subject)->template get<PREDICATE>().p;	
+		}
 	};
 	template<
 		typename SUBJECT,
@@ -651,10 +690,15 @@ namespace objrdf{
 	> class _property_<SUBJECT,PREDICATE,property<NAMESPACE,NAME,std::string> >:public generic_property{
 	public:
 		_property_():generic_property(PREDICATE::get_property(),true){p->get<rdfs::domain>()=SUBJECT::get_class();}
+		virtual void add_property(base_resource* subject,int index,PROVENANCE p){
+			cerr<<subject->id<<" set provenance:"<<p<<endl;
+			static_cast<SUBJECT*>(subject)->template get<PREDICATE>().p=p;	
+		}
 		//should not use this method
-		virtual void in(base_resource* subject,istream& is,int){
+		virtual void in(base_resource* subject,istream& is,int index){
 			PREDICATE tmp;
 			tmp.in(is);
+			tmp.p=get_provenance(subject,index);
 			static_cast<SUBJECT*>(subject)->set(tmp);	
 		}
 		virtual void out(base_resource* subject,ostream& os,int){
@@ -664,7 +708,12 @@ namespace objrdf{
 			PREDICATE tmp(s);
 			static_cast<SUBJECT*>(subject)->set(tmp);	
 		}
-		virtual int get_size(base_resource*){return 1;}
+		virtual int get_size(base_resource* subject){
+			return static_cast<SUBJECT*>(subject)->template get<PREDICATE>().t.size()>0;	
+		}
+		virtual PROVENANCE get_provenance(base_resource* subject,int){
+			return static_cast<SUBJECT*>(subject)->template get<PREDICATE>().p;	
+		}
 	};
 	template<
 		typename SUBJECT,
@@ -675,11 +724,18 @@ namespace objrdf{
 	> class _property_<SUBJECT,PREDICATE,property<NAMESPACE,NAME,RANGE*> >:public generic_property{
 	public:
 		_property_():generic_property(PREDICATE::get_property(),false){p->get<rdfs::domain>()=SUBJECT::get_class();}
+		virtual void add_property(base_resource* subject,int index,PROVENANCE p){
+			cerr<<subject->id<<" set provenance:"<<p<<endl;
+			static_cast<SUBJECT*>(subject)->template get<PREDICATE>().p=p;	
+		}
 		virtual void set_object(base_resource* subject,shared_ptr<base_resource> object,int index){
+			PREDICATE pr(static_pointer_cast<typename PREDICATE::element_type>(object));
+			pr.p=get_provenance(subject,index);//awkward
 			//PREDICATE::RANGE is a pointer!
 			//check the type first
 			if(object->is_a(RANGE::get_class()))
-				static_cast<SUBJECT*>(subject)->set(PREDICATE(static_pointer_cast<typename PREDICATE::element_type>(object)));
+				//static_cast<SUBJECT*>(subject)->set(PREDICATE(static_pointer_cast<typename PREDICATE::element_type>(object)));
+				static_cast<SUBJECT*>(subject)->set(pr);
 			else
 				cerr<<"wrong type"<<endl;
 		}
@@ -692,6 +748,9 @@ namespace objrdf{
 		virtual void erase(base_resource* subject,int first,int last){
 			//cerr<<"erase:"<<subject<<"\t"<<first<<"\t"<<last<<endl;
 			static_cast<SUBJECT*>(subject)->template get<PREDICATE>()=shared_ptr<typename PREDICATE::element_type>();
+		}
+		virtual PROVENANCE get_provenance(base_resource* subject,int){
+			return static_cast<SUBJECT*>(subject)->template get<PREDICATE>().p;	
 		}
 	};
 	/*
@@ -724,17 +783,27 @@ namespace objrdf{
 			return static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>()[index];
 		}
 		virtual void set_object(base_resource* subject,shared_ptr<base_resource> object,int index){
-			static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>()[index].set(PREDICATE(static_pointer_cast<typename PREDICATE::element_type>(object)));
+			//provenance is lost
+			PREDICATE pr(static_pointer_cast<typename PREDICATE::element_type>(object));
+			pr.p=get_provenance(subject,index);//awkward
+			//static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>()[index].set(PREDICATE(static_pointer_cast<typename PREDICATE::element_type>(object)));
+			static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>()[index].set(pr);
 		}
 		virtual int get_size(base_resource* subject){
 			return static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>().size();
 		}
-		virtual void add_property(base_resource* subject,int index){
-			static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>().push_back(PREDICATE());
+		virtual void add_property(base_resource* subject,int index,PROVENANCE p){
+			cerr<<subject->id<<" set provenance:"<<p<<endl;
+			PREDICATE pr;
+			pr.p=p;
+			static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>().push_back(pr);
 		}
 		virtual void erase(base_resource* subject,int first,int last){
 			PREDICATE_ARRAY& v=static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>();
 			v.erase(v.begin()+first,v.begin()+last);
+		}
+		virtual PROVENANCE get_provenance(base_resource* subject,int index){
+			return static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>()[index].p;
 		}
 	};
 	template<
@@ -750,6 +819,7 @@ namespace objrdf{
 		virtual void in(base_resource* subject,istream& is,int index){
 			PREDICATE tmp;
 			tmp.in(is);
+			tmp.p=get_provenance(subject,index);
 			static_cast<SUBJECT*>(subject)->set(tmp);	
 		} 
 		virtual void out(base_resource* subject,ostream& os,int index){
@@ -758,12 +828,18 @@ namespace objrdf{
 		virtual int get_size(base_resource* subject){
 			return static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>().size();
 		}
-		virtual void add_property(base_resource* subject,int index){
-			static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>().push_back(PREDICATE());
+		virtual void add_property(base_resource* subject,int index,PROVENANCE p){
+			cerr<<subject->id<<" set provenance:"<<p<<endl;
+			PREDICATE pr;
+			pr.p=p;
+			static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>().push_back(pr);
 		}
 		virtual void erase(base_resource* subject,int first,int last){
 			PREDICATE_ARRAY& v=static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>();
 			v.erase(v.begin()+first,v.begin()+last);
+		}
+		virtual PROVENANCE get_provenance(base_resource* subject,int index){
+			return static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>()[index].p;
 		}
 	};
 	/*
@@ -794,6 +870,11 @@ namespace objrdf{
 		virtual void out(base_resource* subject,ostream& os,int index){
 			static_cast<SUBJECT*>(subject)->p_to_xml(PREDICATE::get_property(),os);
 		}
+		virtual void in(base_resource* subject,istream& is,int index){ 
+		}
+		virtual PROVENANCE get_provenance(base_resource* subject,int){
+			return static_cast<SUBJECT*>(subject)->template get<PREDICATE>().p;
+		}
 	};
 	class pseudo_property:public generic_property{
 		shared_ptr<rdfs::Class> object;
@@ -802,6 +883,7 @@ namespace objrdf{
 		virtual int get_size(base_resource* subject);//{return 1;}
 		virtual shared_ptr<base_resource> get_object(base_resource* subject,int index);//{return object;}
 		virtual void set_object(base_resource* subject,shared_ptr<base_resource> object,int index);
+		virtual PROVENANCE get_provenance(base_resource* subject,int index){return 0;}
 		/*
 		virtual void in(base_resource*,istream& is,int); 
 		virtual void out(base_resource*,ostream& os,int);

@@ -35,13 +35,14 @@ generic_property::generic_property(shared_ptr<rdf::Property> p,const bool litera
 void generic_property::set_string(base_resource*,string s){};
 void generic_property::in(base_resource*,istream& is,int){assert(0);}; 
 void generic_property::out(base_resource*,ostream& os,int){assert(0);};
-void generic_property::add_property(base_resource*,int){};
+void generic_property::add_property(base_resource*,int,generic_property::PROVENANCE p){/*assert(0);*/};
 shared_ptr<base_resource> generic_property::get_object(base_resource*,int){return shared_ptr<base_resource>();};
 void generic_property::set_object(base_resource*,shared_ptr<base_resource>,int){};
 void generic_property::erase(base_resource* subject,int first,int last){}
 void generic_property::print() const{
 	cerr<<p.get()<<"\t"<<p->id<<"\t\t"<<literalp<<"\t"<<offset<<endl;
 }
+generic_property::PROVENANCE generic_property::get_provenance(base_resource* subject,int index){return 10;}
 pseudo_property::pseudo_property(shared_ptr<rdfs::Class> object):generic_property(rdf::type::get_property(),false),object(object){}
 int pseudo_property::get_size(base_resource* subject){return 1;}
 void pseudo_property::set_object(base_resource* subject,shared_ptr<base_resource> object,int index){
@@ -148,8 +149,12 @@ shared_ptr<base_resource> base_resource::instance_iterator::get_object() const{
 void base_resource::instance_iterator::set_object(shared_ptr<base_resource> r){
 	BASE::operator*()->set_object(subject,r,index);
 }
-base_resource::instance_iterator base_resource::type_iterator::add_property(){
-	BASE::operator*()->add_property(subject,0);//????
+generic_property::PROVENANCE base_resource::instance_iterator::get_provenance(){
+	return BASE::operator*()->get_provenance(subject,index);
+}
+base_resource::instance_iterator base_resource::type_iterator::add_property(generic_property::PROVENANCE p){
+	cerr<<"add_property:"<<p<<endl;
+	BASE::operator*()->add_property(subject,0,p);//????
 	return instance_iterator(*this,get_size()-1);
 }
 void base_resource::_tmp_::operator=(const string& value){
@@ -207,12 +212,14 @@ void base_resource::to_rdf_xml(ostream& os){
 	os<<"'>";
 	for(base_resource::type_iterator i=begin();i!=end();++i){
 		for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
-			if(i->literalp())
-				os<<"\n\t<"<<i->get_Property()->id<<">"<<*j<<"</"<<i->get_Property()->id<<">";
-			else{
-				os<<"\n\t<"<<i->get_Property()->id<<" "<<rdf::resource<<"='"<<(j->get_object()->id.is_local() ? "#" : "");
-				j->get_object()->id.to_uri(os);
-				os<<"'/>";
+			if(j->get_provenance()>0){
+				if(i->literalp())
+					os<<"\n\t<"<<i->get_Property()->id<<">"<<*j<<"</"<<i->get_Property()->id<<">";
+				else{
+					os<<"\n\t<"<<i->get_Property()->id<<" "<<rdf::resource<<"='"<<(j->get_object()->id.is_local() ? "#" : "");
+					j->get_object()->id.to_uri(os);
+					os<<"'/>";
+				}
 			}
 		}
 	}
@@ -231,9 +238,9 @@ void base_resource::to_rdf_xml_pretty(ostream& os){
 	for(base_resource::type_iterator i=begin();i!=end();++i){
 		for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
 			if(i->literalp())
-				os<<"\n\t\033[36m<"<<i->get_Property()->id<<">\033[m"<<*j<<"\033[36m</"<<i->get_Property()->id<<">";
+				os<<"\n\t\033[36m<"<<i->get_Property()->id<<"{"<<j->get_provenance()<<"}"<<">\033[m"<<*j<<"\033[36m</"<<i->get_Property()->id<<">";
 			else{
-				os<<"\n\t\033[36m<"<<i->get_Property()->id<<" \033[32m"<<rdf::resource<<"=\033[31m'"<<(j->get_object()->id.is_local() ? "#" : "");
+				os<<"\n\t\033[36m<"<<i->get_Property()->id<<"{"<<j->get_provenance()<<"}"<<" \033[32m"<<rdf::resource<<"=\033[31m'"<<(j->get_object()->id.is_local() ? "#" : "");
 				j->get_object()->id.to_uri(os);
 				os<<"'\033[36m/>";
 			}
