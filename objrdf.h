@@ -288,7 +288,9 @@ namespace objrdf{
 		void to_turtle(ostream& os);
 		void to_xml(ostream& os);
 		void to_xml_leaf(ostream& os);
-		void to_rdf_xml(ostream& os);//the document should not have loops!!!
+		static bool filter_provenance(generic_property::PROVENANCE& p){return true;}
+		//template<typename F> void to_rdf_xml(ostream& os,F f=filter_provenance);//the document should not have loops!!!
+		void to_rdf_xml(ostream& os,const generic_property::PROVENANCE& p=0);//the document should not have loops!!!
 		//to use in bash
 		void to_turtle_pretty(ostream& os);
 		void to_rdf_xml_pretty(ostream& os);//the document should not have loops!!!
@@ -472,7 +474,7 @@ namespace rdf{
 		MAP m;
 		void insert(shared_ptr<objrdf::base_resource> r);
 		shared_ptr<objrdf::base_resource> find(objrdf::uri s);
-		void to_rdf_xml(ostream& os);
+		void to_rdf_xml(ostream& os,const objrdf::generic_property::PROVENANCE& p=0);//the document should not have loops!!!
 		void to_rdf_xml_pretty(ostream& os);//the document should not have loops!!!
 		void to_turtle(ostream& os);
 		void to_turtle_pretty(ostream& os);

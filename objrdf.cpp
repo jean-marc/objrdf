@@ -206,13 +206,13 @@ void base_resource::to_turtle_pretty(ostream& os){
 	os<<" .\n";	
 	*/
 }
-void base_resource::to_rdf_xml(ostream& os){
+void base_resource::to_rdf_xml(ostream& os,const generic_property::PROVENANCE& p){
 	os<<"\n<"<<get_Class()->id<<" "<<(id.is_local() ? rdf::ID : rdf::about)<<"='";
 	id.to_uri(os);
 	os<<"'>";
 	for(base_resource::type_iterator i=begin();i!=end();++i){
 		for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
-			if(j->get_provenance()>0){
+			if(j->get_provenance()>=p){
 				if(i->literalp())
 					os<<"\n\t<"<<i->get_Property()->id<<">"<<*j<<"</"<<i->get_Property()->id<<">";
 				else{
@@ -311,11 +311,12 @@ void rdf::RDF::to_turtle(ostream& os){
 void rdf::RDF::to_turtle_pretty(ostream& os){
 	//for(V::iterator i=v.begin();i!=v.end();++i) (*i)->to_turtle_pretty(os);
 }
-void rdf::RDF::to_rdf_xml(ostream& os){
+void rdf::RDF::to_rdf_xml(ostream& os,const generic_property::PROVENANCE& p){
 	os<<"<"<<_RDF<<"\n";
 	uri::ns_declaration(os);
 	os<<">";
-	for(V::iterator i=get<V>().begin();i!=get<V>().end();++i) (*i)->to_rdf_xml(os);
+	//should test provenance here
+	for(V::iterator i=get<V>().begin();i!=get<V>().end();++i) (*i)->to_rdf_xml(os,p);
 	os<<"\n</"<<_RDF<<">\n";
 }
 void rdf::RDF::to_rdf_xml_pretty(ostream& os){
