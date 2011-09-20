@@ -5,8 +5,8 @@
 #include <string>
 #include <map>
 #include <assert.h>
+#include <cstddef>
 #include "shared_ptr.h"
-//#include <memory>
 #include "ifthenelse.hpp"
 #include <algorithm>
 #include <stdexcept>
