@@ -44,10 +44,10 @@ void* httpd::server(void* s){
 	TCPSocketWrapper sockserver;
 	int port=static_cast<httpd*>(s)->port;
 	sockserver.listen(port);
-	cout << "http server is listening on port "<<port<< endl;
+	cerr << "http server is listening on port "<<port<< endl;
 	for(;;){
 		TCPSocketWrapper* sock=new TCPSocketWrapper(sockserver.accept());
-		cout<<"accepted connection from: "<<sock->address()<<" port:"<<sock->port()<<endl;
+		cerr<<"accepted connection from: "<<sock->address()<<" port:"<<sock->port()<<endl;
 		request_info* r=new request_info(static_cast<httpd*>(s),sock);
 		pthread_t shell_t;
 		pthread_create(&shell_t,NULL,request,r);
@@ -98,16 +98,16 @@ void* httpd::request(void* s){
 			}
 			cerr<<"done!"<<endl;
 		}
-		cout<<"ending thread"<<endl;
+		cerr<<"ending thread"<<endl;
 		delete r->second;
 		delete r;//will attempt a flush here
 		return 0;
 	}catch(SocketRunTimeException& e){
-		cout<<"****** "<<e.what()<<endl;
+		cerr<<"****** "<<e.what()<<endl;
 	}catch(SocketLogicException& e){
-		cout<<"****** "<<e.what()<<endl;
+		cerr<<"****** "<<e.what()<<endl;
 	}catch(...){
-		cout<<"****** exception!"<<endl;
+		cerr<<"****** exception!"<<endl;
 	}
 	//return 0;
 }
