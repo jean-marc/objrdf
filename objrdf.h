@@ -129,7 +129,9 @@ namespace objrdf{
 		virtual void out(base_resource* subject,ostream& os,int index);
 		virtual int get_size(base_resource* subject)=0;
 		virtual void add_property(base_resource* subject,int index,PROVENANCE p);//could have insert instead
+		//we need a function for just reading
 		virtual shared_ptr<base_resource> get_object(base_resource* subject,int index);
+		virtual const base_resource* get_object_const(base_resource* subject,int index);
 		virtual void set_object(base_resource* subject,shared_ptr<base_resource> object,int index);
 		virtual void erase(base_resource* subject,int first,int last);
 		generic_property(shared_ptr<rdf::Property> p,const bool literalp);
@@ -217,12 +219,15 @@ namespace objrdf{
 		/*
  		*	private so it does not inherit iterator comparison operators
  		*/ 
+		//should also define const_iterator
 		struct instance_iterator:private base_resource::iterator{
 			friend class base_resource; //for base_resource::erase
 			unsigned int index;
+			//would be nice to have a constructor that takes static iterator
 			instance_iterator():index(0){} //what can we do with this?, not much
 			instance_iterator(base_resource::iterator i,int index):base_resource::iterator(i),index(index){}
 			instance_iterator(base_resource* subject,V::iterator i,int index):base_resource::iterator(subject,i),index(index){}
+			instance_iterator& operator+=(const unsigned int& i){index+=i;return *this;}
 			instance_iterator& operator++(){++index;return *this;}
 			instance_iterator* operator->(){return this;}
 			instance_iterator& operator*(){return *this;}
@@ -235,6 +240,8 @@ namespace objrdf{
 			void in(istream& is);
 			void out(ostream& os) const;
 			shared_ptr<base_resource> get_object() const;
+			base_resource const* get_object_const() const;
+			base_resource* get_subject()const;
 			void set_object(shared_ptr<base_resource>);
 			//need those sometime
 			shared_ptr<rdf::Property> get_Property() const;
@@ -254,6 +261,15 @@ namespace objrdf{
 		//should be moved to .cpp
 		struct type_iterator:base_resource::iterator{
 			type_iterator(base_resource* subject,V::iterator i):base_resource::iterator(subject,i){}
+			template<typename PROPERTY,typename RESOURCE> static type_iterator get(RESOURCE* subject){
+				type_iterator begin(subject,RESOURCE::v.begin()),end(subject,RESOURCE::v.end());
+				//should be only done once
+				while(begin!=end){
+					if((*begin)->p==PROPERTY::get_property()) return begin;
+					++begin;
+				}
+				return end;
+			}
 			type_iterator* operator->(){return this;}
 			instance_iterator begin(){return instance_iterator(*this,0);}
 			instance_iterator end(){return instance_iterator(*this,get_size());}
@@ -316,6 +332,10 @@ namespace objrdf{
 	public:
 		_tmp_ operator[](const string& key){return _tmp_(*this,key);}
 	};
+	base_resource::instance_iterator operator+(const base_resource::instance_iterator& a,const unsigned int& b){
+		base_resource::instance_iterator tmp(a);
+		return tmp+=b;
+	}
 	template<
 		typename NAMESPACE,
 		const char* NAME,
@@ -350,8 +370,16 @@ namespace objrdf{
 			objrdf::for_each<PROPERTIES>(destroy(this));
 		}
 		template<typename U> U& _get_(){return *(U*)(void*)(resource::bin+get_offset<PROPERTIES,U>::VALUE);}
+		template<typename U> U _get_const_() const{return *(U*)(void*)(resource::bin+get_offset<PROPERTIES,U>::VALUE);}
 		template<typename U,int FOUND=help<PROPERTIES,U>::VALUE> struct _help_{typedef typename SUBCLASS::template _help_<U>::VALUE VALUE;};
 		template<typename U> struct _help_<U,1>{typedef resource VALUE;};
+		/*
+ 		* would be nice to have a real get and set method:
+ 		*	template<typename U> U get() const{}
+ 		*	template<typename U> void set(const U&){}
+ 		*	could it work with using U
+ 		*/
+		template<typename U> U get_const() const{return _help_<U>::VALUE::template _get_const_<U>();}
 		template<typename U> U& get(){return _help_<U>::VALUE::template _get_<U>();}
 		static V v;
 		base_resource::type_iterator begin(){return base_resource::type_iterator(this,v.begin());}
@@ -380,7 +408,7 @@ namespace objrdf{
 		typename SUBCLASS	
 	> V resource<NAMESPACE,NAME,PROPERTIES,SUPERCLASS,SUBCLASS>::v=get_generic_property<resource<NAMESPACE,NAME,PROPERTIES,SUPERCLASS,SUBCLASS> >::go();
 
-	template<
+	/*template<
 		typename NAMESPACE,
 		const char* NAME,
 		typename SUPERCLASS,
@@ -393,15 +421,15 @@ namespace objrdf{
 		static int get_offsetof(){return 0;}//ugly, should look into macro
 		static shared_ptr<rdfs::Class> get_class();	
 		virtual rdfs::Class* get_Class() const{return get_class().get();};
+		static V v;
 	};
-	/*
 	template<
 		typename NAMESPACE,
 		const char* NAME,
 		typename SUPERCLASS,
 		typename SUBCLASS
 	//creates some weird problem, to be investigated
-	> V resource<NAMESPACE,NAME,NIL,SUPERCLASS,SUBCLASS>::v;//=get_generic_property<resource<NAMESPACE,NAME,NIL,SUPERCLASS,SUBCLASS> >::go();
+	> V resource<NAMESPACE,NAME,NIL,SUPERCLASS,SUBCLASS>::v=get_generic_property<resource<NAMESPACE,NAME,NIL,SUPERCLASS,SUBCLASS> >::go();
 	*/
 	/*
  	*	we could add a field for provenance: who created the statement (not the resource)
@@ -438,6 +466,7 @@ namespace objrdf{
 	//schema
 	typedef base_resource* (*fpt)(uri);
 	template<typename T> base_resource* constructor(uri u){return new T(u);}
+	template<> base_resource* constructor<rdfs::Class>(uri u){return 0;}
 	template<typename T> fpt get_constructor(){return &constructor<T>;}
 	struct type_p{
 		shared_ptr<rdfs::Class> t;
@@ -463,15 +492,20 @@ namespace rdf{
  	*/
 	char _RDF_[]="RDF";
 	struct RDF:objrdf::resource<rdfs_namespace,_RDF_,objrdf::p_array<objrdf::pp>,RDF>{//document
-		/*	it would be neat to have an iterator based on a sparql query but with
-		 *	casting if all the types are the same, should the query be run first and 
-		 *	the result stored in a temporary array?
-		 */
+		/*
+ 		*	we have 3 different containers for resources: vector,map,multimap
+ 		*	maybe we could get rid of vector?
+ 		*
+ 		*/
 		RDF(objrdf::uri id=objrdf::uri("rdf_doc"));
 		~RDF();
+		//index by id
 		typedef map<objrdf::uri,shared_ptr<objrdf::base_resource> > MAP;
-		typedef objrdf::p_array<objrdf::pp> V;
 		MAP m;
+		//index by type, what is the best way to implement that?
+		typedef multimap<short/*objrdf::c_index::RANGE*/,shared_ptr<objrdf::base_resource> > MULTIMAP;	
+		MULTIMAP mm;
+		typedef objrdf::p_array<objrdf::pp> V;
 		void insert(shared_ptr<objrdf::base_resource> r);
 		shared_ptr<objrdf::base_resource> find(objrdf::uri s);
 		void to_rdf_xml(ostream& os,const objrdf::generic_property::PROVENANCE& p=0);//the document should not have loops!!!
@@ -556,6 +590,10 @@ namespace objrdf{
 	template<> struct get_Literal<unsigned short>:xsd::Unsigned_short{};
 	template<> struct get_Literal<char>:Char{};
 	template<> struct get_Literal<string>:xsd::String{};
+	//extra types
+	template<> struct get_Literal<size_t>:xsd::Unsigned_int{};//not accurate	
+	template<> struct get_Literal<bool>:xsd::Int{};
+	//what about complex numbers?
 }
 namespace rdfs{
 	/*
@@ -576,18 +614,25 @@ namespace objrdf{
 }
 namespace objrdf{
 	_PROPERTY(c_index,short);//each class has a unique index useful for fast serialization/parsing
+	_PROPERTY(superClassOf,rdfs::Class*);
 }
 namespace rdfs{
 	char _Class[]="Class";
-	struct Class:objrdf::resource<rdfs_namespace,_Class,objrdf::tuple<subClassOf,comment,isDefinedBy,objrdf::c_index>::SELF,Class>{
+	struct Class:objrdf::resource<rdfs_namespace,_Class,objrdf::tuple<objrdf::p_array<subClassOf>,objrdf::p_array<objrdf::superClassOf>,comment,isDefinedBy,objrdf::c_index>::SELF,Class>{
 		const objrdf::fpt f;
 		static vector<shared_ptr<Class> >& get_instances();
-		Class(objrdf::uri u);
+		//Class(objrdf::uri u);
 		Class(objrdf::uri id,subClassOf s,objrdf::fpt f,string comment);
-		bool operator==(Class& c) const;
-		bool operator<(Class& c) const;
-		bool operator<=(Class& c) const;
-		bool literalp();
+		bool operator==(const Class& c) const;
+		bool operator<(const Class& c) const;
+		bool operator<=(const Class& c) const;
+		bool is_subclass_of(const Class& c) const;
+		bool literalp() const;
+		static Class* create_Class(objrdf::uri id,subClassOf s,objrdf::fpt f,string comment);
+		/*
+ 		*	inference, should be run once all classes and properties have been created
+ 		*/ 
+		static void analyze();//could be a sparql request
 		COMMENT("The class of classes.");
 	};
 }//end namespace rdfs
@@ -599,7 +644,7 @@ namespace rdf{
 	char _Property[]="Property";
 	struct Property:objrdf::resource<rdfs_namespace,_Property,objrdf::tuple<rdfs::domain,rdfs::range,rdfs::subPropertyOf,objrdf::p_index,objrdf::p_self>::SELF,Property>{
 		Property(objrdf::uri u);
-		Property(objrdf::uri u,rdfs::range r,const bool _literalp);
+		Property(objrdf::uri u,rdfs::range r,const bool literalp);
 		static vector<shared_ptr<Property> >& get_instances();
 		const bool literalp;
 		static shared_ptr<Property> nil;
@@ -619,10 +664,12 @@ namespace objrdf{
 	>
 	shared_ptr<rdfs::Class> resource<NAMESPACE,NAME,PROPERTIES,SUPERCLASS,SUBCLASS>::get_class(){
 		typedef typename IfThenElse<equality<SUPERCLASS,NIL>::VALUE,resource,SUPERCLASS>::ResultT TMP;
-		static shared_ptr<rdfs::Class> c(new rdfs::Class(objrdf::get_uri<NAMESPACE>(NAME),rdfs::subClassOf(SUBCLASS::get_class()),get_constructor<TMP>(),TMP::get_comment!=SUBCLASS::get_comment ? TMP::get_comment() : ""));
+		//cerr<<"about to create class :`"<<objrdf::get_uri<NAMESPACE>(NAME)<<"'\t"<<hex<<(long)get_class<<"\t"<<(long)NAME<<"\t"<<(long)TMP::get_class<<"\t"<<(long)SUBCLASS::get_class<<dec<<"\n";
+		static shared_ptr<rdfs::Class> c(rdfs::Class::create_Class(objrdf::get_uri<NAMESPACE>(NAME),rdfs::subClassOf(SUBCLASS::get_class()),get_constructor<TMP>(),TMP::get_comment!=SUBCLASS::get_comment ? TMP::get_comment() : ""));
 		return c;
 	}
 	//does it really need to be specialized?: yes!
+	/*
 	template<
 		typename NAMESPACE,
 		const char* NAME,
@@ -631,10 +678,12 @@ namespace objrdf{
 	>
 	shared_ptr<rdfs::Class> resource<NAMESPACE,NAME,NIL,SUPERCLASS,SUBCLASS>::get_class(){
 		typedef typename IfThenElse<equality<SUPERCLASS,NIL>::VALUE,resource,SUPERCLASS>::ResultT TMP;
+		cerr<<"about to create class *:`"<<objrdf::get_uri<NAMESPACE>(NAME)<<"'\t"<<hex<<(long)get_class<<"\t"<<(long)NAME<<"\t"<<(long)TMP::get_class<<dec<<"\n";
 		//the static variable c will exist until program exits
-		static shared_ptr<rdfs::Class> c(new rdfs::Class(objrdf::get_uri<NAMESPACE>(NAME),rdfs::subClassOf(SUBCLASS::get_class()),get_constructor<TMP>(),TMP::get_comment!=SUBCLASS::get_comment ? TMP::get_comment() : ""));
+		static shared_ptr<rdfs::Class> c(rdfs::Class::create_Class(objrdf::get_uri<NAMESPACE>(NAME),rdfs::subClassOf(SUBCLASS::get_class()),get_constructor<TMP>(),TMP::get_comment!=SUBCLASS::get_comment ? TMP::get_comment() : ""));
 		return c;
 	}
+	*/
 	template<typename RANGE> struct selector{
 		typedef get_Literal<RANGE> ResultT;
 		enum{IS_LITERAL=1};
@@ -648,6 +697,7 @@ namespace objrdf{
 		const char* NAME,
 		typename RANGE
 	> shared_ptr<rdf::Property> property<NAMESPACE,NAME,RANGE>::get_property(){
+		//cerr<<"about to create property:`"<<objrdf::get_uri<NAMESPACE>(NAME)<<"'\n";
 		static shared_ptr<rdf::Property> c(new rdf::Property(objrdf::get_uri<NAMESPACE>(NAME),rdfs::range(selector<RANGE>::ResultT::get_class()),selector<RANGE>::IS_LITERAL));
 		return c;
 	}
@@ -664,7 +714,9 @@ namespace objrdf{
 		typename RANGE
 	> class _property_<SUBJECT,PREDICATE,property<NAMESPACE,NAME,RANGE> >:public generic_property{
 	public:
-		_property_():generic_property(PREDICATE::get_property(),true){p->get<rdfs::domain>()=SUBJECT::get_class();}
+		_property_():generic_property(PREDICATE::get_property(),true){
+			p->get<rdfs::domain>()=SUBJECT::get_class();
+		}
 		virtual void add_property(base_resource* subject,int index,PROVENANCE p){
 			cerr<<subject->id<<" set provenance:"<<p<<endl;
 			static_cast<SUBJECT*>(subject)->template get<PREDICATE>().p=p;	
@@ -691,7 +743,9 @@ namespace objrdf{
 		const char* NAME
 	> class _property_<SUBJECT,PREDICATE,property<NAMESPACE,NAME,std::string> >:public generic_property{
 	public:
-		_property_():generic_property(PREDICATE::get_property(),true){p->get<rdfs::domain>()=SUBJECT::get_class();}
+		_property_():generic_property(PREDICATE::get_property(),true){
+			p->get<rdfs::domain>()=SUBJECT::get_class();
+		}
 		virtual void add_property(base_resource* subject,int index,PROVENANCE p){
 			cerr<<subject->id<<" set provenance:"<<p<<endl;
 			static_cast<SUBJECT*>(subject)->template get<PREDICATE>().p=p;	
@@ -725,7 +779,9 @@ namespace objrdf{
 		typename RANGE
 	> class _property_<SUBJECT,PREDICATE,property<NAMESPACE,NAME,RANGE*> >:public generic_property{
 	public:
-		_property_():generic_property(PREDICATE::get_property(),false){p->get<rdfs::domain>()=SUBJECT::get_class();}
+		_property_():generic_property(PREDICATE::get_property(),false){
+			p->get<rdfs::domain>()=SUBJECT::get_class();
+		}
 		virtual void add_property(base_resource* subject,int index,PROVENANCE p){
 			cerr<<subject->id<<" set provenance:"<<p<<endl;
 			static_cast<SUBJECT*>(subject)->template get<PREDICATE>().p=p;	
@@ -744,6 +800,9 @@ namespace objrdf{
 		virtual shared_ptr<base_resource> get_object(base_resource* subject,int index){
 			return static_cast<SUBJECT*>(subject)->template get<PREDICATE>();
 		}
+		virtual const base_resource* get_object_const(base_resource* subject,int index){
+			return static_cast<SUBJECT*>(subject)->template get_const<PREDICATE>().get();
+		}
 		virtual int get_size(base_resource* subject){
 			return static_cast<SUBJECT*>(subject)->template get<PREDICATE>().get()!=0;
 		}
@@ -755,6 +814,28 @@ namespace objrdf{
 			return static_cast<SUBJECT*>(subject)->template get<PREDICATE>().p;	
 		}
 	};
+	/*
+ 	*	interesting idea: specialize rdfs:subClassOf to return all the subclasses
+ 	*
+ 	*/ 
+	/*
+	template<
+		typename SUBJECT
+	> class _property_<SUBJECT,rdfs::subClassOf>:public generic_property{
+	public:
+		typedef rdfs::subClassOf PREDICATE;
+		_property_():generic_property(PREDICATE::get_property(),false){p->get<rdfs::domain>()=SUBJECT::get_class();}
+		virtual shared_ptr<base_resource> get_object(base_resource* subject,int index){
+			return static_cast<SUBJECT*>(subject)->template get<PREDICATE>();
+		}
+		virtual int get_size(base_resource* subject){
+			return 2;
+		}
+		virtual PROVENANCE get_provenance(base_resource* subject,int index){
+			return 0;
+		}
+	};
+	*/
 	/*
 	template<
 		typename SUBJECT
@@ -780,9 +861,14 @@ namespace objrdf{
 	public:
 		typedef property<NAMESPACE,NAME,RANGE*> PREDICATE;
 		typedef p_array<PREDICATE> PREDICATE_ARRAY;
-		_property_():generic_property(PREDICATE::get_property(),false){p->get<rdfs::domain>()=SUBJECT::get_class();}
+		_property_():generic_property(PREDICATE::get_property(),false){
+			p->get<rdfs::domain>()=SUBJECT::get_class();
+		}
 		virtual shared_ptr<base_resource> get_object(base_resource* subject,int index){
 			return static_cast<SUBJECT*>(subject)->template get<PREDICATE_ARRAY>()[index];
+		}
+		virtual const base_resource* get_object_const(base_resource* subject,int index){
+			return static_cast<SUBJECT*>(subject)->template get_const<PREDICATE_ARRAY>()[index].get();
 		}
 		virtual void set_object(base_resource* subject,shared_ptr<base_resource> object,int index){
 			//provenance is lost
@@ -817,7 +903,9 @@ namespace objrdf{
 	public:
 		typedef property<NAMESPACE,NAME,RANGE> PREDICATE;
 		typedef p_array<PREDICATE> PREDICATE_ARRAY;
-		_property_():generic_property(PREDICATE::get_property(),true){p->get<rdfs::domain>()=SUBJECT::get_class();}
+		_property_():generic_property(PREDICATE::get_property(),true){
+			p->get<rdfs::domain>()=SUBJECT::get_class();
+		}
 		virtual void in(base_resource* subject,istream& is,int index){
 			PREDICATE tmp;
 			tmp.in(is);
@@ -865,7 +953,9 @@ namespace objrdf{
 		const char* NAME
 	> class _property_<SUBJECT,PREDICATE,property<NAMESPACE,NAME,rdfs::XMLLiteral> >:public generic_property{
 	public:
-		_property_():generic_property(PREDICATE::get_property(),true){p->get<rdfs::domain>()=SUBJECT::get_class();}
+		_property_():generic_property(PREDICATE::get_property(),true){
+			p->get<rdfs::domain>()=SUBJECT::get_class();
+		}
 		virtual int get_size(base_resource* subject){
 			return static_cast<SUBJECT*>(subject)->p_to_xml_size(PREDICATE::get_property());
 		}
@@ -902,12 +992,9 @@ namespace objrdf{
 		typedef resource<NAMESPACE,NAME,PROPERTIES,SUPERCLASS,SUBCLASS> RESOURCE;
 		typedef typename IfThenElse<equality<SUPERCLASS,NIL>::VALUE,RESOURCE,SUPERCLASS>::ResultT TMP;
 		static V go(){
+			cerr<<"get_generic_property:"<<NAME<<endl;
 			V v=get_generic_property<typename SUBCLASS::SELF>::go();
-			//problem there
 			v.insert(v.begin(),new pseudo_property(RESOURCE::get_class()));
-			//v.push_back(new _property_<RESOURCE,rdfs::type,rdfs::type>());
-			//v.push_back(new _property_<RESOURCE,rdfs::type>());
-			//v.push_back(rdf::type);
 			return concat(v,objrdf::for_each<PROPERTIES>(_meta_<TMP>(TMP::get_offsetof())).v);
 		}
 	};

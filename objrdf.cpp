@@ -31,12 +31,15 @@ void base_resource::erase(instance_iterator position){
 void base_resource::get_output(ostream& os){
 	//what would be most appropriate HTTP message?	
 }
-generic_property::generic_property(shared_ptr<rdf::Property> p,const bool literalp):p(p),literalp(literalp),offset(0){}
+generic_property::generic_property(shared_ptr<rdf::Property> p,const bool literalp):p(p),literalp(literalp),offset(0){
+	cerr<<"creating property `"<<p->id<<"'"<<endl;
+}
 void generic_property::set_string(base_resource*,string s){};
 void generic_property::in(base_resource*,istream& is,int){assert(0);}; 
 void generic_property::out(base_resource*,ostream& os,int){assert(0);};
 void generic_property::add_property(base_resource*,int,generic_property::PROVENANCE p){/*assert(0);*/};
 shared_ptr<base_resource> generic_property::get_object(base_resource*,int){return shared_ptr<base_resource>();};
+const base_resource* generic_property::get_object_const(base_resource* subject,int index){return base_resource::nil.get();} ;
 void generic_property::set_object(base_resource*,shared_ptr<base_resource>,int){};
 void generic_property::erase(base_resource* subject,int first,int last){}
 void generic_property::print() const{
@@ -54,30 +57,73 @@ vector<shared_ptr<rdfs::Class> >& rdfs::Class::get_instances(){
 	static vector<shared_ptr<rdfs::Class> > v;
 	return v;
 }
-rdfs::Class::Class(uri u):SELF(u),f(0){
+struct cmp_uri{
+	uri u;
+	cmp_uri(uri u):u(u){}
+	bool operator()(shared_ptr<rdfs::Class> s)const{return s->id==u;}
+};
+//must get rid of this!!!!
+//but needed for now because of template<typename T> base_resource* constructor(uri u){return new T(u);}
+/*
+rdfs::Class::Class(uri id):SELF(id),f(0){
+	cerr<<"!!!!creating Class "<<id<<"\t"<<this<<"\t"<<f<<endl;
 	get<c_index>().t=get_instances().size();
+	vector<shared_ptr<rdfs::Class> >::iterator i=find_if(get_instances().begin(),get_instances().end(),cmp_uri(id));
+	if(i!=get_instances().end()) throw runtime_error("duplicate class "+id.local);
 	get_instances().push_back(shared_ptr<rdfs::Class>(this));
 }
+*/
 rdfs::Class::Class(objrdf::uri id,rdfs::subClassOf s,objrdf::fpt f,string comment_str):rdfs::Class::SELF(id),f(f){
-	//cerr<<"creating Class "<<id<<" ref count:"<<n<<endl;
+	cerr<<"creating Class "<<id<<"\t"<<this<<"\t"<<f<<endl;
+	vector<shared_ptr<rdfs::Class> >::iterator i=find_if(get_instances().begin(),get_instances().end(),cmp_uri(id));
+	if(i!=get_instances().end()) throw runtime_error("duplicate class "+id.local);
 	//objrdf::uri::print();
 	get<c_index>().t=get_instances().size();
 	get_instances().push_back(shared_ptr<rdfs::Class>(this));
 	get<comment>().t=comment_str;
-	get<subClassOf>()=s;
+	if(s.get()){
+		get<p_array<subClassOf> >().push_back(s);
+		//could be done somewhere else for clarity
+		get<p_array<subClassOf> >().insert(get<p_array<subClassOf> >().end(),s->get<p_array<subClassOf> >().begin(),s->get<p_array<subClassOf> >().end());
+	}
 }
-bool rdfs::Class::operator==(rdfs::Class& c) const{
+rdfs::Class* rdfs::Class::create_Class(objrdf::uri id,subClassOf s,objrdf::fpt f,string comment){
+	vector<shared_ptr<rdfs::Class> >::iterator i=find_if(get_instances().begin(),get_instances().end(),cmp_uri(id));
+	return (i!=get_instances().end())? i->get() : new Class(id,s,f,comment);
+}
+bool rdfs::Class::operator==(const rdfs::Class& c) const{
 	return this==&c;	
 }
-bool rdfs::Class::operator<(rdfs::Class& c) const{//is c subClass of this?
-	return (c.get<rdfs::subClassOf>().get()==this)||(c.get<rdfs::subClassOf>().get()&&(*this<*c.get<rdfs::subClassOf>().get()));
+bool rdfs::Class::operator<(const rdfs::Class& c) const{//is c subClass of this?
+	//can still use this with slight modification
+	//return (c.get_const<rdfs::subClassOf>().get()==this)||(c.get_const<rdfs::subClassOf>().get()&&(*this<*c.get_const<rdfs::subClassOf>().get()));
+	auto tmp=c.get_const<p_array<subClassOf> >();//not very efficient
+	for(auto i=tmp.begin();i<tmp.end();++i){
+		cerr<<this->id<<"\t"<<(*i)->id<<endl;
+		if(i->get()==this) return true;
+	}
+	return false;
 }
-bool rdfs::Class::operator<=(rdfs::Class& c) const{
+bool rdfs::Class::operator<=(const rdfs::Class& c) const{
 	return (*this==c)||(*this<c);
 }
-bool rdfs::Class::literalp(){
-	return (this==rdf::Literal::get_class().get()) || (get<subClassOf>() && get<subClassOf>()->literalp());
+bool rdfs::Class::is_subclass_of(const Class& c) const{
+	return c<=*this;
 }
+bool rdfs::Class::literalp() const{
+	//return (this==rdf::Literal::get_class().get()) || (get<subClassOf>() && get<subClassOf>()->literalp());
+	return *rdf::Literal::get_class()<*this;
+}
+void rdfs::Class::analyze(){
+	static bool first=true;
+	if(!first) return;
+	for(auto i=get_instances().begin();i<get_instances().end();++i){
+		for(auto j=(*i)->get<p_array<subClassOf> >().begin();j<(*i)->get<p_array<subClassOf> >().end();++j){
+			(*j)->get<p_array<superClassOf> >().push_back(*i);
+		}
+	}
+	first=false;
+};
 shared_ptr<rdfs::Class> base_resource::get_class(){
 	static shared_ptr<rdfs::Class> c(new rdfs::Class(objrdf::get_uri<rdfs::rdfs_namespace>("Resource"),shared_ptr<rdfs::Class>(),get_constructor<base_resource>(),get_comment()));
 	return c;
@@ -120,7 +166,7 @@ base_resource::instance_iterator rdf::Property::get_self_iterator(){
 }
 shared_ptr<rdf::Property> rdf::Property::nil=shared_ptr<rdf::Property>(new rdf::Property(uri("nil_p")));
 
-V base_resource::v;
+V base_resource::v;//could we add a property?
 
 shared_ptr<base_resource> base_resource::nil=shared_ptr<base_resource>(new base_resource(uri("nil")));
 shared_ptr<rdf::Property> base_resource::iterator::get_Property() const{return BASE::operator*()->p;}
@@ -145,6 +191,9 @@ void base_resource::instance_iterator::set_string(string s){
 }
 shared_ptr<base_resource> base_resource::instance_iterator::get_object() const{
 	return BASE::operator*()->get_object(subject,index);
+}
+const base_resource* base_resource::instance_iterator::get_object_const() const{
+	return BASE::operator*()->get_object_const(subject,index);
 }
 void base_resource::instance_iterator::set_object(shared_ptr<base_resource> r){
 	BASE::operator*()->set_object(subject,r,index);
@@ -283,13 +332,14 @@ void base_resource::to_xml(ostream& os){
 	os<<"</"<<get_Class()->id<<">";
 }
 void rdf::RDF::insert(shared_ptr<objrdf::base_resource> r){
-	if(r->id.empty()){
+	if(r->id.empty()){//that should not be allowed!
 		get<V>().push_back(r);
 	}else{
 		MAP::iterator i=m.find(r->id);
 		if(i==m.end()){
 			get<V>().push_back(r);
 			m[r->id]=r;
+			mm.insert(MULTIMAP::value_type(r->get_Class()->get_const<objrdf::c_index>().t,r));
 		}else{
 			#ifdef OBJRDF_VERB
 			cerr<<"duplicate resource :'"<<r->id<<"'"<<endl;
@@ -347,6 +397,7 @@ rdf::RDF::RDF(uri u):SELF(u){
 	for(vector<shared_ptr<rdfs::Class> >::iterator i=rdfs::Class::get_instances().begin();i<rdfs::Class::get_instances().end();++i) insert(*i);
 	#endif
 	insert(base_resource::nil);
+	rdfs::Class::analyze();
 }
 rdf::RDF::~RDF(){
 	/*

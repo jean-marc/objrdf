@@ -39,22 +39,65 @@ RESULT subject::run(rdf::RDF& doc,size_t n){
 	//optimization when subject is bound
 	//but we need an iterator to it
 	if(bound){
-		doc.get<rdf::RDF::V>().push_back(shared_ptr<base_resource>(this->r));
-		r=run(base_resource::instance_iterator(&doc,rdf::RDF::v.begin()+1,doc.get<rdf::RDF::V>().size()-1));
-		doc.get<rdf::RDF::V>().pop_back();//what if document modified during process??
+		//doc.get<rdf::RDF::V>().push_back(shared_ptr<base_resource>(this->r));
+		//r=run(base_resource::instance_iterator(&doc,rdf::RDF::v.begin()+1,doc.get<rdf::RDF::V>().size()-1),0);
+		//doc.get<rdf::RDF::V>().pop_back();//what if document modified during process??
+		r=run(this->r,0);
 	}else{
-		//for(unsigned int i=0;i<doc.get<rdf::RDF::V>().size();++i){
-		//	RESULT tmp=run(base_resource::instance_iterator(&doc,rdf::RDF::v.begin()+1,i));
+		/*
+ 		*	optimization 
+ 		*	if one of the property is rdfs:domain, rdfs:range, then subject must be a Property
+ 		*	if one of the property is rdfs:subClassOf then subject must be a Class
+ 		*	more optimization:
+ 		*		index by type using multimap
+ 		*/
+		bool is_Property=false,is_Class=false;
+		for(auto i=verbs.begin();i<verbs.end();++i){
+			is_Property|=(i->p==rdfs::domain::get_property())||(i->p==rdfs::range::get_property());
+			is_Class|=i->p==rdfs::subClassOf::get_property();
+		}
 		auto i=doc.begin();++i;//could be simpler
-		for(auto j=i->begin();j<i->end();++j){
-			RESULT tmp=run(j);
-			r.insert(r.end(),tmp.begin(),tmp.end());
-			if(r.size()>=n) return r;
+		/*
+ 		*	use multimap
+ 		*
+ 		*/ 
+		for(auto i=doc.mm.begin();i!=doc.mm.end();++i)
+			cerr<<i->first<<"\t"<<i->second->id<<endl;
+		if(is_Class){
+			cerr<<"################"<<endl;
+			auto r=doc.mm.equal_range(rdfs::Class::get_class()->get<objrdf::c_index>().t);
+			RESULT rr;
+			for(auto j=r.first;j!=r.second;++j){
+				RESULT tmp=run(j->second.get(),0);
+				//cerr<<tmp<<endl;
+				rr.insert(rr.end(),tmp.begin(),tmp.end());
+			}
+			to_xml(cerr,rr,*this);		
+			cerr<<"################"<<endl;
+		}
+		if(is_Class){
+			for(auto j=i->begin()+rdf::Property::get_instances().size();j<i->begin()+rdf::Property::get_instances().size()+rdfs::Class::get_instances().size();++j){
+				RESULT tmp=run(j,0);
+				r.insert(r.end(),tmp.begin(),tmp.end());
+				if(r.size()>=n) return r;
+			}
+		}else if(is_Property){
+			for(auto j=i->begin();j<i->begin()+rdf::Property::get_instances().size();++j){
+				RESULT tmp=run(j,0);
+				r.insert(r.end(),tmp.begin(),tmp.end());
+				if(r.size()>=n) return r;
+			}
+		}else{
+			for(auto j=i->begin();j<i->end();++j){
+				RESULT tmp=run(j,0);
+				r.insert(r.end(),tmp.begin(),tmp.end());
+				if(r.size()>=n) return r;
+			}
 		}
 	}
 	return r;
 }
-RESULT subject::run(base_resource::instance_iterator i){
+RESULT subject::run(base_resource::instance_iterator i,rdf::Property* p){
 	if(i.literalp()){
 		if(r){
 			return RESULT(0);
@@ -83,7 +126,8 @@ RESULT subject::run(base_resource::instance_iterator i){
 		base_resource* _r=i->get_object().get();			
 		if(r){
 			LOG<<"bound\tR "<<this<<" to `"<<r->id<<"'"<<endl;
-			if(r!=_r) return RESULT();
+			bool result=(r==_r);
+			if(!result) return RESULT();
 		}else{
 			LOG<<"binding R "<<this<<" to `"<<_r->id<<"'"<<endl;
 		}		
@@ -111,18 +155,70 @@ RESULT subject::run(base_resource::instance_iterator i){
 		return ret;	
 	}
 }
+RESULT subject::run(base_resource* _r,rdf::Property*){
+	if(s.size()) return RESULT();
+	if(r){
+		LOG<<"bound\tR "<<this<<" to `"<<r->id<<"'"<<endl;
+		bool result=(r==_r);
+		if(!result) return RESULT();
+	}else{
+		LOG<<"binding R "<<this<<" to `"<<_r->id<<"'"<<endl;
+	}		
+	vector<RESULT> s;
+	unsigned int n=0,m=1;
+	for(vector<verb>::iterator j=verbs.begin();j<verbs.end();++j){
+		RESULT tmp=j->run(_r);
+		if(tmp.empty()) return RESULT();
+		if(tmp.size()==1 && tmp.front().size()==0){
+
+		}else{
+			n+=tmp.front().size();//all the same size 
+			m*=tmp.size();
+			s.push_back(tmp);
+		}
+	}
+	RESULT ret=(r||!is_selected) ? RESULT(m) : RESULT(m,vector<base_resource::instance_iterator>(1,base_resource::nil->begin()->begin()));//we lose information here	
+	for(unsigned int i=0;i<m;++i){
+		for(unsigned int j=0;j<s.size();++j){
+			for(unsigned int k=0;k<s[j].front().size();++k){
+				ret[i].push_back(s[j][i%s[j].size()][k]);		
+			}
+		}
+	}	
+	return ret;	
+}
+
 verb::verb(shared_ptr<rdf::Property> p,subject* object):p(p),object(object),is_optional(false),is_selected(true),bound(p){}
 RESULT verb::run(base_resource* r){
 	if(p){
 		LOG<<"bound\tP "<<this<<" to `"<<p->id<<"'"<<endl;	
 		base_resource::type_iterator current_property=std::find_if(r->begin(),r->end(),match_property(p.get()));
+		/*
+ 		*	maybe the sub class has that property
+ 		*/ 
 		if(current_property!=r->end()){
 			RESULT ret;
 			for(base_resource::instance_iterator j=current_property->begin();j!=current_property->end();++j){
 				//they are all the same size so we just stack them up
-				RESULT tmp=object->run(j);
+				RESULT tmp=object->run(j,p.get());
 				LOG<<tmp<<endl;
 				ret.insert(ret.end(),tmp.begin(),tmp.end());
+			}
+			//we can use inference here too
+			//we use superClassOf
+			//more generic? if(p->get_Property()->get<rdfs::range>().t==rdfs::Class::get_class()){}
+			//careful at exponential growth of results!!!, could use the rule only when object is bound.... 
+			if(/*p==rdfs::range::get_property()||*/p==rdfs::domain::get_property()){
+				if(current_property->begin()!=current_property->end()){
+					shared_ptr<rdfs::Class> c=static_pointer_cast<rdfs::Class>(current_property->begin()->get_object());
+					base_resource::type_iterator c_p(base_resource::type_iterator::get<objrdf::superClassOf>(c.get()));
+					for(base_resource::instance_iterator j=c_p->begin();j!=c_p->end();++j){
+						//they are all the same size so we just stack them up
+						RESULT tmp=object->run(j,p.get());
+						LOG<<tmp<<endl;
+						ret.insert(ret.end(),tmp.begin(),tmp.end());
+					}
+				}
 			}
 			return ret;
 		}else{
@@ -134,7 +230,7 @@ RESULT verb::run(base_resource* r){
 			base_resource::instance_iterator pt=i->get_Property()->get_self_iterator();
 			for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
 				LOG<<"binding P "<<this<<" to `"<<i->get_Property()->id<<"'"<<endl;	
-				RESULT tmp=object->run(j);
+				RESULT tmp=object->run(j,i->get_Property().get());
 				LOG<<tmp<<endl;
 				if(is_selected){
 					for(auto k=tmp.begin();k<tmp.end();++k) k->insert(k->begin(),pt);
@@ -145,13 +241,28 @@ RESULT verb::run(base_resource* r){
 		return ret;
 	}
 }
-
-void to_xml(ostream& os,const RESULT& r,const subject& s){
+/*
+ * ordering
+ * we have typedef vector<vector<base_resource::instance_iterator> > RESULT;
+ */
+struct comp_r{
+	int i;
+	comp_r(int i):i(i){}
+	bool operator()(const vector<base_resource::instance_iterator>& a,const vector<base_resource::instance_iterator>& b){
+		return a[i].get_object_const()<b[i].get_object_const();	
+	}	
+};
+/*	it would be neat to have an iterator based on a sparql query but with
+ *	casting if all the types are the same, should the query be run first and 
+ *	the result stored in a temporary array?
+ */
+void to_xml(ostream& os,/*const*/ RESULT& r,const subject& s){
 	/*
  	*	we should not serialize empty literal but hard to know
  	*	before serializing (could use buffer), 
  	*	could play with instance iterators...
  	*/
+	//sort(r.begin(),r.end(),comp_r(1));
 	os<</*"<?xml version=\"1.0\"?>\n*/"<sparql xmlns=\"http://www.w3.org/2005/sparql-results#\">\n<head>\n";
 	vector<string> v=s.get_variables();	
 	for(vector<string>::const_iterator i=v.begin();i<v.end();++i) os<<"<variable name='"<<*i<<"'/>\n";
@@ -161,12 +272,16 @@ void to_xml(ostream& os,const RESULT& r,const subject& s){
 		int v_i=0;
 		for(auto j=i->begin();j<i->end();++j){
 			os<<"<binding name='"<<v[v_i++]<<"'>";
-			if(j->literalp())
-				os<<"<literal>"<<*j<<"</literal>";
-			else{
-				os<<"<uri>";
-				j->get_object()->id.to_uri(os);
-				os<<"</uri>";
+			if(*j==base_resource::nil->begin()->begin()){
+
+			}else{
+				if(j->literalp())
+					os<<"<literal>"<<*j<<"</literal>";
+				else{
+					os<<"<uri>";
+					j->get_object()->id.to_uri(os);
+					os<<"</uri>";
+				}
 			}
 			os<<"</binding>\n";
 		}
@@ -179,6 +294,7 @@ sparql_parser::sparql_parser(rdf::RDF& doc,istream& is,generic_property::PROVENA
 	//non standard but helpful
 	prefix_ns["rdf"]="http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 	prefix_ns["rdfs"]="http://www.w3.org/2000/01/rdf-schema#";
+	prefix_ns["obj"]="http://www.example.org/objrdf#";
 }
 bool sparql_parser::go(){
 	if(!document::go(*this)) return false;
@@ -188,9 +304,10 @@ bool sparql_parser::go(){
 void sparql_parser::out(ostream& os){//sparql XML serialization
 	//if(sbj){
 		switch(q){
-			case select_q:
-				to_xml(os,sbj->run(doc),*sbj);
-			break;
+			case select_q:{
+				RESULT r=sbj->run(doc);
+				to_xml(os,r,*sbj);
+			}break;
 			case simple_describe_q:{
 				os<<"<"<<rdf::_RDF<<"\n";
 				uri::ns_declaration(os);
@@ -374,6 +491,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					case turtle_parser::uriref::id:{
 						shared_ptr<base_resource> r=doc.query(uri::hash_uri(i->v[0].t.second));
 						subject* object=new subject(r.get() ? r.get() : base_resource::nil.get() );
+						cerr<<"####"<<r.get()<<"\t"<<i->v[0].t.second<<endl;
 						index[i->v[0].t.second]=object;
 						current_sbj->verbs.back().object=object;
 					}
@@ -423,7 +541,7 @@ shared_ptr<rdf::Property> sparql_parser::parse_property(PARSE_RES_TREE& r){
 //won't parse literal
 shared_ptr<base_resource> sparql_parser::parse_object(PARSE_RES_TREE& r){
 	switch(r.t.first){
-		case turtle_parser::uriref::id:return doc.query(uri::hash_uri(r.t.second));
+		case turtle_parser::uriref::id:return doc.query(uri::hash_uri(r.t.second));break;
 		case turtle_parser::qname::id:{
 			PREFIX_NS::iterator j=prefix_ns.find(r.v[0].t.second);
 			if(j!=prefix_ns.end()){
@@ -434,7 +552,7 @@ shared_ptr<base_resource> sparql_parser::parse_object(PARSE_RES_TREE& r){
 				return shared_ptr<rdf::Property>();
 			}
 		}break;
-		default:return shared_ptr<rdf::Property>();	
+		default:return shared_ptr<rdf::Property>();//???	
 	}
 }
 bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete){

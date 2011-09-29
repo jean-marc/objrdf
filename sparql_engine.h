@@ -41,22 +41,44 @@
 using namespace objrdf;
 struct match_property{
 	const rdf::Property* p;
-	match_property(const rdf::Property* _p):p(_p){};
+	match_property(const rdf::Property* p):p(p){};
 	bool operator()(generic_property* g)const{return g->p.get()==p;}
 };
 struct subject;
+/*
+ *	could it be made more generic?
+ *	we could have
+ * 	most of the time we use base_resource::instance_iterator ex
+ */
+//typedef std::pair<base_resource*,base_resource::instance_iterator> R;
 typedef vector<vector<base_resource::instance_iterator> > RESULT;
+//typedef vector<vector<R> RESULT;
 ostream& operator<<(ostream& os,const RESULT& r){
 	for(auto i=r.begin();i<r.end();++i){
 		for(auto j=i->begin();j<i->end();++j){
-			if(j->get_Property()->get<rdfs::range>()=rdfs::XML_Literal::get_class())
-				os<<"XML_Literal ...\t|";
-			else
-				os<<*j<<"\t|";
+			if((*j)!=base_resource::nil->begin()->begin()){
+				if(j->get_Property()->get<rdfs::range>()=rdfs::XML_Literal::get_class())
+					os<<"XML_Literal ...\t|";
+				else{
+					os<<*j<<"\t|";
+				}
+			}else{
+				os<<"nil\t|";
+			}
 		}
 	}
 	return os;
 }
+typedef vector<vector<base_resource*> > RRESULT;//resources only
+ostream& operator<<(ostream& os,const RRESULT& r){
+	for(auto i=r.begin();i<r.end();++i){
+		for(auto j=i->begin();j<i->end();++j){
+			os<<*j<<"\t|";
+		}
+	}
+	return os;
+}
+
 struct verb{
 	shared_ptr<rdf::Property> p;//0 -> not bound
 	subject* object;
@@ -67,6 +89,7 @@ struct verb{
 	verb(shared_ptr<rdf::Property> p,subject* object);
 	verb();
 	RESULT run(base_resource* r);
+	RRESULT run_r(base_resource* r);//
 	int size();
 	vector<string> get_variables() const;
 };
@@ -81,14 +104,19 @@ struct subject{
 	vector<verb> verbs;
 	subject(base_resource* r=0);
 	subject(string s);
-	RESULT run(base_resource::instance_iterator i);
+	//RRESULT run_r(base_resource* _r,rdf::Property*);//
+	RESULT run(base_resource::instance_iterator i,rdf::Property* p);
+	RESULT run(base_resource* _r,rdf::Property* p);
 	RESULT run(rdf::RDF& doc,size_t n=1000);
 	void del();
 	void ins();
 	int size();
 	vector<string> get_variables() const;
 };
-void to_xml(ostream& os,const RESULT& r,const subject&);
+
+
+
+void to_xml(ostream& os,/*const*/ RESULT& r,const subject&);
 void to_json(ostream& os,const RESULT& r,const subject&){}
 class sparql_parser:public char_iterator{
 /*
