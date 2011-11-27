@@ -1,0 +1,6 @@
+objrdf is a C++ framework to map classes to RDF classes as defined by RDFS.
+Once classes and members are defined in code by specializing templates any
+new object becomes part of a RDF document, that can be published (RDFXML) and 
+modified (SPARQL).
+
+  
