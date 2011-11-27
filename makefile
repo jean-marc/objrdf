@@ -1,14 +1,10 @@
-CC = g++ -g -std=c++0x #-O3
-IMPL=IMPL_IN_HEADER
-CFLAGS = -D$(IMPL) -DBIND_TEST -Wall -Wno-invalid-offsetof -Xlinker -zmuldefs -D$(IMPL)  -I../../common -DVERBOSE
+CC = g++ -std=c++0x -O3
+CFLAGS = -Wall -Wno-invalid-offsetof -Xlinker -zmuldefs -DVERBOSE
 OBJ1 = objrdf.o uri.o
-OBJ2 = sigmon.o
-OBJ3 = wbdf_message.o
 OBJ5 = ../../common/Sockets.o
 OBJ6 = httpd.o
 OBJ7 = sparql_engine.o
 OBJ8 = rdf_xml_parser.o
-OBJ9 = ../../../license/Md5.o
 OBJS = $(OBJ1) $(OBJ2) $(OBJ3)
 %.o:%.cpp %.h
 	$(CC) -c $(CFLAGS) $< -o $@
@@ -17,6 +13,8 @@ OBJS = $(OBJ1) $(OBJ2) $(OBJ3)
 #	rm $(OBJS)
 test%:test%.cpp $(OBJ1) $(OBJ8) objrdf.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) -o $@ 
+#example.%:example.%.cpp libobjrdf.so
+	#$(CC) $(CFLAGS) $< libobjrdf.so -o $@ 
 example%:example%.cpp $(OBJ1) $(OBJ8) objrdf.h rdf_xml_parser.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) -o $@ 
 tests = $(basename $(wildcard test*.cpp))
@@ -56,6 +54,10 @@ xml_signature.test:$(OBJ9) xml_signature.h uri.o
 	$(CC) $(CFLAGS) -I../../../license xml_signature.test.cpp $(OBJ9) uri.o -o xml_signature.test
 persistence.objrdf: persistence.objrdf.cpp objrdf.o uri.o rdf_xml_parser.o ebnf_template.h char_iterator.h
 	$(CC) $(CFLAGS) persistence.objrdf.cpp objrdf.o uri.o rdf_xml_parser.o -o persistence.objrdf
+%.pic.o:%.cpp %.h
+	$(CC) -c $(CFLAGS) -fPIC $< -o $@
+libobjrdf.so:objrdf.pic.o uri.pic.o
+	$(CC) $(CFLAGS) objrdf.pic.o uri.pic.o -shared -o libobjrdf.so 
 clean:
 	rm -f $(OBJS) $(OBJ8)
 
