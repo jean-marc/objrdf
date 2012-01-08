@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <tuple>
+#include "tuple_helper.h"
 #include <assert.h>
 #include <cstddef>
 #include "shared_ptr.h"
@@ -70,6 +72,7 @@ namespace objrdf{
 	struct NIL{
 		typedef NIL SELF;
 	};
+	/*
 	template<typename T0,typename T1> struct duo{
 		typedef duo SELF;
 	};
@@ -105,11 +108,12 @@ namespace objrdf{
 	template<typename T0,typename T1,typename R> struct get_offset<duo<T0,T1>,R>{
 		enum{VALUE=IfThenElse<help<T0,R>::VALUE,get_offset<T0,R>,_plus_<get_size<T0>,get_offset<T1,R> > >::ResultT::VALUE};	
 	};
+	*/
 	template<typename P> struct p_array:vector<P>{
 		typedef p_array SELF;
 		static shared_ptr<rdf::Property> get_property(){return P::get_property();}
 	};
-	template<typename T> struct help<p_array<T>,T>{enum{VALUE=2};};
+	//template<typename T> struct help<p_array<T>,T>{enum{VALUE=2};};
 	class base_resource;
 	typedef shared_ptr<base_resource> RES_PTR;
 	/*
@@ -120,7 +124,7 @@ namespace objrdf{
  	*/ 
 	class generic_property{
 	public:
-		typedef short PROVENANCE;
+		typedef char PROVENANCE;
 		const shared_ptr<rdf::Property> p;
 		const bool literalp;
 		int offset;
@@ -162,12 +166,13 @@ namespace objrdf{
 		V v;
 		int n; //byte size
 		_meta_(int _n){n=_n;}
-		template<typename PREDICATE> void go(){
+		template<typename PREDICATE> void operator()(){
 			v.push_back(new _property_<SUBJECT,PREDICATE>());
-			v.back()->offset=n;
-			n+=get_size<PREDICATE>::VALUE;
+			//v.back()->offset=n;
+			//n+=get_size<PREDICATE>::VALUE;
 		};
 	};
+	/*
 	template<typename T,typename FUNCTION> struct for_each_impl{
 		static FUNCTION go(FUNCTION f){
 			f.template go<T>(); 
@@ -191,6 +196,7 @@ namespace objrdf{
 	template<typename T,typename FUNCTION> FUNCTION for_each(FUNCTION f){
 		return for_each_impl<T,FUNCTION>::go(f);
 	};
+	*/
 	class base_resource{
 		/*
  		*	not a great idea to inherit from V::iterator, would
@@ -209,7 +215,7 @@ namespace objrdf{
 			bool literalp() const;
 			//still being used? no, only makes sense with function pointer
 			//that means offset is not used either
-			inline void* current() const {return (char*)subject+BASE::operator*()->offset;}
+			//inline void* current() const {return (char*)subject+BASE::operator*()->offset;}
 		};
 	public:
 		//to be investigated ...
@@ -339,39 +345,23 @@ namespace objrdf{
 	template<
 		typename NAMESPACE,
 		const char* NAME,
-		typename _PROPERTIES_=NIL,//would be nice if we could use tuple<> instead of tuple<>::SELF
+		typename _PROPERTIES_=NIL,
 		typename SUPERCLASS=NIL,
 		typename SUBCLASS=base_resource	
 	>
 	struct resource:SUBCLASS{
-		typedef typename _PROPERTIES_::SELF PROPERTIES;
-		struct initialize{
-			resource* r;
-			initialize(resource* r):r(r){}	
-			template<typename P> void go(){new(&r->get<P>()) P;}//placement new
-		};
-		struct destroy{
-			resource* r;
-			destroy(resource* r):r(r){}	
-			template<typename P> void go(){
-				#ifdef OBJRDF_VERB
-				cerr<<"delete property `"<<P::get_property()->id<<"' from "<<r<<endl;
-				#endif
-				r->get<P>().~P();
-			}//placement delete
-		};
+		typedef _PROPERTIES_ PROPERTIES;
 		typedef resource SELF;
-		char bin[get_size<PROPERTIES>::VALUE];
-		resource(uri id):SUBCLASS(id){objrdf::for_each<PROPERTIES>(initialize(this));}
+		PROPERTIES p;
+		resource(uri id):SUBCLASS(id){}
 		~resource(){
 			#ifdef OBJRDF_VERB
 			cerr<<"delete "<<get_class()->id<<" `"<<SUBCLASS::id<<"' "<<this<<endl;
 			#endif
-			objrdf::for_each<PROPERTIES>(destroy(this));
 		}
-		template<typename U> U& _get_(){return *(U*)(void*)(resource::bin+get_offset<PROPERTIES,U>::VALUE);}
-		template<typename U> U _get_const_() const{return *(U*)(void*)(resource::bin+get_offset<PROPERTIES,U>::VALUE);}
-		template<typename U,int FOUND=help<PROPERTIES,U>::VALUE> struct _help_{typedef typename SUBCLASS::template _help_<U>::VALUE VALUE;};
+		template<typename U> U& _get_(){return std::get<tuple_index<U,PROPERTIES>::N>(p);}
+		template<typename U> U _get_const_() const{return std::get<tuple_index<U,PROPERTIES>::N>(p);}
+		template<typename U,int FOUND=tuple_index<U,PROPERTIES>::N!=-1> struct _help_{typedef typename SUBCLASS::template _help_<U>::VALUE VALUE;};
 		template<typename U> struct _help_<U,1>{typedef resource VALUE;};
 		/*
  		* would be nice to have a real get and set method:
@@ -386,8 +376,7 @@ namespace objrdf{
 		base_resource::type_iterator end(){return base_resource::type_iterator(this,v.end());}  
 		virtual rdfs::Class* get_Class() const{return get_class().get();};
 		static shared_ptr<rdfs::Class> get_class();	
-		static int get_offsetof(){return offsetof(resource,bin);}//ugly, should look into macro
-		template<typename U,int FOUND=help<PROPERTIES,U>::VALUE> struct help_set{
+		template<typename U,int FOUND=tuple_index<U,PROPERTIES>::N!=-1> struct help_set{
 			static void go(resource* r,U u){r->get<U>()=u;}
 		};
 		template<typename U> struct help_set<U,2>{
@@ -407,30 +396,6 @@ namespace objrdf{
 		typename SUPERCLASS,
 		typename SUBCLASS	
 	> V resource<NAMESPACE,NAME,PROPERTIES,SUPERCLASS,SUBCLASS>::v=get_generic_property<resource<NAMESPACE,NAME,PROPERTIES,SUPERCLASS,SUBCLASS> >::go();
-
-	/*template<
-		typename NAMESPACE,
-		const char* NAME,
-		typename SUPERCLASS,
-		typename SUBCLASS
-	>
-	struct resource<NAMESPACE,NAME,NIL,SUPERCLASS,SUBCLASS>:SUBCLASS{
-		typedef resource SELF;
-		resource(){}
-		resource(uri id):SUBCLASS(id){}
-		static int get_offsetof(){return 0;}//ugly, should look into macro
-		static shared_ptr<rdfs::Class> get_class();	
-		virtual rdfs::Class* get_Class() const{return get_class().get();};
-		static V v;
-	};
-	template<
-		typename NAMESPACE,
-		const char* NAME,
-		typename SUPERCLASS,
-		typename SUBCLASS
-	//creates some weird problem, to be investigated
-	> V resource<NAMESPACE,NAME,NIL,SUPERCLASS,SUBCLASS>::v=get_generic_property<resource<NAMESPACE,NAME,NIL,SUPERCLASS,SUBCLASS> >::go();
-	*/
 	/*
  	*	we could add a field for provenance: who created the statement (not the resource)
  	*	we have to be careful with the memory footprint, it could be optional, 
@@ -443,6 +408,9 @@ namespace objrdf{
 		void in(istream& is){is>>t;}
 		void out(ostream& os){os<<t;}
 	};
+	/*
+ 	*	specialization for pointer
+ 	*/ 
 	template<typename RANGE> class base_property<RANGE*>:public shared_ptr<RANGE>{
 	public:
 		//should it be constant?
@@ -460,6 +428,9 @@ namespace objrdf{
 		typedef _RANGE_ RANGE;
 		typedef property SELF;
 		template<typename S> property(S s):base_property<RANGE>(s){}
+		/*
+ 		*	why can't we have property<,,char[1]> ? 
+ 		*/ 
 		property(){}
 		static shared_ptr<rdf::Property> get_property();
 	};
@@ -609,7 +580,7 @@ namespace rdfs{
 	typedef objrdf::resource<rdfs_namespace,_JSON,objrdf::NIL,rdf::Literal> JSON_type;
 }
 namespace objrdf{
-	template<typename NAMESPACE,const char* NAME> struct get_size<property<NAMESPACE,NAME,rdfs::XMLLiteral> >{enum{VALUE=0};};
+	//template<typename NAMESPACE,const char* NAME> struct get_size<property<NAMESPACE,NAME,rdfs::XMLLiteral> >{enum{VALUE=0};};
 	template<> struct get_Literal<rdfs::XMLLiteral>:rdfs::XML_Literal{};
 }
 namespace objrdf{
@@ -618,7 +589,7 @@ namespace objrdf{
 }
 namespace rdfs{
 	char _Class[]="Class";
-	struct Class:objrdf::resource<rdfs_namespace,_Class,objrdf::tuple<objrdf::p_array<subClassOf>,objrdf::p_array<objrdf::superClassOf>,comment,isDefinedBy,objrdf::c_index>::SELF,Class>{
+	struct Class:objrdf::resource<rdfs_namespace,_Class,std::tuple<objrdf::p_array<subClassOf>,objrdf::p_array<objrdf::superClassOf>,comment,isDefinedBy,objrdf::c_index>,Class>{
 		const objrdf::fpt f;
 		static vector<shared_ptr<Class> >& get_instances();
 		//Class(objrdf::uri u);
@@ -642,7 +613,7 @@ namespace objrdf{
 }
 namespace rdf{
 	char _Property[]="Property";
-	struct Property:objrdf::resource<rdfs_namespace,_Property,objrdf::tuple<rdfs::domain,rdfs::range,rdfs::subPropertyOf,objrdf::p_index,objrdf::p_self>::SELF,Property>{
+	struct Property:objrdf::resource<rdfs_namespace,_Property,std::tuple<rdfs::domain,rdfs::range,rdfs::subPropertyOf,objrdf::p_index,objrdf::p_self>,Property>{
 		Property(objrdf::uri u);
 		Property(objrdf::uri u,rdfs::range r,const bool literalp);
 		static vector<shared_ptr<Property> >& get_instances();
@@ -668,22 +639,6 @@ namespace objrdf{
 		static shared_ptr<rdfs::Class> c(rdfs::Class::create_Class(objrdf::get_uri<NAMESPACE>(NAME),rdfs::subClassOf(SUBCLASS::get_class()),get_constructor<TMP>(),TMP::get_comment!=SUBCLASS::get_comment ? TMP::get_comment() : ""));
 		return c;
 	}
-	//does it really need to be specialized?: yes!
-	/*
-	template<
-		typename NAMESPACE,
-		const char* NAME,
-		typename SUPERCLASS,
-		typename SUBCLASS
-	>
-	shared_ptr<rdfs::Class> resource<NAMESPACE,NAME,NIL,SUPERCLASS,SUBCLASS>::get_class(){
-		typedef typename IfThenElse<equality<SUPERCLASS,NIL>::VALUE,resource,SUPERCLASS>::ResultT TMP;
-		cerr<<"about to create class *:`"<<objrdf::get_uri<NAMESPACE>(NAME)<<"'\t"<<hex<<(long)get_class<<"\t"<<(long)NAME<<"\t"<<(long)TMP::get_class<<dec<<"\n";
-		//the static variable c will exist until program exits
-		static shared_ptr<rdfs::Class> c(rdfs::Class::create_Class(objrdf::get_uri<NAMESPACE>(NAME),rdfs::subClassOf(SUBCLASS::get_class()),get_constructor<TMP>(),TMP::get_comment!=SUBCLASS::get_comment ? TMP::get_comment() : ""));
-		return c;
-	}
-	*/
 	template<typename RANGE> struct selector{
 		typedef get_Literal<RANGE> ResultT;
 		enum{IS_LITERAL=1};
@@ -836,22 +791,6 @@ namespace objrdf{
 		}
 	};
 	*/
-	/*
-	template<
-		typename SUBJECT
-	> class _property_<SUBJECT,rdfs::type,rdfs::type>:public generic_property{
-	public:
-		_property_():generic_property(rdfs::type::get_property(),false){}
-		//_property_():generic_property(rdfs::type::get_property(),false){p->get<rdfs::domain>()=base_resource::get_class();}
-		virtual shared_ptr<base_resource> get_object(base_resource* subject,int){
-			//return SUBJECT::get_class();
-			return static_cast<SUBJECT*>(subject)->get_class();
-		}
-		virtual int get_size(base_resource*){
-			return 1;
-		}
-	};
-	*/
 	template<
 		typename SUBJECT,
 		typename NAMESPACE,
@@ -988,14 +927,17 @@ namespace objrdf{
 		typename SUPERCLASS,
 		typename SUBCLASS 
 	> struct get_generic_property<resource<NAMESPACE,NAME,_PROPERTIES_,SUPERCLASS,SUBCLASS> >{
-		typedef typename _PROPERTIES_::SELF PROPERTIES;
+		typedef _PROPERTIES_ PROPERTIES;
 		typedef resource<NAMESPACE,NAME,PROPERTIES,SUPERCLASS,SUBCLASS> RESOURCE;
 		typedef typename IfThenElse<equality<SUPERCLASS,NIL>::VALUE,RESOURCE,SUPERCLASS>::ResultT TMP;
 		static V go(){
+			#ifdef OBJRDF_VERB
 			cerr<<"get_generic_property:"<<NAME<<endl;
+			#endif
 			V v=get_generic_property<typename SUBCLASS::SELF>::go();
 			v.insert(v.begin(),new pseudo_property(RESOURCE::get_class()));
-			return concat(v,objrdf::for_each<PROPERTIES>(_meta_<TMP>(TMP::get_offsetof())).v);
+			//return concat(v,objrdf::for_each<PROPERTIES>(_meta_<TMP>(TMP::get_offsetof())).v);
+			return concat(v,std::static_for_each<PROPERTIES>(_meta_<TMP>(0)).v);
 		}
 	};
 }

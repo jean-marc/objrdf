@@ -32,7 +32,9 @@ void base_resource::get_output(ostream& os){
 	//what would be most appropriate HTTP message?	
 }
 generic_property::generic_property(shared_ptr<rdf::Property> p,const bool literalp):p(p),literalp(literalp),offset(0){
+	#ifdef OBJRDF_VERB
 	cerr<<"creating property `"<<p->id<<"'"<<endl;
+	#endif
 }
 void generic_property::set_string(base_resource*,string s){};
 void generic_property::in(base_resource*,istream& is,int){assert(0);}; 
@@ -74,7 +76,9 @@ rdfs::Class::Class(uri id):SELF(id),f(0){
 }
 */
 rdfs::Class::Class(objrdf::uri id,rdfs::subClassOf s,objrdf::fpt f,string comment_str):rdfs::Class::SELF(id),f(f){
+	#ifdef OBJRDF_VERB
 	cerr<<"creating Class "<<id<<"\t"<<this<<"\t"<<f<<endl;
+	#endif
 	vector<shared_ptr<rdfs::Class> >::iterator i=find_if(get_instances().begin(),get_instances().end(),cmp_uri(id));
 	if(i!=get_instances().end()) throw runtime_error("duplicate class "+id.local);
 	//objrdf::uri::print();
@@ -202,7 +206,9 @@ generic_property::PROVENANCE base_resource::instance_iterator::get_provenance(){
 	return BASE::operator*()->get_provenance(subject,index);
 }
 base_resource::instance_iterator base_resource::type_iterator::add_property(generic_property::PROVENANCE p){
+	#ifdef OBJRDF_VERB
 	cerr<<"add_property:"<<p<<endl;
+	#endif
 	BASE::operator*()->add_property(subject,0,p);//????
 	return instance_iterator(*this,get_size()-1);
 }
@@ -287,9 +293,9 @@ void base_resource::to_rdf_xml_pretty(ostream& os){
 	for(base_resource::type_iterator i=begin();i!=end();++i){
 		for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
 			if(i->literalp())
-				os<<"\n\t\033[36m<"<<i->get_Property()->id<<"{"<<j->get_provenance()<<"}"<<">\033[m"<<*j<<"\033[36m</"<<i->get_Property()->id<<">";
+				os<<"\n\t\033[36m<"<<i->get_Property()->id<</*"{"<<j->get_provenance()<<"}"<<*/">\033[m"<<*j<<"\033[36m</"<<i->get_Property()->id<<">";
 			else{
-				os<<"\n\t\033[36m<"<<i->get_Property()->id<<"{"<<j->get_provenance()<<"}"<<" \033[32m"<<rdf::resource<<"=\033[31m'"<<(j->get_object()->id.is_local() ? "#" : "");
+				os<<"\n\t\033[36m<"<<i->get_Property()->id<</*"{"<<j->get_provenance()<<"}"<<*/" \033[32m"<<rdf::resource<<"=\033[31m'"<<(j->get_object()->id.is_local() ? "#" : "");
 				j->get_object()->id.to_uri(os);
 				os<<"'\033[36m/>";
 			}
