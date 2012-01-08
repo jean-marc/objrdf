@@ -31,7 +31,7 @@ void base_resource::erase(instance_iterator position){
 void base_resource::get_output(ostream& os){
 	//what would be most appropriate HTTP message?	
 }
-generic_property::generic_property(shared_ptr<rdf::Property> p,const bool literalp):p(p),literalp(literalp),offset(0){
+generic_property::generic_property(shared_ptr<rdf::Property> p,const bool literalp):p(p),literalp(literalp){
 	#ifdef OBJRDF_VERB
 	cerr<<"creating property `"<<p->id<<"'"<<endl;
 	#endif
@@ -45,7 +45,7 @@ const base_resource* generic_property::get_object_const(base_resource* subject,i
 void generic_property::set_object(base_resource*,shared_ptr<base_resource>,int){};
 void generic_property::erase(base_resource* subject,int first,int last){}
 void generic_property::print() const{
-	cerr<<p.get()<<"\t"<<p->id<<"\t\t"<<literalp<<"\t"<<offset<<endl;
+	cerr<<p.get()<<"\t"<<p->id<<"\t\t"<<literalp<<endl;
 }
 generic_property::PROVENANCE generic_property::get_provenance(base_resource* subject,int index){return 10;}
 pseudo_property::pseudo_property(shared_ptr<rdfs::Class> object):generic_property(rdf::type::get_property(),false),object(object){}

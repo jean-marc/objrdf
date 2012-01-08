@@ -21,13 +21,13 @@ template<typename T> vector<T> concat(/*const*/ vector<T>& a,const vector<T>& b)
 }
 #define PROPERTY(n,range) char _##n[]=#n;typedef objrdf::property<rdfs_namespace,_##n,range> n;
 #define _PROPERTY(n,range) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,range> n;
-#define CLASS0(n) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n> n;
-#define CLASS1(n,p0) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,p0> n;
-#define CLASS2(n,p0,p1) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,objrdf::duo<p0,p1> > n;
-#define CLASS3(n,p0,p1,p2) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,objrdf::tuple<p0,p1,p2> > n;
-#define CLASS4(n,p0,p1,p2,p3) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,objrdf::tuple<p0,p1,p2,p3> > n;
-#define CLASS5(n,p0,p1,p2,p3,p4) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,objrdf::tuple<p0,p1,p2,p3,p4> > n;
-#define CLASS6(n,p0,p1,p2,p3,p4,p5) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,objrdf::tuple<p0,p1,p2,p3,p4,p5> > n;
+#define CLASS0(n) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<>> n;
+#define CLASS1(n,p0) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0>> n;
+#define CLASS2(n,p0,p1) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0,p1>> n;
+#define CLASS3(n,p0,p1,p2) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0,p1,p2>> n;
+#define CLASS4(n,p0,p1,p2,p3) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0,p1,p2,p3>> n;
+#define CLASS5(n,p0,p1,p2,p3,p4) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0,p1,p2,p3,p4>> n;
+#define CLASS6(n,p0,p1,p2,p3,p4,p5) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0,p1,p2,p3,p4,p5>> n;
 
 #define DEFAULT_SET template<typename U> void set(U u){help_set<U>::go(this,u);}//need to copy this line in any struct that specializes the function
 /*
@@ -72,43 +72,6 @@ namespace objrdf{
 	struct NIL{
 		typedef NIL SELF;
 	};
-	/*
-	template<typename T0,typename T1> struct duo{
-		typedef duo SELF;
-	};
-	template<
-		typename T_0     ,typename T_1 =NIL,typename T_2 =NIL,typename T_3 =NIL,
-		typename T_4 =NIL,typename T_5 =NIL,typename T_6 =NIL,typename T_7 =NIL,
-		typename T_8 =NIL,typename T_9 =NIL,typename T_A =NIL,typename T_B =NIL,
-		typename T_C =NIL,typename T_D =NIL,typename T_E =NIL,typename T_F =NIL,
-		typename T_10=NIL,typename T_11=NIL,typename T_12=NIL,typename T_13=NIL,
-		typename T_14=NIL,typename T_15=NIL,typename T_16=NIL,typename T_17=NIL,
-		typename T_18=NIL,typename T_19=NIL,typename T_1A=NIL,typename T_1B=NIL,
-		typename T_1C=NIL,typename T_1D=NIL,typename T_1E=NIL,typename T_1F=NIL
-	> struct tuple:duo<T_0,typename tuple<T_1,T_2,T_3,T_4,T_5,T_6,T_7,T_8,T_9,T_A,T_B,T_C,T_D,T_E,T_F,T_10,T_11,T_12,T_13,T_14,T_15,T_16,T_17,T_18,T_19,T_1A,T_1B,T_1C,T_1D,T_1E,T_1F>::SELF>{
-		typedef duo<T_0,typename tuple<T_1,T_2,T_3,T_4,T_5,T_6,T_7,T_8,T_9,T_A,T_B,T_C,T_D,T_E,T_F,T_10,T_11,T_12,T_13,T_14,T_15,T_16,T_17,T_18,T_19,T_1A,T_1B,T_1C,T_1D,T_1E,T_1F>::SELF> SELF;
-	};
-	template<typename T_0> struct tuple<T_0,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL,NIL>:T_0{
-		typedef T_0 SELF;
-	};
-	//enum{FALSE=0,TRUE,ARRAY}
-	template<typename T> struct get_size{enum{VALUE=sizeof(T)};};
-	template<typename T0,typename T1> struct get_size<duo<T0,T1> >{enum{VALUE=get_size<T0>::VALUE+get_size<T1>::VALUE};};
-	template<typename T> struct get_n{enum{VALUE=1};};
-	template<typename T0,typename T1> struct get_n<duo<T0,T1> >{enum{VALUE=get_n<T0>::VALUE+get_n<T1>::VALUE};};
-
-	template<typename T,typename S> struct help{enum{VALUE=0};};
-	template<typename T> struct help<T,T>{enum{VALUE=1};};
-	//how to deal with p_array<>
-	template<typename T0,typename T1,typename R> struct help<duo<T0,T1>,R>{enum{VALUE=help<T0,R>::VALUE | help<T1,R>::VALUE};};
-
-	template<typename T,typename R> struct get_offset;
-	template<typename T> struct get_offset<T,T>{enum{VALUE=0};};
-	template<typename A,typename B> struct _plus_{enum{VALUE=A::VALUE+B::VALUE};};
-	template<typename T0,typename T1,typename R> struct get_offset<duo<T0,T1>,R>{
-		enum{VALUE=IfThenElse<help<T0,R>::VALUE,get_offset<T0,R>,_plus_<get_size<T0>,get_offset<T1,R> > >::ResultT::VALUE};	
-	};
-	*/
 	template<typename P> struct p_array:vector<P>{
 		typedef p_array SELF;
 		static shared_ptr<rdf::Property> get_property(){return P::get_property();}
@@ -127,7 +90,6 @@ namespace objrdf{
 		typedef char PROVENANCE;
 		const shared_ptr<rdf::Property> p;
 		const bool literalp;
-		int offset;
 		virtual void set_string(base_resource*,string s);
 		virtual void in(base_resource* subject,istream& is,int index);
 		virtual void out(base_resource* subject,ostream& os,int index);
@@ -164,39 +126,10 @@ namespace objrdf{
 	typedef vector<generic_property*> V;
 	template<typename SUBJECT> struct _meta_{
 		V v;
-		int n; //byte size
-		_meta_(int _n){n=_n;}
 		template<typename PREDICATE> void operator()(){
 			v.push_back(new _property_<SUBJECT,PREDICATE>());
-			//v.back()->offset=n;
-			//n+=get_size<PREDICATE>::VALUE;
 		};
 	};
-	/*
-	template<typename T,typename FUNCTION> struct for_each_impl{
-		static FUNCTION go(FUNCTION f){
-			f.template go<T>(); 
-			return f;	
-		}
-	};
-	template<typename FUNCTION> struct for_each_impl<NIL,FUNCTION>{
-		static FUNCTION go(FUNCTION f){return f;}
-	};
-	template<
-		typename T0,
-		typename T1,
-		typename FUNCTION
-	> struct for_each_impl<duo<T0,T1>,FUNCTION>{
-		static FUNCTION go(FUNCTION f){
-			f=for_each_impl<T0,FUNCTION>::go(f);
-			f=for_each_impl<T1,FUNCTION>::go(f);
-			return f;
-		}
-	}; 
-	template<typename T,typename FUNCTION> FUNCTION for_each(FUNCTION f){
-		return for_each_impl<T,FUNCTION>::go(f);
-	};
-	*/
 	class base_resource{
 		/*
  		*	not a great idea to inherit from V::iterator, would
@@ -213,9 +146,6 @@ namespace objrdf{
 			shared_ptr<rdf::Property> get_Property() const;
 			int get_size() const;
 			bool literalp() const;
-			//still being used? no, only makes sense with function pointer
-			//that means offset is not used either
-			//inline void* current() const {return (char*)subject+BASE::operator*()->offset;}
 		};
 	public:
 		//to be investigated ...
@@ -345,13 +275,16 @@ namespace objrdf{
 	template<
 		typename NAMESPACE,
 		const char* NAME,
-		typename _PROPERTIES_=NIL,
+		typename _PROPERTIES_=std::tuple<>, //MUST BE A std::tuple !!
 		typename SUPERCLASS=NIL,
 		typename SUBCLASS=base_resource	
 	>
 	struct resource:SUBCLASS{
 		typedef _PROPERTIES_ PROPERTIES;
 		typedef resource SELF;
+		/*
+ 		*	not optimal when no properties (std::tuple<>)
+ 		*/ 
 		PROPERTIES p;
 		resource(uri id):SUBCLASS(id){}
 		~resource(){
@@ -359,9 +292,9 @@ namespace objrdf{
 			cerr<<"delete "<<get_class()->id<<" `"<<SUBCLASS::id<<"' "<<this<<endl;
 			#endif
 		}
-		template<typename U> U& _get_(){return std::get<tuple_index<U,PROPERTIES>::N>(p);}
-		template<typename U> U _get_const_() const{return std::get<tuple_index<U,PROPERTIES>::N>(p);}
-		template<typename U,int FOUND=tuple_index<U,PROPERTIES>::N!=-1> struct _help_{typedef typename SUBCLASS::template _help_<U>::VALUE VALUE;};
+		template<typename U> U& _get_(){return std::get<tuple_index<U,PROPERTIES>::value>(p);}
+		template<typename U> U _get_const_() const{return std::get<tuple_index<U,PROPERTIES>::value>(p);}
+		template<typename U,int FOUND=tuple_index<U,PROPERTIES>::value!=tuple_size<PROPERTIES>::value> struct _help_{typedef typename SUBCLASS::template _help_<U>::VALUE VALUE;};
 		template<typename U> struct _help_<U,1>{typedef resource VALUE;};
 		/*
  		* would be nice to have a real get and set method:
@@ -376,7 +309,7 @@ namespace objrdf{
 		base_resource::type_iterator end(){return base_resource::type_iterator(this,v.end());}  
 		virtual rdfs::Class* get_Class() const{return get_class().get();};
 		static shared_ptr<rdfs::Class> get_class();	
-		template<typename U,int FOUND=tuple_index<U,PROPERTIES>::N!=-1> struct help_set{
+		template<typename U,int FOUND=tuple_index<U,PROPERTIES>::value!=tuple_size<PROPERTIES>::value> struct help_set{
 			static void go(resource* r,U u){r->get<U>()=u;}
 		};
 		template<typename U> struct help_set<U,2>{
@@ -458,11 +391,9 @@ namespace rdf{
  	*	the biggest problem now is how to deal with static resources created at
  	*	run time, they will be serialized and create problems	
  	*	we need to turn the representation into triples, we can use iterators for that
- 	*
- 	*
  	*/
 	char _RDF_[]="RDF";
-	struct RDF:objrdf::resource<rdfs_namespace,_RDF_,objrdf::p_array<objrdf::pp>,RDF>{//document
+	struct RDF:objrdf::resource<rdfs_namespace,_RDF_,std::tuple<objrdf::p_array<objrdf::pp> >,RDF>{//document
 		/*
  		*	we have 3 different containers for resources: vector,map,multimap
  		*	maybe we could get rid of vector?
@@ -526,7 +457,7 @@ namespace rdfs{
 }
 namespace rdf{
 	char _Literal[]="Literal";
-	struct Literal:objrdf::resource<rdfs_namespace,_Literal,objrdf::NIL,Literal>{
+	struct Literal:objrdf::resource<rdfs_namespace,_Literal,std::tuple<>,Literal>{
 		Literal(objrdf::uri u):SELF(u){}
 		COMMENT("The class of literal values, eg. textual strings an integers")
 	};
@@ -537,16 +468,16 @@ namespace xsd{
  	*	not clear what the syntax should be
  	*/ 
 	RDFS_NAMESPACE("http://www.w3.org/2001/XMLSchema#","xsd");//or xs?
-	char _Double[]="double";typedef objrdf::resource<rdfs_namespace,_Double,objrdf::NIL,objrdf::NIL,rdf::Literal> Double;
-	char _Float[]="float";typedef objrdf::resource<rdfs_namespace,_Float,objrdf::NIL,objrdf::NIL,rdf::Literal> Float;
-	char _Int[]="integer";typedef objrdf::resource<rdfs_namespace,_Int,objrdf::NIL,objrdf::NIL,rdf::Literal> Int;
-	char _Unsigned_Int[]="unsignedInt";typedef objrdf::resource<rdfs_namespace,_Unsigned_Int,objrdf::NIL,objrdf::NIL,rdf::Literal> Unsigned_int;
-	char _Short[]="short";typedef objrdf::resource<rdfs_namespace,_Short,objrdf::NIL,objrdf::NIL,rdf::Literal> Short;
-	char _Unsigned_Short[]="unsignedShort";typedef objrdf::resource<rdfs_namespace,_Unsigned_Short,objrdf::NIL,objrdf::NIL,rdf::Literal> Unsigned_short;
-	char _String[]="string";typedef objrdf::resource<rdfs_namespace,_String,objrdf::NIL,objrdf::NIL,rdf::Literal> String;
+	char _Double[]="double";typedef objrdf::resource<rdfs_namespace,_Double,std::tuple<>,objrdf::NIL,rdf::Literal> Double;
+	char _Float[]="float";typedef objrdf::resource<rdfs_namespace,_Float,std::tuple<>,objrdf::NIL,rdf::Literal> Float;
+	char _Int[]="integer";typedef objrdf::resource<rdfs_namespace,_Int,std::tuple<>,objrdf::NIL,rdf::Literal> Int;
+	char _Unsigned_Int[]="unsignedInt";typedef objrdf::resource<rdfs_namespace,_Unsigned_Int,std::tuple<>,objrdf::NIL,rdf::Literal> Unsigned_int;
+	char _Short[]="short";typedef objrdf::resource<rdfs_namespace,_Short,std::tuple<>,objrdf::NIL,rdf::Literal> Short;
+	char _Unsigned_Short[]="unsignedShort";typedef objrdf::resource<rdfs_namespace,_Unsigned_Short,std::tuple<>,objrdf::NIL,rdf::Literal> Unsigned_short;
+	char _String[]="string";typedef objrdf::resource<rdfs_namespace,_String,std::tuple<>,objrdf::NIL,rdf::Literal> String;
 }
 namespace objrdf{
-	char _Char[]="Char";typedef objrdf::resource<_rdfs_namespace,_Char,NIL,NIL,rdf::Literal> Char;
+	char _Char[]="Char";typedef objrdf::resource<_rdfs_namespace,_Char,std::tuple<>,NIL,rdf::Literal> Char;
 }
 namespace objrdf{
 	template<typename T> struct get_Literal:rdf::Literal{}; 
@@ -573,11 +504,11 @@ namespace rdfs{
 	*/
 	struct XMLLiteral{}; //symbolic type
 	char _XML_Literal[]="XML_Literal";
-	typedef objrdf::resource<rdfs_namespace,_XML_Literal,objrdf::NIL,rdf::Literal> XML_Literal;
+	typedef objrdf::resource<rdfs_namespace,_XML_Literal,std::tuple<>,rdf::Literal> XML_Literal;
 	//JSON type
 	struct JSON{};
 	char _JSON[]="JSON";
-	typedef objrdf::resource<rdfs_namespace,_JSON,objrdf::NIL,rdf::Literal> JSON_type;
+	typedef objrdf::resource<rdfs_namespace,_JSON,std::tuple<>,rdf::Literal> JSON_type;
 }
 namespace objrdf{
 	//template<typename NAMESPACE,const char* NAME> struct get_size<property<NAMESPACE,NAME,rdfs::XMLLiteral> >{enum{VALUE=0};};
@@ -635,7 +566,6 @@ namespace objrdf{
 	>
 	shared_ptr<rdfs::Class> resource<NAMESPACE,NAME,PROPERTIES,SUPERCLASS,SUBCLASS>::get_class(){
 		typedef typename IfThenElse<equality<SUPERCLASS,NIL>::VALUE,resource,SUPERCLASS>::ResultT TMP;
-		//cerr<<"about to create class :`"<<objrdf::get_uri<NAMESPACE>(NAME)<<"'\t"<<hex<<(long)get_class<<"\t"<<(long)NAME<<"\t"<<(long)TMP::get_class<<"\t"<<(long)SUBCLASS::get_class<<dec<<"\n";
 		static shared_ptr<rdfs::Class> c(rdfs::Class::create_Class(objrdf::get_uri<NAMESPACE>(NAME),rdfs::subClassOf(SUBCLASS::get_class()),get_constructor<TMP>(),TMP::get_comment!=SUBCLASS::get_comment ? TMP::get_comment() : ""));
 		return c;
 	}
@@ -936,8 +866,7 @@ namespace objrdf{
 			#endif
 			V v=get_generic_property<typename SUBCLASS::SELF>::go();
 			v.insert(v.begin(),new pseudo_property(RESOURCE::get_class()));
-			//return concat(v,objrdf::for_each<PROPERTIES>(_meta_<TMP>(TMP::get_offsetof())).v);
-			return concat(v,std::static_for_each<PROPERTIES>(_meta_<TMP>(0)).v);
+			return concat(v,std::static_for_each<PROPERTIES>(_meta_<TMP>()).v);
 		}
 	};
 }
