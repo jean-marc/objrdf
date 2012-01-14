@@ -2,7 +2,7 @@
 #include <sstream>
 #include <algorithm>
 using namespace objrdf;
-rdf_xml_parser::rdf_xml_parser(rdf::RDF& doc,std::istream& is,generic_property::PROVENANCE p):xml_parser<rdf_xml_parser>(is),doc(doc),placeholder(new base_resource(uri("??"))),current_property(placeholder->end()),p(p){
+rdf_xml_parser::rdf_xml_parser(rdf::RDF& doc,std::istream& is,PROVENANCE p):xml_parser<rdf_xml_parser>(is),doc(doc),placeholder(new base_resource(uri("??"))),current_property(placeholder->end()),p(p){
 	string_property=false;
 	st.push(placeholder);
 }
