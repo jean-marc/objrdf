@@ -19,14 +19,14 @@ void base_resource::erase(instance_iterator first,instance_iterator last){
 #ifdef WIN32
 
 #else
-	get<8>(first.i->t)(this,first.index,last.index);
+	std::get<8>(first.i->t)(this,first.index,last.index);
 #endif
 }
 void base_resource::erase(instance_iterator position){
 #ifdef WIN32
 
 #else
-	get<8>(position.i->t)(this,position.index,position.index+1);
+	std::get<8>(position.i->t)(this,position.index,position.index+1);
 #endif
 }
 void base_resource::get_output(ostream& os){
@@ -175,7 +175,7 @@ base_resource::instance_iterator rdf::Property::get_self_iterator(){
 }
 shared_ptr<rdf::Property> rdf::Property::nil=shared_ptr<rdf::Property>(new rdf::Property(uri("nil_p")));
 
-V base_resource::v;//could we add a property?
+V base_resource::v=get_generic_property<base_resource>::go();
 
 shared_ptr<base_resource> base_resource::nil=shared_ptr<base_resource>(new base_resource(uri("nil")));
 //shared_ptr<rdf::Property> base_resource::iterator::get_Property() const{return BASE::operator*().p;}
@@ -186,10 +186,10 @@ size_t base_resource::type_iterator::get_size() const{return std::get<6>(static_
 bool base_resource::type_iterator::literalp() const{return static_cast<V::iterator>(*this)->literalp;}
 bool base_resource::instance_iterator::literalp() const{return i->literalp;}
 void base_resource::instance_iterator::in(istream& is){
-	get<1>(i->t)(subject,is,index);
+	std::get<1>(i->t)(subject,is,index);
 }
 void base_resource::instance_iterator::out(ostream& os) const{
-	get<2>(i->t)(subject,os,index);
+	std::get<2>(i->t)(subject,os,index);
 }
 string base_resource::instance_iterator::str(){
 	ostringstream os;
@@ -197,20 +197,20 @@ string base_resource::instance_iterator::str(){
 	return os.str();
 }
 void base_resource::instance_iterator::set_string(string s){
-	get<0>(i->t)(subject,s,index);
+	std::get<0>(i->t)(subject,s,index);
 }
 shared_ptr<base_resource> base_resource::instance_iterator::get_object() const{
-	return get<3>(i->t)(subject,index);
+	return std::get<3>(i->t)(subject,index);
 }
 const base_resource* base_resource::instance_iterator::get_object_const() const{
-	return get<4>(i->t)(subject,index);
+	return std::get<4>(i->t)(subject,index);
 }
 void base_resource::instance_iterator::set_object(shared_ptr<base_resource> r){
-	get<5>(i->t)(subject,r,index);
+	std::get<5>(i->t)(subject,r,index);
 }
 PROVENANCE base_resource::instance_iterator::get_provenance(){
 	//return BASE::operator*()->get_provenance(subject,index);
-	return get<9>(i->t)(subject,index);
+	return std::get<9>(i->t)(subject,index);
 }
 base_resource::instance_iterator base_resource::type_iterator::add_property(PROVENANCE p){
 	#ifdef OBJRDF_VERB
@@ -256,18 +256,19 @@ void base_resource::to_turtle(ostream& os){
 	os<<" .\n";
 }
 void base_resource::to_turtle_pretty(ostream& os){
-	//string s=id+" ";
-	/*
-	string s=start_id+id.local+stop_id+" ";
-	for(base_resource::type_iterator i=begin();i!=end();++i){
-		for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
-			//os<<((j==i->begin()) ? s+i->get_Property()->id : ",")<<" "<<*j;
-			os<<((j==i->begin()) ? s+i->get_Property()->id.local : ",")<<" "<<*j;
-			s="; ";
+	os<<id<<" ";
+	base_resource::type_iterator t_begin=begin();
+	for(base_resource::type_iterator i=t_begin;i!=end();++i){
+		base_resource::instance_iterator begin=i->begin(),end=i->end();
+		if(begin!=end){ 
+			if(i!=t_begin) os<<";";
+			os<<i->get_Property()->id<<" "<<*begin;
+			++begin;
+			for(;begin<end;++begin)
+				os<<","<<*begin;
 		}
 	}
-	os<<" .\n";	
-	*/
+	os<<" .\n";
 }
 void base_resource::to_rdf_xml(ostream& os,const PROVENANCE& p){
 	os<<"\n<"<<get_Class()->id<<" "<<(id.is_local() ? rdf::ID : rdf::about)<<"='";

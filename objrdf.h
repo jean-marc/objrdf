@@ -103,6 +103,14 @@ namespace objrdf{
 		property_info(shared_ptr<rdf::Property> p,function_table t);
 	};
 	typedef vector<property_info> V;
+	template<
+		typename SUBJECT,
+		typename PROPERTY,
+		size_t INDEX=tuple_index<PROPERTY,typename SUBJECT::PROPERTIES>::value
+	> struct helper{
+		static PROPERTY& get(SUBJECT& s){return std::get<INDEX>(s.p);}
+		static PROPERTY get_const(const SUBJECT& s){return std::get<INDEX>(s.p);}
+	};
 	class base_resource{
 	public:
 		//to be investigated ...
@@ -192,6 +200,7 @@ namespace objrdf{
  		* problem: n is a pretty common variable name, should change or use setter/getter
  		* should use std::shared_ptr<> instead: no it does not work!!!
  		* must be made private!
+		* could also be made a constant property so can be published for debugging
  		*/
 		short n;
 		base_resource(uri id):n(0),id(id){
@@ -208,6 +217,7 @@ namespace objrdf{
 		static V v;
 		virtual rdfs::Class* get_Class() const{return get_class().get();};
 		static shared_ptr<rdfs::Class> get_class();	
+		template<typename U> U& get(){return helper<base_resource,U,0>::get(*this);}
 		void to_turtle(ostream& os);
 		void to_xml(ostream& os);
 		void to_xml_leaf(ostream& os);
@@ -222,10 +232,12 @@ namespace objrdf{
  		*	local resources can have content accessible through a URL scheme 
  		*/ 
 		virtual void get_output(ostream& os);
+		/*
 		template<typename U,int FOUND=0> struct _help_{
 			//should never get here make sure compilation stops here
 			typedef typename U::IT_IS_NOT_A_MEMBER VALUE;
 		};
+		*/
 		int p_to_xml_size(const shared_ptr<rdf::Property> p);
 		bool is_a(const shared_ptr<rdfs::Class>&) const;
 		COMMENT("The class resource, everything.");
@@ -244,14 +256,19 @@ namespace objrdf{
 		return tmp+=b;
 	}
 	template<
+		typename SUBJECT,
+		typename PROPERTY
+	> struct helper<SUBJECT,PROPERTY,tuple_size<typename SUBJECT::PROPERTIES>::value>:helper<typename SUBJECT::SUBCLASS,PROPERTY>{};
+	template<
 		typename NAMESPACE,
 		const char* NAME,
 		typename _PROPERTIES_=std::tuple<>, //MUST BE A std::tuple !!
 		typename SUPERCLASS=NIL,
-		typename SUBCLASS=base_resource	
+		typename _SUBCLASS_=base_resource	
 	>
-	struct resource:SUBCLASS{
+	struct resource:_SUBCLASS_{
 		typedef _PROPERTIES_ PROPERTIES;
+		typedef _SUBCLASS_ SUBCLASS;
 		typedef resource SELF;
 		/*
  		*	not optimal when no properties (std::tuple<>)
@@ -263,35 +280,35 @@ namespace objrdf{
 			cerr<<"delete "<<get_class()->id<<" `"<<SUBCLASS::id<<"' "<<this<<endl;
 			#endif
 		}
+		void operator=(const resource& r){p=r.p;}
+		/*
 		template<typename U> U& _get_(){return std::get<tuple_index<U,PROPERTIES>::value>(p);}
 		template<typename U> U _get_const_() const{return std::get<tuple_index<U,PROPERTIES>::value>(p);}
 		template<typename U,int FOUND=tuple_index<U,PROPERTIES>::value!=tuple_size<PROPERTIES>::value> struct _help_{typedef typename SUBCLASS::template _help_<U>::VALUE VALUE;};
 		template<typename U> struct _help_<U,1>{typedef resource VALUE;};
-		/*
- 		* would be nice to have a real get and set method:
- 		*	template<typename U> U get() const{}
- 		*	template<typename U> void set(const U&){}
- 		*	could it work with using U
- 		*/
 		template<typename U> U get_const() const{return _help_<U>::VALUE::template _get_const_<U>();}
 		template<typename U> U& get(){return _help_<U>::VALUE::template _get_<U>();}
+		*/
+		template<typename U> U get_const() const{return helper<resource,U>::get_const(*this);}
+		template<typename U> U& get(){return helper<resource,U>::get(*this);}
+		template<typename U> void set(U u){get<U>()=u;}
 		static V v;
 		base_resource::type_iterator begin(){return base_resource::type_iterator(this,v.begin());}
 		base_resource::type_iterator end(){return base_resource::type_iterator(this,v.end());}  
 		virtual rdfs::Class* get_Class() const{return get_class().get();};
 		static shared_ptr<rdfs::Class> get_class();	
+		/*	
 		template<typename U,int FOUND=tuple_index<U,PROPERTIES>::value!=tuple_size<PROPERTIES>::value> struct help_set{
 			static void go(resource* r,U u){r->get<U>()=u;}
 		};
 		template<typename U> struct help_set<U,2>{
 			static void go(resource* r,U u){r->get<property_array<U> >().back()=u;}
 		};
-		DEFAULT_SET;
+		*/
+		//#define DEFAULT_SET template<typename U> void set(U u){help_set<U>::go(this,u);}
+		//DEFAULT_SET;
 	};
 	template<typename S> struct get_generic_property;
-	template<> struct get_generic_property<base_resource>{
-		static V go(){return V();}//no property
-	};
 
 	template<
 		typename NAMESPACE,
@@ -316,7 +333,7 @@ namespace objrdf{
 		base_property(RANGE t=RANGE()):t(t){}
 		void in(istream& is){is>>t;}
 		void out(ostream& os){os<<t;}
-		size_t get_size(){return 1;}
+		size_t get_size() const{return 1;}
 	};
 	template<> struct base_property<string>:base{
 		string t;
@@ -326,12 +343,15 @@ namespace objrdf{
 		void out(ostream& os){os<<t;}
 		size_t get_size(){return t.size()>0;}
 	};
+	//constant property, needs more work
 	template<typename RANGE> struct base_property<const RANGE>:base{
-
+		const RANGE t;
+		base_property(const RANGE t=0):t(t){}
+		size_t get_size() const{return 1;}
 	};
 	/*
 	*	why can't we have base_property<char[n]> ? 
-	template<int N> struct base_property<char[N]>{};
+		template<int N> struct base_property<char[N]>{};
 	*/ 
 
 	/*
@@ -477,6 +497,26 @@ namespace rdf{
 		*/
 	};
 	PROPERTY(type,rdfs::Class*);
+	/*
+ 	*	what does it mean?
+ 	*/
+	//PROPERTY(type,rdfs::Class* const);
+}
+namespace objrdf{
+	template<
+		typename SUBJECT,
+		size_t INDEX
+	> struct helper<SUBJECT,rdf::type,INDEX>{
+		static rdf::type& get(SUBJECT&){
+			static rdf::type t(SUBJECT::get_class());
+			return t;
+		}
+		//not sure about that
+		static rdf::type get_const(const SUBJECT&){
+			return rdf::type(SUBJECT::get_class());
+		}
+	};
+
 }
 namespace rdfs{
 	PROPERTY(domain,Class*);
@@ -627,19 +667,6 @@ namespace objrdf{
 		namep(uri n);
 		bool operator() (property_info& p) const;
 	};
-	/*
-	class pseudo_property:public generic_property{
-		shared_ptr<rdfs::Class> object;
-	public:
-		pseudo_property(shared_ptr<rdfs::Class> object);//:generic_property(rdfs::type::get_property(),false){object=_object;}
-		virtual int get_size(base_resource* subject);//{return 1;}
-		virtual shared_ptr<base_resource> get_object(base_resource* subject,int index);//{return object;}
-		virtual void set_object(base_resource* subject,shared_ptr<base_resource> object,int index);
-		virtual PROVENANCE get_provenance(base_resource* subject,int index){return 0;}
-		//virtual void in(base_resource*,istream& is,int); 
-		//virtual void out(base_resource*,ostream& os,int);
-	};
-	*/
 	template<typename SUBJECT,typename PROPERTY> property_info get_property_info(){
 		property_info p(PROPERTY::get_property(),functions<SUBJECT,PROPERTY>::get_table());
 		p.p->get<rdfs::domain>()=SUBJECT::get_class();
@@ -651,22 +678,25 @@ namespace objrdf{
 			v.push_back(get_property_info<SUBJECT,PROPERTY>());
 		};
 	};
+	template<> struct get_generic_property<base_resource>{
+		static V go(){return V(1,get_property_info<base_resource,rdf::type>());}
+	};
 	template<
 		typename NAMESPACE,
 		const char* NAME,
-		typename _PROPERTIES_,
+		typename PROPERTIES,
 		typename SUPERCLASS,
 		typename SUBCLASS 
-	> struct get_generic_property<resource<NAMESPACE,NAME,_PROPERTIES_,SUPERCLASS,SUBCLASS> >{
-		typedef _PROPERTIES_ PROPERTIES;
+	> struct get_generic_property<resource<NAMESPACE,NAME,PROPERTIES,SUPERCLASS,SUBCLASS> >{
 		typedef resource<NAMESPACE,NAME,PROPERTIES,SUPERCLASS,SUBCLASS> RESOURCE;
+		//can we get rid of that?
 		typedef typename IfThenElse<equality<SUPERCLASS,NIL>::VALUE,RESOURCE,SUPERCLASS>::ResultT TMP;
 		static V go(){
 			#ifdef OBJRDF_VERB
 			cerr<<"get_generic_property:"<<NAME<<endl;
 			#endif
 			V v=get_generic_property<typename SUBCLASS::SELF>::go();
-			//v.insert(v.begin(),new pseudo_property(RESOURCE::get_class()));
+			v.push_back(get_property_info<RESOURCE,rdf::type>());
 			return concat(v,std::static_for_each<PROPERTIES>(_meta_<TMP>()).v);
 		}
 	};
