@@ -2,6 +2,13 @@
 #define SHARED_PSEUDO_PTR_H
 #include "objrdf.h"
 #include <vector>
+#include <sys/mman.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
 /*
  *	will only work in objrdf framework
  *
@@ -20,34 +27,88 @@
 #ifdef OBJRDF_VERB
 #include <iostream>
 #endif
+#include <sstream>
 using namespace std;
 namespace pseudo{
-	//one storage per type
-	//will create a single binary file for the whole db
-	//need to allocate a big chunk of memory
-	//keeps track of all the stores
-	enum{N=32};
+	enum{N=64};
+	typedef char POOL_INDEX;
 	struct pool{
+		/*
+		*	one pool per type, they could all have different size
+		*	the allocator does not depend on the type, it just sees
+		*	it as size-byte word. 
+		*/
+		struct next_free{
+			//we cannot use ptr because the structure will be persisted
+			//char* ptr;//if 0 then next cell is assumed to be good
+			//we have to make sure it fits into the cell
+			size_t i;
+			next_free():i(0){}
+		};
 		/*const*/ size_t size;
 		char* v;
-		size_t next_index;
-		pool(size_t size):size(size),v(new char[N*size]),next_index(1){
-			memset(v,0xff,N*size);
+		int fd;
+		/*size_t next_index;*/
+		inline next_free* root(){return (next_free*)(void*)v;}
+		pool(size_t size,POOL_INDEX p):size(size)/*,v(new char[N*size])*//*,next_index(1)*/{
+			//can use memory map
+			ostringstream os;
+			os<<"db/_"<<(unsigned int)p;
+			fd = open(os.str().c_str(), O_RDWR /*| O_CREAT | O_TRUNC*/, (mode_t)0600);
+			if (fd == -1) {
+				perror("Error opening file for writing");
+				exit(EXIT_FAILURE);
+			}
+			v = (char*)mmap((void*)NULL, N*size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+			cerr<<" mmap:"<<(void*)v<<endl;
+			if (v == MAP_FAILED) {
+				close(fd);
+				perror("Error mmapping the file");
+				exit(EXIT_FAILURE);
+			}
+			//v[0]=0xab;	
+			//memset(v,0,N*size);//it has to be zeroed for scheme to work
+			//VERY IMPORTANT!
+			if(root()->i==0) root()->i=size;
 			std::cerr<<" size "<<size<<" @"<<(void*)v<<std::endl;
+			//the memory is not ready yet: the vtable pointer is no longer valid, it will create segmentation fault
+			//how do we know what the current vtable pointer is? we could create an instance but dangerous: it will 
+			//call allocate!
+		}
+		~pool(){
 		}
 		char* get(size_t index){return v+index*size;}
 		template<typename T> void* allocate(size_t s){
-			std::cerr<<" size "<<size<<" @"<<(T*)v+next_index<<" "<<next_index<<std::endl;
-			return (T*)v+next_index++;
+			char* n=v+root()->i;
+			std::cerr<<" size "<<size<<" @"<<(void*)n<<" "<<(n-v)<<std::endl;
+			if(((next_free*)(void*)(v+root()->i))->i==0){
+				root()->i+=size;//next cell
+			}else{
+				root()->i=((next_free*)(void*)(v+root()->i))->i;
+			}
+			//std::cerr<<" size "<<size<<" @"<<(T*)v+next_index<<" "<<next_index<<std::endl;
+			//return (T*)v+next_index++;
+			return n;
 		}
-		template<typename T> void release(void* p){}
+		/*
+ 		*	when releasing it copies information to the cell about next available empty cell
+ 		*	or top of stack, we can use cell[0] to store information
+ 		*/ 
+		template<typename T> void release(void* p){
+			static_cast<next_free*>(p)->i=root()->i;
+			root()->i=(char*)p-v;	
+		}
 		void output(ostream& os){
 			os<<"********";
-			os.write(v+size,next_index*size);
+			os.write(v,N*size);
 		}
 	};
 	struct pools{
-		typedef char POOL_INDEX;
+		/*
+ 		*	could eventually replace rdf::RDF
+ 		*
+ 		*/ 
+		typedef pseudo::POOL_INDEX POOL_INDEX;
 		std::vector<pool> v;
 		pools(){
 			std::cerr<<"create pools..."<<std::endl;
@@ -55,7 +116,10 @@ namespace pseudo{
 		template<typename T> const POOL_INDEX init(){
 			POOL_INDEX p=v.size();
 			std::cerr<<"initialize pool "<<(int)p;
-			v.push_back(pool(sizeof(T)));
+			//let's create instance to figure out the pointer
+			//we can create on the stack
+			//char tmp[sizeof(T)];
+			v.push_back(pool(sizeof(T),p));
 			return p;
 		}
 		template<typename T> inline const POOL_INDEX get_pool_index(){
@@ -81,6 +145,9 @@ namespace pseudo{
 				i->output(os);
 			}	
 		}
+		/*
+ 		*	we can also serialize as a RDF document
+ 		*/ 
 	};
 	template<typename T> class shared_ptr{
 	protected:
