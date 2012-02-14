@@ -12,14 +12,9 @@
 #include <fcntl.h>
 #include <stdexcept>
 #include <iostream>
+#include "objrdf.h"
 
 using namespace std;
-template<typename T> string property_filename(){
-	static int n=0;
-	ostringstream os;
-	os<<"pool_"<<n++;
-	return os.str();
-};
 /*
  *	simple pointer to only one type
  *	pointer to type and derived types
@@ -27,19 +22,30 @@ template<typename T> string property_filename(){
  *
  *	storage: local or memory-mapped
  *
+ *	would be nice to have a typed pool: would save risky downcasting operations
+ *	eg :
+ *	typedef pseudo_ptr<base_resource> PTR;
+ *	typedef pseudo_ptr<C> C_PTR;
+ *	....
+ *	PTR pp;//we know points to C instance
+ *	C&=pool<C>::v[pp.index];
  */
 struct generic_pool{
 	struct info{
 		size_t next;
 		size_t n_cells;
 	};
+	/*
 	template<typename T> union cell{
 		char data[sizeof(T)];
 		info meta;
 	};
+	*/
 	void* v;
 	size_t n;
 	const size_t cell_size;
+	rdfs::Class* c;
+	generic_pool* set_class(rdfs::Class* _c){c=_c;return this;}
 	/* does not compile*/
 	/*
 	template<typename T> explicit generic_pool(void* v,size_t n):v(v),n(n),cell_size(sizeof(T)){
@@ -58,24 +64,22 @@ struct generic_pool{
 			first.n_cells=0;
 		}
 		cerr<<"new pool "<<this<<" "<<first.n_cells<<" out of "<<n<<" cells used"<<endl;
-
 	}
-	//dangerous!!
-	template<typename T> size_t allocate(){
-		cell<T>* c=static_cast<cell<T>*>(v);
-		size_t i=c[0].meta.next;
-		cerr<<"allocate cell at index "<<(int)c[0].meta.next<<" from pool "<<this<<endl;
-		if(c[c[0].meta.next].meta.next==0)
-			c[0].meta.next++;
+	size_t allocate(){
+		info& first=*static_cast<info*>(v);
+		info& current=*static_cast<info*>(v+first.next*cell_size);
+		size_t i=first.next;
+		if(current.next==0)
+			first.next+=cell_size;
 		else
-			c[0].meta.next=c[c[0].meta.next].meta.next;
-		c[0].meta.n_cells++;
-		return i;
+			first.next=current.next;
+		first.n_cells++;
+		return i;	
 	}
 	void deallocate(size_t i){
 		//assume only 1 cell allocated
 		cerr<<"deallocate cell at index "<<i<<" in pool "<<this<<endl;
-		//problem we don't know T but we know `size', tricky
+		//problem we don't know T but we know `cell_size', tricky
 		info& first=*static_cast<info*>(v);
 		info& current=*static_cast<info*>(v+i*cell_size);
 		current.next=first.next;	
@@ -86,9 +90,9 @@ struct generic_pool{
 		return v+i*cell_size;
 	}
 	template<typename T,typename STORE> static generic_pool* get_instance(){
-		static generic_pool* p=STORE::create_generic_pool();
+		//could add hooks
+		static generic_pool* p=STORE::create_generic_pool()->set_class(T::get_class().get());
 		return p;
-
 	}
 };
 template<
@@ -97,50 +101,6 @@ template<
 			//support derived types
 > struct pseudo_ptr{
 	typedef unsigned char INDEX;
-	struct pool{
-		struct info{
-			INDEX next;
-			size_t n_cells;
-		};
-		union cell{
-			char data[sizeof(T)];
-			info meta;
-		};
-		cell* v;
-		size_t n;
-		pool(void* _v,size_t n):v((cell*)_v),n(n){
-			if(v[0].meta.next==0){
-				v[0].meta.next=1;
-				v[0].meta.n_cells=0;
-			}
-			cerr<<v[0].meta.n_cells<<" out of "<<n<<" cells used"<<endl;
-		}	
-		~pool(){
-		}
-		static pool& get_instance(){
-			static pool* p=STORE::create_pool();
-			return *p;
-		}
-		pseudo_ptr allocate(){
-			pseudo_ptr p(v[0].meta.next);
-			cerr<<"allocate cell at index "<<(int)v[0].meta.next<<endl;
-			if(v[v[0].meta.next].meta.next==0)
-				v[0].meta.next++;
-			else
-				v[0].meta.next=v[v[0].meta.next].meta.next;
-			v[0].meta.n_cells++;
-			return p;
-		}
-		//we could just use the index
-		void deallocate(pseudo_ptr p){
-			//assume only 1 cell allocated
-			cerr<<"deallocate cell at index "<<(int)p.index<<endl;
-			v[p.index].meta.next=v[0].meta.next;	
-			v[0].meta.next=p.index;
-			v[0].meta.n_cells--;
-		}
-		void* get(INDEX i){return &v[i];}
-	};
 	typedef random_access_iterator_tag iterator_category;
 	typedef T value_type;
 	typedef size_t difference_type;
@@ -148,10 +108,33 @@ template<
 	typedef T& reference;
 	generic_pool* pool_index;//how can we make it optional?
 	INDEX index;
+	/*
+ 	*	we could also use a single variable and union with struct
+ 	*	union{
+ 	*		int index 
+ 	*		struct{
+ 	*			char p;
+ 	*			short q;
+ 	*		};
+ 	*	};
+ 	*/ 
 	explicit pseudo_ptr(INDEX index):index(index),pool_index(generic_pool::get_instance<T,STORE>()){}
-	static pseudo_ptr allocate(){return pseudo_ptr(generic_pool::get_instance<T,STORE>()->template allocate<T>());}
+	//static pseudo_ptr allocate(){return pseudo_ptr(generic_pool::get_instance<T,STORE>()->template allocate<T>());}
+	static pseudo_ptr allocate(){return pseudo_ptr(generic_pool::get_instance<T,STORE>()->allocate());}
 	//only makes sense if S is derived from T and uses same store? will always use different stores!
-	template<typename S,typename _STORE_> pseudo_ptr(const pseudo_ptr<S,_STORE_>& p):pool_index(p.pool_index),index(p.index){}
+	//this also prevent downcasting, could be a problem.... 
+	template<typename S,typename _STORE_> pseudo_ptr(const pseudo_ptr<S,_STORE_>& p):pool_index(p.pool_index),index(p.index){
+		//we need a template that detects if S is not derived from T at compile time
+		//does not do anything but will not compile if S not a subclass of T
+		bool tmp=objrdf::is_derived<typename S::SELF,typename T::SELF>::value;
+	}
+	template<typename S,typename _STORE_> pseudo_ptr& operator=(const pseudo_ptr<S,_STORE_>& p){
+		pool_index=p.pool_index;
+		index=p.index;
+		//we need a template that detects if S is not derived from T at compile time
+		//does not do anything but will not compile if S not a subclass of T
+		bool tmp=objrdf::is_derived<typename S::SELF,typename T::SELF>::value;
+	}
 	T* operator->()const{return (T*)pool_index->get(index);}
 	pseudo_ptr& operator+=(const size_t s){index+=s;return *this;}
 	pseudo_ptr& operator-=(const size_t s){index-=s;return *this;}
@@ -171,6 +154,7 @@ template<typename T,typename STORE> pseudo_ptr<T,STORE> operator-(const pseudo_p
 	pseudo_ptr<T,STORE> tmp=a;
 	return tmp-=s;
 }
+//should make sure types are the same, make sure no casting takes place, could also compare pool_index
 template<typename T,typename STORE> ptrdiff_t operator-(const pseudo_ptr<T,STORE>& a,const pseudo_ptr<T,STORE>& b){
 	return a.index-b.index;
 }
@@ -238,7 +222,7 @@ template<typename T,size_t SIZE,int NAME> struct persistent_store{
 namespace special{
 	template<typename T,typename STORE> struct deleter<pseudo_ptr<T,STORE>>{
 		static void go(pseudo_ptr<T,STORE> p){
-			p->~T();
+			p->~T();//that's assuming the destructor is virtual
 			p.pool_index->deallocate(p);
 		}
 	};
