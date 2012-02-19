@@ -32,12 +32,7 @@ using namespace std;
  * 	there might be a need for a self-referencing pointer from an object, is it possible?
  * 	yes but a bit awkward: pointer difference
  *
- * 	pool is a good place to store function pointer to emulate virtual function
- * 	template<typename F> apply()
- *
- *
  */
-
 struct pool{
 	struct param{
 		void* v;
@@ -93,7 +88,7 @@ struct pool{
 	size_t allocate_at(size_t i){
 		info& first=*static_cast<info*>(p.v);
 		first.n_cells++;
-		cerr<<"allocate cell at index "<<i<<" in pool "<<this<<endl;
+		cerr<<"allocate cell at set index "<<i<<"{"<<p.v+i*p.cell_size<<"} in pool "<<this<<endl;
 		return i;	
 	}
 	void deallocate(size_t i){
@@ -134,7 +129,7 @@ struct pool{
 	//could use function pointer:allocate, deallocate,...
 	size_t get_size()const{return static_cast<info*>(p.v)->n_cells;}
 	template<typename T,typename STORE> static pool* get_instance(){
-		static pool* p=new pool(STORE::go(),0);
+		static pool* p=new pool(STORE::template go<T>(),0);
 		return p;
 	}
 	/*
@@ -173,16 +168,16 @@ struct pool{
 	template<typename T> iterator<T> begin(){return iterator<T>(static_cast<helper<T>*>(p.v),static_cast<helper<T>*>(p.v)[0].n_cells);}
 	template<typename T> iterator<T> end(){return iterator<T>(static_cast<helper<T>*>(p.v),0);}
 };
-template<typename T,size_t SIZE=256> struct free_store{
-	static pool::param go(){
+template<size_t SIZE=256> struct free_store{
+	template<typename T> static pool::param go(){
 		char* v=new char[SIZE*sizeof(T)];
 		memset(v,0,SIZE*sizeof(T));
 		return pool::param(v,SIZE,sizeof(T));
 	}
 };
-template<typename T,size_t SIZE,int NAME> struct persistent_store{
+template<size_t SIZE,int NAME> struct persistent_store{
 	//use memory map
-	static pool::param go(){
+	template<typename T> static pool::param go(){
 		ostringstream os;
 		os<<"db/pool_"<<NAME;
 		string filename=os.str();
@@ -224,7 +219,7 @@ template<typename T,size_t SIZE,int NAME> struct persistent_store{
 };
 template<
 	typename T,
-	typename STORE=free_store<T>,//free store or persistent
+	typename STORE=free_store<>,//free store or persistent
 	bool POLYMORPHISM=false//does not support derived types
 > struct pseudo_ptr;
 //a lot of code duplication...maybe should define base class and specialize
@@ -246,7 +241,7 @@ struct pseudo_ptr<pool,STORE,false>{
 	}
 	template<typename T> static void destructor(void* s){static_cast<T*>(s)->~T();}
 	template<typename T,typename OTHER_STORE> static pseudo_ptr get(){
-		static pseudo_ptr p=construct(OTHER_STORE::go(),destructor<T>);
+		static pseudo_ptr p=construct(OTHER_STORE::template go<T>(),destructor<T>);
 		return p;
 	}
 	static value_type* get_typed_v(){return static_cast<value_type*>(pool::get_instance<pool,STORE>()->p.v);} 
@@ -256,12 +251,24 @@ struct pseudo_ptr<pool,STORE,false>{
 	bool operator!=(const pseudo_ptr& p)const{return index!=p.index;}
 	operator void*() {return get_typed_v()+index;}
 };
-typedef pseudo_ptr<pool,free_store<pool>,false> POOL_INDEX;
+typedef pseudo_ptr<pool,free_store<>,false> POOL_INDEX;
+
 template<
 	typename T,
 	typename STORE
 > struct pseudo_ptr<T,STORE,false>{
-	typedef unsigned char INDEX;//we need to define a unique type!
+	/*
+ 	* we need to define a unique type to avoid ambiguity between constructors
+ 	* 	pseudo_ptr(INDEX index)
+ 	* 	pseudo_ptr(T* p)
+ 	* e.g:
+ 	* 	struct unique{
+ 	* 		INDEX i;
+ 	* 	};
+ 	*/
+	typedef pseudo_ptr<pool,free_store<>,false> POOL_INDEX;
+	typedef unsigned char INDEX;
+
 	typedef random_access_iterator_tag iterator_category;
 	typedef T value_type;
 	typedef size_t difference_type;
@@ -332,10 +339,10 @@ struct pseudo_ptr<T,STORE,true>{
 	INDEX index;
 	static POOL_INDEX get_pool(){return POOL_INDEX::get<T,STORE>();}
 	explicit pseudo_ptr(INDEX index):index(index),pool_index(get_pool()){
-		print();
+		//print();
 	}
-	void print(){
-		cerr<<"{"<<(unsigned int)pool_index.index<<","<<(unsigned int)index<<"}"<<endl;
+	void print(ostream& os){
+		os<<"{"<<(unsigned int)pool_index.index<<","<<(unsigned int)index<<"}"<<endl;
 	}
 	/*
  	* dangerous, be very careful with this
@@ -345,6 +352,7 @@ struct pseudo_ptr<T,STORE,true>{
 	//explicit pseudo_ptr(T* p):index(((void)p-get_pool()->p.v)/sizeof(T)),pool_index(get_pool()){}
 	//static pseudo_ptr allocate(){return pseudo_ptr(get_pool()->allocate());}
 	static pseudo_ptr allocate(){return pseudo_ptr(get_pool()->template allocate_t<T>());}
+	static pseudo_ptr allocate_at(size_t i){return pseudo_ptr(get_pool()->allocate_at(i));}
 	template<typename A> static pseudo_ptr construct(A a){
 		pseudo_ptr p=allocate();
 		new(p)T(a);//in-place constructor
@@ -360,8 +368,18 @@ struct pseudo_ptr<T,STORE,true>{
 		new(p)T(a,b,c);//in-place constructor
 		return p;
 	}
+	template<typename A,typename B,typename C> static pseudo_ptr construct_at(size_t i,A a,B b,C c){
+		pseudo_ptr p=allocate_at(i);
+		new(p)T(a,b,c);//in-place constructor
+		return p;
+	}
 	template<typename A,typename B,typename C,typename D> static pseudo_ptr construct(A a,B b,C c,D d){
 		pseudo_ptr p=allocate();
+		new(p)T(a,b,c,d);//in-place constructor
+		return p;
+	}
+	template<typename A,typename B,typename C,typename D> static pseudo_ptr construct_at(size_t i,A a,B b,C c,D d){
+		pseudo_ptr p=allocate_at(i);
 		new(p)T(a,b,c,d);//in-place constructor
 		return p;
 	}
@@ -395,7 +413,8 @@ struct pseudo_ptr<T,STORE,true>{
 	//
 	operator bool() const{return index;}
 	//not very efficient
-	operator void*() {return index ? pool_index->get(index) : 0;}
+	//operator void*() {return index ? pool_index->get(index) : 0;}
+	operator value_type*() {return index ? (value_type*)pool_index->get(index) : 0;}
 	//better
 	bool operator!()const{return !index;}
 };
