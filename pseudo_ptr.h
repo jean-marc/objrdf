@@ -67,19 +67,33 @@ struct pool{
 		cerr<<"allocate cell at index "<<i<<"{"<<(p.v+i*p.cell_size)<<"} in pool "<<this<<endl;
 		return i;	
 	}
-	template<typename T> union helper{
+	//buggy!!!!
+	//we have to make sure sizeof(helper<T>)==sizeof(T)
+	/*template<typename T> union helper{
 		char t[sizeof(T)];//padding
 		struct{
+			//each of them requires 8 byte alignment!!
 			size_t next;
 			size_t n_cells;
 		};
 	};
-	//typed version is safer and cleaner
+	*/
+	//simpler
+	/*template<typename T> struct helper{
+		size_t next;
+		size_t n_cells;
+		char padding[sizeof(T)-sizeof(next)-sizeof(n_cells)];
+	};*/
+	template<typename T> struct helper:T{
+		inline size_t& next(){return static_cast<info*>((void*)this)->next;}
+		inline size_t& n_cells(){return static_cast<info*>((void*)this)->n_cells;}
+	};
+	//typed version is safer and cleaner NO!
 	template<typename T> size_t allocate_t(){
 		auto v=static_cast<helper<T>*>(p.v);
-		size_t i=v[0].next;
-		v[0].next=v[i].next ? v[i].next : v[0].next+1;
-		v[0].n_cells++;
+		size_t i=v[0].next();
+		v[0].next()=v[i].next() ? v[i].next() : v[0].next()+1;
+		v[0].n_cells()++;
 		cerr<<"allocate cell at index "<<i<<"{"<<&v[i]<<"} in pool "<<this<<endl;
 		return i;	
 	}
@@ -114,14 +128,14 @@ struct pool{
 	template<typename T> void deallocate_t(size_t i){
 		auto v=static_cast<helper<T>*>(p.v);
 		cerr<<"deallocate cell at index "<<i<<" in pool "<<this<<endl;
-		if(i<v[0].next){
-			v[i].next=v[0].next;
-			v[0].next=i;
+		if(i<v[0].next()){
+			v[i].next()=v[0].next();
+			v[0].next()=i;
 		}else{
-			v[i].next=v[v[0].next].next;
-			v[v[0].next].next=i;
+			v[i].next()=v[v[0].next()].next();
+			v[v[0].next()].next()=i;
 		}
-		v[0].n_cells--;
+		v[0].n_cells()--;
 	}
 	void* get(size_t i){
 		return p.v+i*p.cell_size;
@@ -143,10 +157,10 @@ struct pool{
 		size_t index;//address current cell
 		size_t n;//number of cells to visit
 		size_t next_free;//address next free cell
-		iterator(helper<T>* v,size_t n):v(v),index(1),n(n),next_free(v[0].next){
+		iterator(helper<T>* v,size_t n):v(v),index(1),n(n),next_free(v[0].next()){
 			while(index==next_free&&n){
 				++index;
-				next_free=v[next_free].next;
+				next_free=v[next_free].next();
 			}
 		}		
 		bool operator==(const iterator& p)const{return n==p.n;}
@@ -156,7 +170,7 @@ struct pool{
 			++index;
 			while(index==next_free&&n){
 				++index;
-				next_free=v[next_free].next;
+				next_free=v[next_free].next();
 			}
 			--n;
 			return *this;
@@ -165,22 +179,23 @@ struct pool{
 		T* operator->(){return (T*)(void*)&v[index];}		
 		T& operator*(){return (T&)(void*)&v[index];}
 	};
-	template<typename T> iterator<T> begin(){return iterator<T>(static_cast<helper<T>*>(p.v),static_cast<helper<T>*>(p.v)[0].n_cells);}
+	template<typename T> iterator<T> begin(){return iterator<T>(static_cast<helper<T>*>(p.v),static_cast<helper<T>*>(p.v)[0].n_cells());}
 	template<typename T> iterator<T> end(){return iterator<T>(static_cast<helper<T>*>(p.v),0);}
 };
 template<size_t SIZE=256> struct free_store{
 	template<typename T> static pool::param go(){
+		//char* v=new char[SIZE*sizeof(T)];
 		char* v=new char[SIZE*sizeof(T)];
 		memset(v,0,SIZE*sizeof(T));
 		return pool::param(v,SIZE,sizeof(T));
 	}
 };
-template<size_t SIZE,int NAME> struct persistent_store{
+template<typename T> struct name;//{static const string get(){return "none";}};
+template<size_t SIZE> struct persistent_store{
 	//use memory map
 	template<typename T> static pool::param go(){
-		ostringstream os;
-		os<<"db/pool_"<<NAME;
-		string filename=os.str();
+		string filename="db/"+name<typename T::SELF>::get();
+		cerr<<"opening file `"<<filename<<"'"<<endl;
 		int fd = open(filename.c_str(), O_RDWR | O_CREAT/* | O_TRUNC*/, (mode_t)0600);
 		if (fd == -1) {
 			cerr<<"\nError opening file `"<<filename<<"' for writing"<<endl;
@@ -398,6 +413,11 @@ struct pseudo_ptr<T,STORE,true>{
 	}
 	value_type* operator->()const{return (value_type*)pool_index->get(index);}
 	reference operator*()const{return *(value_type*)pool_index->get(index);}
+	/*
+ 	* shall we override operator->*() to use pointer to member functions?
+ 	* we need to know the return type of the function
+ 	*/
+	//template<typename F> void operator->*(F f){static_cast<value_type*>(pool_index->get(index))->*f;}
 	//does it even make sense?
 	/*
 	pseudo_ptr& operator+=(const size_t s){index+=s;return *this;}
