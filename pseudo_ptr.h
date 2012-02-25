@@ -32,7 +32,9 @@ using namespace std;
  * 	yes but a bit awkward: pointer difference
  *
  * 	not all classes will be instantiated, would be nice to have a way to detect those so we don't
- * 	waste a pool
+ * 	waste a pool eg Literal 
+ *
+ * 	can we have a safeguard mechanism to make sure we always use the same pool index?
  *
  */
 template<bool A> struct _assert_;
@@ -60,7 +62,6 @@ struct pool{
 			FIELD cell_size;
 		};
 	};
-	//template<typename T> struct helper:T{
 	template<typename T> struct helper{
 		char t[sizeof(T)];
 		inline info::FIELD& next(){return static_cast<info*>((void*)this)->next;}
@@ -76,14 +77,13 @@ struct pool{
 	pool(param p,DESTRUCTOR destructor):p(p),destructor(destructor){
 		info& first=*static_cast<info*>(p.v);
 		info& second=*static_cast<info*>(p.v+p.cell_size);
-		/*
-		if(first.next==0){
+		/*if(first.next==0){
 			first.next=1;
 			first.n_cells=0;
-		}
-		*/
+		}*/
 		if(first.n_cells==0){
 			first.next=1;
+			//only used when using allocate_t(int)
 			second.next=0;
 			second.cell_size=p.n-1;	
 		}
@@ -161,10 +161,11 @@ struct pool{
 		v[index].next()=v[0].next();
 		v[index].cell_size()=n;
 		v[0].next()=index;
-		v[0].n_cells()-=n;//why does it matter?
+		v[0].n_cells()-=n;
 	}
 	//we can choose the pointer value
 	//do not mix allocate_at() with allocate() !
+	//actually we could if we use different notation
 	size_t allocate_at(size_t i){
 		info& first=*static_cast<info*>(p.v);
 		first.n_cells++;
@@ -177,7 +178,7 @@ struct pool{
 		info& first=*static_cast<info*>(p.v);
 		info& current=*static_cast<info*>(p.v+i*p.cell_size);
 		//keep linked list of empty cells ordered for iterator
-		//it does not work, not really in order
+		//it does not work, not really in order, will cause problems in iterator!
 		if(i<first.next){
 			current.next=first.next;
 			first.next=i;
@@ -246,6 +247,9 @@ struct pool{
 	template<typename T> iterator<T> begin(){return iterator<T>(static_cast<helper<T>*>(p.v),static_cast<helper<T>*>(p.v)[0].n_cells());}
 	template<typename T> iterator<T> end(){return iterator<T>(static_cast<helper<T>*>(p.v),0);}
 };
+struct empty_store{
+	//for classes with no instance
+};
 template<size_t SIZE=256> struct free_store{
 	template<typename T> static pool::param go(){
 		char* v=new char[SIZE*sizeof(T)];
@@ -262,7 +266,7 @@ template<size_t SIZE> struct persistent_store{
  		* should add ascii file with version information, that number could come from git
 		* to build compatible executable
 		*/ 
-		string filename="db/"+name<typename T::SELF>::get();
+		string filename="db/"+name<typename T::SELF>::get();//prevents from using with other type!
 		cerr<<"opening file `"<<filename<<"'"<<endl;
 		int fd = open(filename.c_str(), O_RDWR | O_CREAT/* | O_TRUNC*/, (mode_t)0600);
 		if (fd == -1) {
@@ -318,9 +322,9 @@ struct pseudo_ptr<pool,STORE,false>{
 	typedef unsigned char INDEX;//we don't expect more than 255 pools, that is 255 types
 	INDEX index;
 	explicit pseudo_ptr(INDEX index):index(index){}
+	static pseudo_ptr allocate(){return pseudo_ptr(pool::get_instance<pool,STORE>()->template allocate_t<pool>());}
 	static pseudo_ptr construct(pool::param s,pool::DESTRUCTOR d){
-		//pseudo_ptr p=pseudo_ptr(pool::get_instance<pool,STORE>()->allocate());
-		pseudo_ptr p=pseudo_ptr(pool::get_instance<pool,STORE>()->template allocate_t<pool>());
+		pseudo_ptr p=allocate();
 		new(p)pool(s,d);
 		return p;
 	}
@@ -339,6 +343,15 @@ struct pseudo_ptr<pool,STORE,false>{
 typedef pseudo_ptr<pool,free_store<>,false> POOL_INDEX;
 
 template<
+	typename T
+> struct pseudo_ptr<T,empty_store,false>{
+	static POOL_INDEX get_pool(){
+		static POOL_INDEX p=POOL_INDEX::allocate();
+		return p;
+	}
+}; 
+
+template<
 	typename T,
 	typename STORE
 > struct pseudo_ptr<T,STORE,false>{
@@ -351,7 +364,6 @@ template<
  	* 		INDEX i;
  	* 	};
  	*/
-	typedef pseudo_ptr<pool,free_store<>,false> POOL_INDEX;
 	typedef unsigned char INDEX;
 
 	typedef random_access_iterator_tag iterator_category;
