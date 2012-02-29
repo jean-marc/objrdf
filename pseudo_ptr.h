@@ -37,8 +37,6 @@ using namespace std;
  * 	can we have a safeguard mechanism to make sure we always use the same pool index?
  *
  */
-template<bool A> struct _assert_;
-template<> struct _assert_<true>{};
 struct pool{
 	struct param{
 		void* v;
@@ -53,9 +51,11 @@ struct pool{
 	};
 	/*
  	*	careful with the size of this structure as it must fit within a T object
+ 	*	it will cause very strange behaviour if it does not fit!
  	*/ 
 	struct info{
 		typedef unsigned short FIELD;
+		//typedef unsigned char FIELD;
 		FIELD next;
 		union{
 			FIELD n_cells;
@@ -63,6 +63,7 @@ struct pool{
 		};
 	};
 	template<typename T> struct helper{
+		static_assert(sizeof(T)>=sizeof(info),"T smaller than struct info{}");
 		char t[sizeof(T)];
 		inline info::FIELD& next(){return static_cast<info*>((void*)this)->next;}
 		inline info::FIELD& n_cells(){return static_cast<info*>((void*)this)->n_cells;}
@@ -72,9 +73,10 @@ struct pool{
 	typedef void(*DESTRUCTOR)(void*);
 	const DESTRUCTOR destructor; 
 	/*
- 	*	we need a block of free memory to store function pointers 
+ 	* 	more than one pool per type possible
  	*/
-	pool(param p,DESTRUCTOR destructor):p(p),destructor(destructor){
+	const size_t type_id;
+	pool(param p,DESTRUCTOR destructor,size_t type_id):p(p),destructor(destructor),type_id(type_id){
 		info& first=*static_cast<info*>(p.v);
 		info& second=*static_cast<info*>(p.v+p.cell_size);
 		/*if(first.next==0){
@@ -87,7 +89,7 @@ struct pool{
 			second.next=0;
 			second.cell_size=p.n-1;	
 		}
-		cerr<<"new pool "<<this<<" "<<first.n_cells<<" out of "<<p.n<<" cells used"<<endl;
+		cerr<<"new pool "<<this<<" "<<first.n_cells<<" out of "<<p.n<<" cells used type_id:"<<type_id<<endl;
 	}
 	/*
 	size_t allocate(){
@@ -114,7 +116,6 @@ struct pool{
 	}
 	//contiguous cells for vector<>
 	template<typename T> size_t allocate_t(size_t n){
-		//typedef _assert_<sizeof(T)>=sizeof(info)> T; VERY strange behaviour, to be analyzed
 		auto v=static_cast<helper<T>*>(p.v);
 		cerr<<"v[0].next():"<<v[0].next()<<endl;
 		size_t i=help_allocate_t<T>(v[0].next(),n);
@@ -165,7 +166,6 @@ struct pool{
 	}
 	//we can choose the pointer value
 	//do not mix allocate_at() with allocate() !
-	//actually we could if we use different notation
 	size_t allocate_at(size_t i){
 		info& first=*static_cast<info*>(p.v);
 		first.n_cells++;
@@ -207,8 +207,16 @@ struct pool{
 	}
 	//could use function pointer:allocate, deallocate,...
 	size_t get_size()const{return static_cast<info*>(p.v)->n_cells;}
+	static size_t& get_counter(){
+		static size_t c=1;//needs to start at 1
+		return c;
+	}
+	template<typename T> static size_t get_type_id(){
+		static size_t id=get_counter()++;
+		return id;
+	}
 	template<typename T,typename STORE> static pool* get_instance(){
-		static pool* p=new pool(STORE::template go<T>(),0);
+		static pool* p=new pool(STORE::template go<T>(),0,get_type_id<T>());
 		return p;
 	}
 	/*
@@ -247,9 +255,9 @@ struct pool{
 	template<typename T> iterator<T> begin(){return iterator<T>(static_cast<helper<T>*>(p.v),static_cast<helper<T>*>(p.v)[0].n_cells());}
 	template<typename T> iterator<T> end(){return iterator<T>(static_cast<helper<T>*>(p.v),0);}
 };
-struct empty_store{
-	//for classes with no instance
-};
+
+struct empty_store;//for classes with no instance
+
 template<size_t SIZE=256> struct free_store{
 	template<typename T> static pool::param go(){
 		char* v=new char[SIZE*sizeof(T)];
@@ -267,6 +275,7 @@ template<size_t SIZE> struct persistent_store{
 		* to build compatible executable
 		*/ 
 		string filename="db/"+name<typename T::SELF>::get();//prevents from using with other type!
+		//string filename="db/none";//prevents from using with other type!
 		cerr<<"opening file `"<<filename<<"'"<<endl;
 		int fd = open(filename.c_str(), O_RDWR | O_CREAT/* | O_TRUNC*/, (mode_t)0600);
 		if (fd == -1) {
@@ -304,7 +313,6 @@ template<size_t SIZE> struct persistent_store{
 		return pool::param(v,file_size/sizeof(T),sizeof(T));
 	}
 };
-//we need a const version of this
 template<
 	typename T,
 	//maybe store SHOULD not be a template parameter, maybe a constructor parameter instead
@@ -323,14 +331,14 @@ struct pseudo_ptr<pool,STORE,false>{
 	INDEX index;
 	explicit pseudo_ptr(INDEX index):index(index){}
 	static pseudo_ptr allocate(){return pseudo_ptr(pool::get_instance<pool,STORE>()->template allocate_t<pool>());}
-	static pseudo_ptr construct(pool::param s,pool::DESTRUCTOR d){
+	static pseudo_ptr construct(pool::param s,pool::DESTRUCTOR d,size_t type_id){
 		pseudo_ptr p=allocate();
-		new(p)pool(s,d);
+		new(p)pool(s,d,type_id);
 		return p;
 	}
 	template<typename T> static void destructor(void* s){static_cast<T*>(s)->~T();}
 	template<typename T,typename OTHER_STORE> static pseudo_ptr get(){
-		static pseudo_ptr p=construct(OTHER_STORE::template go<T>(),destructor<T>);
+		static pseudo_ptr p=construct(OTHER_STORE::template go<T>(),destructor<T>,pool::get_type_id<T>());
 		return p;
 	}
 	static value_type* get_typed_v(){return static_cast<value_type*>(pool::get_instance<pool,STORE>()->p.v);} 
@@ -350,7 +358,10 @@ template<
 		return p;
 	}
 }; 
-
+/*
+ *	this pointer is smaller than the polymorphic one, 
+ *	use when the class is not up/down cast
+ */
 template<
 	typename T,
 	typename STORE
@@ -364,7 +375,8 @@ template<
  	* 		INDEX i;
  	* 	};
  	*/
-	typedef unsigned char INDEX;
+	//typedef unsigned char INDEX;
+	typedef unsigned short INDEX;
 
 	typedef random_access_iterator_tag iterator_category;
 	typedef T value_type;
@@ -374,7 +386,7 @@ template<
 	static POOL_INDEX get_pool(){return POOL_INDEX::get<T,STORE>();}
 	INDEX index;
 	//explicit pseudo_ptr(INDEX index):index(index){}
-	pseudo_ptr(INDEX index):index(index){}
+	pseudo_ptr(INDEX index=0):index(index){}
 	/*
  	* dangerous, be very careful with this
  	* 	should be used like this:
@@ -436,13 +448,11 @@ struct pseudo_ptr<T,STORE,true>{
 	typedef size_t difference_type;
 	typedef pseudo_ptr pointer;
 	typedef T& reference;
-	typedef unsigned char INDEX;
+	typedef unsigned short INDEX;
 	POOL_INDEX pool_index;
 	INDEX index;
 	static POOL_INDEX get_pool(){return POOL_INDEX::get<T,STORE>();}
-	explicit pseudo_ptr(INDEX index):index(index),pool_index(get_pool()){
-		//print();
-	}
+	explicit pseudo_ptr(INDEX index=0):index(index),pool_index(get_pool()){}
 	void print(ostream& os){
 		os<<"{"<<(unsigned int)pool_index.index<<","<<(unsigned int)index<<"}"<<endl;
 	}
@@ -460,6 +470,9 @@ struct pseudo_ptr<T,STORE,true>{
 		new(p)T(a);//in-place constructor
 		return p;
 	}
+	/*
+ 	*	could avoid all that by using std::tuples
+ 	*/ 
 	template<typename A,typename B> static pseudo_ptr construct(A a,B b){
 		pseudo_ptr p=allocate();
 		new(p)T(a,b);//in-place constructor
@@ -536,6 +549,67 @@ template<typename T,typename STORE,bool POLYMORPHISM> pseudo_ptr<T,STORE,POLYMOR
 template<typename T,typename STORE,bool POLYMORPHISM> ptrdiff_t operator-(const pseudo_ptr<T,STORE,POLYMORPHISM>& a,const pseudo_ptr<T,STORE,POLYMORPHISM>& b){
 	return a.index-b.index;
 }
+template<
+	typename T,
+	typename STORE
+> struct pseudo_ptr<const T,STORE,false>{
+	typedef random_access_iterator_tag iterator_category;
+	typedef const T value_type;
+	typedef size_t difference_type;
+	typedef pseudo_ptr pointer;
+	typedef const T& reference;
+	typedef unsigned short INDEX;
+	//should it use its own pool?
+	//static POOL_INDEX get_pool(){return POOL_INDEX::get<const T,STORE>();}
+	static POOL_INDEX get_pool(){return POOL_INDEX::get<T,STORE>();}
+	INDEX index;
+	pseudo_ptr(INDEX index=0):index(index){}
+	//we don't need this
+	pseudo_ptr& operator=(const pseudo_ptr& p){
+		index=p.index;
+		return *this;
+	}
+	static pseudo_ptr allocate(){return pseudo_ptr(get_pool()->template allocate_t<T>());}
+	static pseudo_ptr allocate_at(size_t i){return pseudo_ptr(get_pool()->template allocate_at_t<T>(i));}
+	template<typename S> static pseudo_ptr construct(S s){
+		pseudo_ptr p=allocate();
+		new(p)T(s);//in-place constructor
+		return p;
+	} 
+	template<typename A> static pseudo_ptr construct_at(size_t i,A a){
+		pseudo_ptr p=allocate_at(i);
+		new(p)A(a);//in-place constructor
+		return p;
+	} 
+	template<typename A,typename B> static pseudo_ptr construct_at(size_t i,A a,B b){
+		pseudo_ptr p=allocate(i);
+		new(p)T(a,b);//in-place constructor
+		return p;
+	}
+	template<typename A,typename B,typename C> static pseudo_ptr construct_at(size_t i,A a,B b,C c){
+		pseudo_ptr p=allocate_at(i);
+		new(p)T(a,b,c);//in-place constructor
+		return p;
+	}
+	template<typename A,typename B,typename C,typename D> static pseudo_ptr construct_at(size_t i,A a,B b,C c,D d){
+		pseudo_ptr p=allocate_at(i);
+		new(p)T(a,b,c,d);//in-place constructor
+		return p;
+	}
+	static T* get_typed_v(){return static_cast<T*>(get_pool()->p.v);} 
+	value_type* operator->()const{return get_typed_v()+index;}
+	reference operator*()const{return *(get_typed_v()+index);}
+	//do we ever use those operators? only custom allocator
+	pseudo_ptr& operator+=(const size_t s){index+=s;return *this;}
+	pseudo_ptr& operator-=(const size_t s){index-=s;return *this;}
+	pseudo_ptr& operator++(){++index;return *this;}
+	pseudo_ptr& operator--(){--index;return *this;}
+	bool operator!=(const pseudo_ptr& p)const{return index!=p.index;}
+	bool operator<(const pseudo_ptr& p)const{return index<p.index;}
+	bool operator==(const pseudo_ptr& p)const{return index==p.index;}
+	operator T*() {return index ? get_typed_v()+index:0;}
+
+};
 
 #endif
 
