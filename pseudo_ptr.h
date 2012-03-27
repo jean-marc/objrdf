@@ -14,6 +14,7 @@
 #include <string.h>
 #include <iostream>
 #include <sstream>
+#include <math.h>
 #include "ifthenelse.hpp"
 
 using namespace std;
@@ -41,6 +42,8 @@ using namespace std;
  *
  * 	can we have a safeguard mechanism to make sure we always use the same pool index?
  *
+ * 	adjustable pool size, the store can be resized as long as S<2^n where n number of bits in pointer,
+ * 	how do we resize mmap? mremap()
  */
 
 /*
@@ -61,7 +64,11 @@ uint32_t jenkins_one_at_a_time_hash(const char *key, size_t len)
     return hash;
 }
 struct pool{
-	struct param{
+	/*
+ 	*	store 
+ 	*/ 
+	class param{
+	public:
 		void* v;
 		size_t n;
 		const size_t cell_size;
@@ -71,6 +78,7 @@ struct pool{
  		*	should be used
  		*/ 
 		param(void* v,size_t n,const size_t cell_size):v(v),n(n),cell_size(cell_size){}
+		virtual void resize(size_t n)=0;
 	};
 	/*
  	*	careful with the size of this structure as it must fit within a T object
@@ -92,14 +100,14 @@ struct pool{
 		inline info::FIELD& n_cells(){return static_cast<info*>((void*)this)->n_cells;}
 		inline info::FIELD& cell_size(){return static_cast<info*>((void*)this)->cell_size;}
 	};
-	param p;
+	param& p;
 	typedef void(*DESTRUCTOR)(void*);
 	const DESTRUCTOR destructor; 
 	/*
  	* 	more than one pool per type possible
  	*/
 	const size_t type_id;
-	pool(param p,DESTRUCTOR destructor,size_t type_id):p(p),destructor(destructor),type_id(type_id){
+	pool(param& p,DESTRUCTOR destructor,size_t type_id):p(p),destructor(destructor),type_id(type_id){
 		info& first=*static_cast<info*>(p.v);
 		info& second=*static_cast<info*>(p.v+p.cell_size);
 		/*if(first.next==0){
@@ -113,6 +121,10 @@ struct pool{
 			second.cell_size=p.n-1;	
 		}
 		cerr<<"new pool "<<this<<" "<<(size_t)first.n_cells<<" out of "<<p.n<<" cells used type_id:"<<type_id<<endl;
+	}
+	//grow the pool
+	void resize(size_t n){
+
 	}
 	/*
 	size_t allocate(){
@@ -131,8 +143,14 @@ struct pool{
 	//typed version is safer and cleaner
 	template<typename T> size_t allocate_t(){
 		auto v=static_cast<helper<T>*>(p.v);
-		if(v[0].n_cells()==p.n-1)
-			throw std::runtime_error("pool full");
+		if(v[0].n_cells()==p.n-1){
+			//throw std::runtime_error("pool full");
+			//resize the pool, uses strategy similar to vector<>: keep doubling
+			cerr<<"increasing pool size to "<<2*p.n<<" cells "<<this<<endl;
+			p.resize(2*p.n);
+			//update v
+			v=static_cast<helper<T>*>(p.v);
+		}
 		auto i=v[0].next();
 		v[0].next()=v[i].next() ? v[i].next() : v[0].next()+1;
 		v[0].n_cells()++;
@@ -247,7 +265,7 @@ struct pool{
 	*/
 	template<typename T,typename STORE> static pool* get_instance(){
 		//static pool* p=new pool(STORE::template go<T>(),0,get_type_id<T>());
-		static pool* p=new pool(STORE::template go<T>(),0,0);
+		static pool* p=new pool(*STORE::template go<T>(),0,0);
 		return p;
 	}
 	/*
@@ -292,21 +310,43 @@ struct pool{
 struct empty_store{//for classes with no instance
 	enum{N=0};
 };
-
-template<size_t SIZE=20000> struct free_store{
+class free_store:public pool::param{
+public:
 	enum{N=1};
-	template<typename T> static pool::param go(){
+	//enum{SIZE=1024};
+	enum{SIZE=256};//minimum size required for 8bit hash
+	free_store(void* v,size_t n,const size_t cell_size):pool::param(v,n,cell_size){}
+	template<typename T> static free_store* go(){
 		char* v=new char[SIZE*sizeof(T)];
 		memset(v,0,SIZE*sizeof(T));
-		return pool::param(v,SIZE,sizeof(T));
+		return new free_store(v,SIZE,sizeof(T));
 	}
+	//_n new number of cells
+	virtual void resize(size_t _n){
+		//let's just grow for now	
+		if(_n>n){
+			char* _v=new char[_n*cell_size];
+			memcpy(_v,v,n*cell_size);
+			memset(_v+n*cell_size,0,(_n-n)*cell_size);
+			delete[] v;
+			v=_v;
+			n=_n;
+		}
+	}
+	
 };
 template<typename T> struct name;//{static const string get(){return "none";}};
-template<size_t SIZE=20000> struct persistent_store{
+class persistent_store:public pool::param{
+public:
 	enum{N=2};
+	enum{SIZE=256};	
+	enum{PAGE_SIZE=4096};
 	//use memory map
 	//how to add support for read-only file?
-	template<typename T> static pool::param go(){
+	int fd;
+	size_t file_size;
+	persistent_store(void* v,size_t n,const size_t cell_size,int fd,size_t file_size):pool::param(v,n,cell_size),fd(fd),file_size(file_size){}
+	template<typename T> static persistent_store* go(){
 		/*
  		* should add ascii file with version information, that number could come from git
 		* to build compatible executable
@@ -327,7 +367,9 @@ template<size_t SIZE=20000> struct persistent_store{
 			cerr<<"\ncould not stat file `"<<filename<<"'"<<endl;
 			exit(EXIT_FAILURE);
 		}
-		size_t file_size=max<size_t>(4096,sizeof(T)*SIZE);
+		//makes sure it is a multiple of page size 4096
+		size_t n_page=max<size_t>(ceil((double)(sizeof(T)*SIZE)/PAGE_SIZE),1);
+		size_t file_size=n_page*PAGE_SIZE;
 		if(s.st_size<file_size){
 			int result = lseek(fd,file_size-1, SEEK_SET);
 			if (result == -1) {
@@ -348,13 +390,40 @@ template<size_t SIZE=20000> struct persistent_store{
 			cerr<<"Error mmapping the file"<<endl;
 			exit(EXIT_FAILURE);
 		}
-		return pool::param(v,file_size/sizeof(T),sizeof(T));
+		return new persistent_store(v,file_size/sizeof(T),sizeof(T),fd,file_size);
+	}
+	virtual void resize(size_t _n){
+		if(_n>n){
+			//grow the file
+			size_t n_page=max<size_t>(ceil((double)(cell_size*_n)/PAGE_SIZE),1);
+			size_t _file_size=n_page*PAGE_SIZE;
+			int result = lseek(fd,_file_size-1, SEEK_SET);
+			if (result == -1) {
+				close(fd);
+				cerr<<"Error calling lseek() to 'stretch' the file"<<endl;
+				exit(EXIT_FAILURE);
+			}
+			result = write(fd, "", 1);
+			if (result != 1) {
+				close(fd);
+				cerr<<"Error writing last byte of the file"<<endl;
+				exit(EXIT_FAILURE);
+			}
+			v=(char*)mremap((void*)v,file_size,_file_size,MAP_SHARED);
+			if (v == MAP_FAILED) {
+				close(fd);
+				cerr<<"Error mmapping the file"<<endl;
+				exit(EXIT_FAILURE);
+			}
+			file_size=_file_size;
+			n=file_size/cell_size;
+		}
 	}
 };
 template<
 	typename T,
 	//maybe store SHOULD not be a template parameter, maybe a constructor parameter instead
-	typename STORE=free_store<>,//free store or persistent
+	typename STORE=free_store,//<>,//free store or persistent
 	bool POLYMORPHISM=false//does not support derived types
 > struct pseudo_ptr;
 /*
@@ -382,12 +451,12 @@ struct pseudo_ptr<pool,STORE,false>{
 	explicit pseudo_ptr(INDEX index):index(index){}
 	static pseudo_ptr allocate(){return pseudo_ptr(pool::get_instance<pool,STORE>()->template allocate_t<pool>());}
 	static pseudo_ptr allocate_at(INDEX i){return pseudo_ptr(pool::get_instance<pool,STORE>()->template allocate_at(i));}
-	static pseudo_ptr construct(pool::param s,pool::DESTRUCTOR d,size_t type_id){
+	static pseudo_ptr construct(pool::param& s,pool::DESTRUCTOR d,size_t type_id){
 		pseudo_ptr p=allocate();
 		new(p)pool(s,d,type_id);
 		return p;
 	}
-	static pseudo_ptr construct_at(INDEX i,pool::param s,pool::DESTRUCTOR d,size_t type_id){
+	static pseudo_ptr construct_at(INDEX i,pool::param& s,pool::DESTRUCTOR d,size_t type_id){
 		pseudo_ptr p=allocate_at(i);
 		new(p)pool(s,d,type_id);
 		return p;
@@ -411,7 +480,7 @@ struct pseudo_ptr<pool,STORE,false>{
 		*
 		*/ 
 		//static pseudo_ptr p=construct(OTHER_STORE::template go<T>(),destructor<T>,pool::get_type_id<T>());
-		static pseudo_ptr p=construct_at(get_pool_id<T,OTHER_STORE>(),OTHER_STORE::template go<T>(),destructor<T>,get_type_id<T>());
+		static pseudo_ptr p=construct_at(get_pool_id<T,OTHER_STORE>(),*OTHER_STORE::template go<T>(),destructor<T>,get_type_id<T>());
 		return p;
 	}
 	static value_type* get_typed_v(){return static_cast<value_type*>(pool::get_instance<pool,STORE>()->p.v);} 
@@ -421,7 +490,7 @@ struct pseudo_ptr<pool,STORE,false>{
 	bool operator!=(const pseudo_ptr& p)const{return index!=p.index;}
 	operator value_type*() {return get_typed_v()+index;}
 };
-typedef pseudo_ptr<pool,free_store<>,false> POOL_INDEX;
+typedef pseudo_ptr<pool,free_store/*<>*/,false> POOL_INDEX;
 
 template<
 	typename T
