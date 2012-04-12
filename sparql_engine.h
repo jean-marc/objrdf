@@ -39,10 +39,11 @@
  *
  */
 using namespace objrdf;
+typedef CONST_RESOURCE_PTR SPARQL_RESOURCE_PTR;//won't allow modification (update)
 struct match_property{
-	const rdf::Property* p;
-	match_property(const rdf::Property* p):p(p){};
-	bool operator()(generic_property* g)const{return g->p.get()==p;}
+	PROPERTY_PTR p;
+	match_property(PROPERTY_PTR p):p(p){};
+	bool operator()(property_info* g)const{return g->p==p;}
 };
 struct subject;
 /*
@@ -50,14 +51,14 @@ struct subject;
  *	we could have
  * 	most of the time we use base_resource::instance_iterator ex
  */
-//typedef std::pair<base_resource*,base_resource::instance_iterator> R;
-typedef vector<vector<base_resource::instance_iterator> > RESULT;
+//typedef std::pair<SPARQL_RESOURCE_PTR,base_resource::instance_iterator> R;
+typedef vector<vector<base_resource::const_instance_iterator> > RESULT;
 //typedef vector<vector<R> RESULT;
 ostream& operator<<(ostream& os,const RESULT& r){
 	for(auto i=r.begin();i<r.end();++i){
-		for(auto j=i->begin();j<i->end();++j){
-			if((*j)!=base_resource::nil->begin()->begin()){
-				if(j->get_Property()->get<rdfs::range>()=rdfs::XML_Literal::get_class())
+		for(auto j=i->cbegin();j<i->cend();++j){
+			if((*j)!=base_resource::nil->cbegin()->cbegin()){
+				if(j->get_Property()->get_const<rdfs::range>()==rdfs::XML_Literal::get_class())
 					os<<"XML_Literal ...\t|";
 				else{
 					os<<*j<<"\t|";
@@ -69,7 +70,7 @@ ostream& operator<<(ostream& os,const RESULT& r){
 	}
 	return os;
 }
-typedef vector<vector<base_resource*> > RRESULT;//resources only
+typedef vector<vector<SPARQL_RESOURCE_PTR> > RRESULT;//resources only
 ostream& operator<<(ostream& os,const RRESULT& r){
 	for(auto i=r.begin();i<r.end();++i){
 		for(auto j=i->begin();j<i->end();++j){
@@ -80,21 +81,21 @@ ostream& operator<<(ostream& os,const RRESULT& r){
 }
 
 struct verb{
-	shared_ptr<rdf::Property> p;//0 -> not bound
+	PROPERTY_PTR p;//0 -> not bound
 	subject* object;
 	string name;
 	bool is_optional;
 	bool is_selected;//will be returned in result set
 	bool bound;
-	verb(shared_ptr<rdf::Property> p,subject* object);
+	verb(PROPERTY_PTR p,subject* object);
 	verb();
-	RESULT run(base_resource* r);
-	RRESULT run_r(base_resource* r);//
+	RESULT run(SPARQL_RESOURCE_PTR r);
+	RRESULT run_r(SPARQL_RESOURCE_PTR r);//
 	int size();
 	vector<string> get_variables() const;
 };
 struct subject{
-	base_resource* r;//0 -> not bound	
+	SPARQL_RESOURCE_PTR r;//0 -> not bound	
 	string s;//empty not bound
 	string name;
 	bool is_selected;//will be returned in result set
@@ -102,11 +103,11 @@ struct subject{
 	bool is_root;
 	bool busy;
 	vector<verb> verbs;
-	subject(base_resource* r=0);
+	subject(SPARQL_RESOURCE_PTR r=SPARQL_RESOURCE_PTR(0));
 	subject(string s);
-	//RRESULT run_r(base_resource* _r,rdf::Property*);//
-	RESULT run(base_resource::instance_iterator i,rdf::Property* p);
-	RESULT run(base_resource* _r,rdf::Property* p);
+	//RRESULT run_r(SPARQL_RESOURCE_PTR _r,PROPERTY_PTR);//
+	RESULT run(base_resource::const_instance_iterator i,PROPERTY_PTR p);
+	RESULT run(SPARQL_RESOURCE_PTR _r,PROPERTY_PTR p);
 	RESULT run(rdf::RDF& doc,size_t n=1000);
 	void del();
 	void ins();
@@ -167,13 +168,15 @@ public:
 	typedef set<string> VARIABLE_SET;
 	VARIABLE_SET variable_set;
 	PREFIX_NS prefix_ns;
-	generic_property::PROVENANCE p;
-	sparql_parser(rdf::RDF& doc,istream& is,generic_property::PROVENANCE p=2);
+	//generic_property::PROVENANCE p;
+	PROVENANCE p;
+	//sparql_parser(rdf::RDF& doc,istream& is,generic_property::PROVENANCE p=2);
+	sparql_parser(rdf::RDF& doc,istream& is,PROVENANCE p=2);
 	bool go();
 	void out(ostream& os);
 	bool callback(PARSE_RES_TREE& r);
 	bool parse_where_statement(PARSE_RES_TREE& r);
-	shared_ptr<rdf::Property> parse_property(PARSE_RES_TREE& r);
+	PROPERTY_PTR parse_property(PARSE_RES_TREE& r);
 	//won't parse literal
 	shared_ptr<base_resource> parse_object(PARSE_RES_TREE& r);
 	bool parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete=false);
