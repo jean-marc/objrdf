@@ -91,6 +91,10 @@ namespace objrdf{
 	//should become rdfs::Resource
 	class base_resource;
 	typedef shared_ptr<base_resource> RESOURCE_PTR;
+	/*
+ 	* it means that CONST_RESOURCE_PTR::construct will allocate on the free_store
+ 	* but any pseudo_ptr<T> can be cast to a CONST_RESOURCE_PTR
+ 	*/
 	typedef pseudo_ptr<const base_resource,free_store,true> CONST_RESOURCE_PTR;
 	typedef pseudo_ptr<const rdfs::Class,free_store,false,uint16_t> CLASS_PTR;
 	typedef pseudo_ptr<const rdf::Property,free_store,false,uint16_t> PROPERTY_PTR;
@@ -262,7 +266,9 @@ namespace objrdf{
 		struct type_iterator:V::iterator{
 			base_resource* subject;
 			type_iterator(base_resource* subject,V::iterator i):V::iterator(i),subject(subject){}
-			/* what is that for? */
+			/* what is that for? to get an iterator from a type PROPERTY 
+ 			*	not sure it is worth the trouble
+ 			*/ 
 			template<typename PROPERTY,typename RESOURCE> static type_iterator get(RESOURCE* subject){
 				auto begin(RESOURCE::v.begin()),end(RESOURCE::v.end());
 				//should be only done once
@@ -350,6 +356,8 @@ namespace objrdf{
 		/*virtual*/ CLASS_PTR get_Class() const{return get_class();};
 		/*virtual*/ type_iterator begin();
 		/*virtual*/ type_iterator end();
+		/*virtual*/ const_type_iterator cbegin() const;
+		/*virtual*/ const_type_iterator cend() const;
 		/*virtual*/ void get_output(ostream& os);//local resources can have content accessible through a URL scheme 
 		/*virtual*/ void end_resource(){};//will be invoked when finished parsing the element
 		/*
@@ -911,6 +919,8 @@ namespace rdfs{
 		tuple_element<0,objrdf::base_resource::class_function_table>::type constructor() const{return std::get<0>(t);}	
 		tuple_element<1,objrdf::base_resource::class_function_table>::type _begin() const{return std::get<1>(t);}	
 		tuple_element<2,objrdf::base_resource::class_function_table>::type _end() const{return std::get<2>(t);}	
+		tuple_element<3,objrdf::base_resource::class_function_table>::type _cbegin() const{return std::get<3>(t);}	
+		tuple_element<4,objrdf::base_resource::class_function_table>::type _cend() const{return std::get<4>(t);}	
 		Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,string comment);
 		~Class(){
 			//quick fix to avoid infinite recursion
@@ -936,6 +946,15 @@ namespace rdfs{
 namespace objrdf{
 	_PROPERTY(p_index,short);//each property has a unique index useful for fast serialization/parsing
 	_PROPERTY(p_self,objrdf::PROPERTY_PTR);
+	/*
+ 	* a unique id for each resource that can be turn into a pointer for fast access (no look-up involved)
+	* we need to encode the type too, should be serialized to hex:
+	*  size_t _id=r.pool_ptr.index | (r.index<<(sizeof(r.pool_ptr.index)<<3));
+	*  os<<hex<<"{"<<_id<<"}"<<dec;
+	*  it can be safely resolved by checking range and using the TEST function, client should store that
+	*  unique id for very fast look-up
+	*/
+	_PROPERTY(_id,size_t);
 }
 namespace rdf{
 	char _Property[]="Property";
@@ -961,6 +980,7 @@ namespace rdf{
 		static objrdf::PROPERTY_PTR nil;
 		COMMENT("The class of RDF properties.");
 		objrdf::base_resource::instance_iterator get_self_iterator();
+		objrdf::base_resource::const_instance_iterator get_const_self_iterator() const;
 	};
 }//end namespace rdf
 namespace objrdf{
@@ -1096,12 +1116,21 @@ namespace objrdf{
 			return concat(v,std::static_for_each<PROPERTIES>(_meta_<TMP>()).v);
 		}
 	};
+	//would be nice to put it inside a class or namespace
 	//iterators to navigate the pools, it won't allow modification of the resources
+	//create index per pool? save the index or not?  we want to avoid `table scan'
+	//could we use pointer instead
 	struct pool_iterator:pool::iterator<POOL_PTR>{
 		pool_iterator(pool::iterator<POOL_PTR> i):pool::iterator<POOL_PTR>(i){}
 		typedef generic_iterator<CONST_RESOURCE_PTR> cell_iterator;
 		cell_iterator begin(){return cell_iterator(**this,(**this)->get_size());}
 		cell_iterator end(){return cell_iterator(**this);}
+	};
+	struct test_by_uri{
+		const uri u;
+		test_by_uri(const uri& u):u(u){}
+		//must be a pseudo_ptr<>
+		template<typename T> bool operator()(T t) const{return t->id==u;}//????
 	};
 	pool_iterator begin(){return pool_iterator(::begin<POOL_PTR>());}
 	pool_iterator end(){return pool_iterator(::end<POOL_PTR>());}

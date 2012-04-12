@@ -14,6 +14,8 @@ bool type_p::operator() (shared_ptr<base_resource> r) const{return *t<=*r->get_C
 
 base_resource::type_iterator base_resource::begin(){return base_resource::type_iterator(this,v.begin());}
 base_resource::type_iterator base_resource::end(){return base_resource::type_iterator(this,v.end());}
+base_resource::const_type_iterator base_resource::cbegin() const{return base_resource::const_type_iterator(this,v.cbegin());}
+base_resource::const_type_iterator base_resource::cend() const{return base_resource::const_type_iterator(this,v.cend());}
 property_info::property_info(PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}
 void base_resource::erase(instance_iterator first,instance_iterator last){
 #ifdef WIN32
@@ -188,6 +190,9 @@ rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp):rdf::P
 base_resource::instance_iterator rdf::Property::get_self_iterator(){
 	return base_resource::instance_iterator(this,v.begin()+5,0);//should make sure position does not change!
 }
+base_resource::const_instance_iterator rdf::Property::get_const_self_iterator() const{
+	return base_resource::const_instance_iterator(this,v.cbegin()+5,0);//should make sure position does not change!
+}
 #ifdef PERSISTENT
 PROPERTY_PTR rdf::Property::nil=PROPERTY_PTR(PROPERTY_PTR::pointer::construct(uri("nil_p")));
 #else
@@ -336,6 +341,9 @@ namespace objrdf{
 		os<<"\n<"<<r->get_Class()->id<<" "<<(r->id.is_local() ? rdf::ID : rdf::about)<<"='";
 		r->id.to_uri(os);
 		os<<"'>";
+		//extract unique id
+		size_t _id=r.pool_ptr.index | (r.index<<(sizeof(r.pool_ptr.index)<<3));
+		os<<hex<<"{"<<_id<<"}"<<dec;
 		for(auto i=get_class(r)->_begin()(r);i!=get_class(r)->_end()(r);++i){
 			//for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
 			for(base_resource::const_instance_iterator j=i->cbegin();j!=i->cend();++j){
