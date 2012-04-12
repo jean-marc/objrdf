@@ -230,6 +230,9 @@ struct pool{
 	template<typename P> struct iterator{
 		typedef P value_type;	
 		typedef P& reference;	
+		typedef P* pointer;
+		typedef forward_iterator_tag iterator_category;
+		typedef size_t difference_type;
 		typedef typename P::value_type S;
 		S* v;
 		info::FIELD index;//address current cell
@@ -748,6 +751,7 @@ struct pseudo_ptr<T,_STORE_,true,_INDEX_>{
 	INDEX index;
 	static POOL_PTR get_pool(){return POOL_PTR::get<pseudo_ptr>();}
 	//explicit pseudo_ptr(INDEX index=0):index(index),pool_ptr(get_pool()){}
+	//why explicit?
 	explicit pseudo_ptr(INDEX index=0,POOL_PTR pool_ptr=get_pool()):index(index),pool_ptr(pool_ptr){}
 	void print(ostream& os){
 		os<<"{"<<(unsigned int)pool_ptr.index<<","<<(unsigned short)index<<"}"<<endl;
