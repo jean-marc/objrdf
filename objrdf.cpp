@@ -8,14 +8,22 @@ namespace objrdf{
 }
 using namespace objrdf;
 
-namep::namep(uri n):n(n){}
-bool namep::operator() (property_info& p) const{return p.p->id==n;}
-bool type_p::operator() (shared_ptr<base_resource> r) const{return *t<=*r->get_Class();}
+name_p::name_p(uri n):n(n){}
+bool name_p::operator()(const property_info& p) const{return p.p->id==n;}
+bool type_p::operator()(RESOURCE_PTR r) const{return *t<=*r->get_Class();}
 
 base_resource::type_iterator base_resource::begin(){return base_resource::type_iterator(this,v.begin());}
 base_resource::type_iterator base_resource::end(){return base_resource::type_iterator(this,v.end());}
+PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::iterator>(*this)->p;}
+size_t base_resource::type_iterator::get_size() const{return std::get<6>(static_cast<V::iterator>(*this)->t)(subject);}//very confusing notation
+bool base_resource::type_iterator::literalp() const{return static_cast<V::iterator>(*this)->literalp;}
+
 base_resource::const_type_iterator base_resource::cbegin() const{return base_resource::const_type_iterator(this,v.cbegin());}
 base_resource::const_type_iterator base_resource::cend() const{return base_resource::const_type_iterator(this,v.cend());}
+PROPERTY_PTR base_resource::const_type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}
+size_t base_resource::const_type_iterator::get_size() const{return std::get<6>(static_cast<V::const_iterator>(*this)->t)(subject);}//very confusing notation
+bool base_resource::const_type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
+
 property_info::property_info(PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}
 void base_resource::erase(instance_iterator first,instance_iterator last){
 #ifdef WIN32
@@ -127,11 +135,11 @@ CLASS_PTR base_resource::get_class(){
 		objrdf::get_uri<rdfs::rdfs_namespace>("Resource"),
 		rdfs::subClassOf(),
 		objrdf::base_resource::class_function_table(
-			constructor<base_resource>,
-			objrdf::begin<base_resource>,
-			objrdf::end<base_resource>,
-			objrdf::cbegin<base_resource>,
-			objrdf::cend<base_resource>
+			f_ptr::constructor<base_resource>,
+			f_ptr::begin<base_resource>,
+			f_ptr::end<base_resource>,
+			f_ptr::cbegin<base_resource>,
+			f_ptr::cend<base_resource>
 			/*
 			,&base_resource::fbegin<base_resource>
 			,&base_resource::fend<base_resource>
@@ -188,10 +196,17 @@ rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp):rdf::P
 	#endif
 }
 base_resource::instance_iterator rdf::Property::get_self_iterator(){
-	return base_resource::instance_iterator(this,v.begin()+5,0);//should make sure position does not change!
+	//should do a static request
+	auto i=find_if(begin(),end(),match_property(p_self::get_property()));
+	assert(i!=end());
+	return i->begin();
+	//return base_resource::instance_iterator(this,v.begin()+2+tuple_index<objrdf::p_self,PROPERTIES>::value,0);
 }
 base_resource::const_instance_iterator rdf::Property::get_const_self_iterator() const{
-	return base_resource::const_instance_iterator(this,v.cbegin()+5,0);//should make sure position does not change!
+	auto i=find_if(cbegin(),cend(),match_property(p_self::get_property()));
+	assert(i!=cend());
+	return i->cbegin();
+	//return base_resource::const_instance_iterator(this,v.begin()+2+tuple_index<objrdf::p_self,PROPERTIES>::value,0);
 }
 #ifdef PERSISTENT
 PROPERTY_PTR rdf::Property::nil=PROPERTY_PTR(PROPERTY_PTR::pointer::construct(uri("nil_p")));
@@ -201,16 +216,13 @@ PROPERTY_PTR rdf::Property::nil=PROPERTY_PTR(new rdf::Property(uri("nil_p")));
 
 V base_resource::v=get_generic_property<base_resource>::go();
 #ifdef PERSISTENT
-shared_ptr<base_resource> base_resource::nil=shared_ptr<base_resource>(shared_ptr<base_resource>::pointer::construct(uri("nil")));
+CONST_RESOURCE_PTR base_resource::nil=CONST_RESOURCE_PTR::construct(uri("nil"));
 #else
 shared_ptr<base_resource> base_resource::nil=shared_ptr<base_resource>(new base_resource(uri("nil")));
 #endif
-PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::iterator>(*this)->p;}
 PROPERTY_PTR base_resource::instance_iterator::get_Property() const{return i->p;}
 PROPERTY_PTR base_resource::const_instance_iterator::get_Property() const{return i->p;}
 
-size_t base_resource::type_iterator::get_size() const{return std::get<6>(static_cast<V::iterator>(*this)->t)(subject);}//very confusing notation
-bool base_resource::type_iterator::literalp() const{return static_cast<V::iterator>(*this)->literalp;}
 bool base_resource::instance_iterator::literalp() const{return i->literalp;}
 bool base_resource::const_instance_iterator::literalp() const{return i->literalp;}
 void base_resource::instance_iterator::in(istream& is){
@@ -235,7 +247,7 @@ string base_resource::const_instance_iterator::str(){
 void base_resource::instance_iterator::set_string(string s){
 	std::get<0>(i->t)(subject,s,index);
 }
-shared_ptr<base_resource> base_resource::instance_iterator::get_object() const{
+RESOURCE_PTR base_resource::instance_iterator::get_object() const{
 	return std::get<3>(i->t)(subject,index);
 }
 CONST_RESOURCE_PTR base_resource::instance_iterator::get_const_object() const{
@@ -244,13 +256,13 @@ CONST_RESOURCE_PTR base_resource::instance_iterator::get_const_object() const{
 CONST_RESOURCE_PTR base_resource::const_instance_iterator::get_const_object() const{
 	return std::get<4>(i->t)(subject,index);
 }
-void base_resource::instance_iterator::set_object(shared_ptr<base_resource> r){
+void base_resource::instance_iterator::set_object(RESOURCE_PTR r){
 	std::get<5>(i->t)(subject,r,index);
 }
-PROVENANCE base_resource::instance_iterator::get_provenance(){
+PROVENANCE base_resource::instance_iterator::get_provenance() const{
 	return std::get<9>(i->t)(subject,index);
 }
-PROVENANCE base_resource::const_instance_iterator::get_provenance(){
+PROVENANCE base_resource::const_instance_iterator::get_provenance() const{
 	return std::get<9>(i->t)(subject,index);
 }
 base_resource::instance_iterator base_resource::type_iterator::add_property(PROVENANCE p){
@@ -314,18 +326,18 @@ void base_resource::to_turtle_pretty(ostream& os){
 	}
 	os<<" .\n";
 }
-void base_resource::to_rdf_xml(ostream& os,const PROVENANCE& p){
+void base_resource::to_rdf_xml(ostream& os,const PROVENANCE& p) const{
 	os<<"\n<"<<get_Class()->id<<" "<<(id.is_local() ? rdf::ID : rdf::about)<<"='";
 	id.to_uri(os);
 	os<<"'>";
-	for(base_resource::type_iterator i=begin();i!=end();++i){
-		for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
+	for(auto i=cbegin();i!=cend();++i){
+		for(auto j=i->cbegin();j!=i->cend();++j){
 			if(j->get_provenance()>=p){
 				if(i->literalp())
 					os<<"\n\t<"<<i->get_Property()->id<<">"<<*j<<"</"<<i->get_Property()->id<<">";
 				else{
-					os<<"\n\t<"<<i->get_Property()->id<<" "<<rdf::resource<<"='"<<(j->get_object()->id.is_local() ? "#" : "");
-					j->get_object()->id.to_uri(os);
+					os<<"\n\t<"<<i->get_Property()->id<<" "<<rdf::resource<<"='"<<(j->get_const_object()->id.is_local() ? "#" : "");
+					j->get_const_object()->id.to_uri(os);
 					os<<"'/>";
 				}
 			}
@@ -334,18 +346,19 @@ void base_resource::to_rdf_xml(ostream& os,const PROVENANCE& p){
 	os<<"\n</"<<get_Class()->id<<">";
 }
 namespace objrdf{
-	CLASS_PTR get_class(shared_ptr<base_resource>::pointer r){
-		return CLASS_PTR(r.pool_ptr->type_id);
-	}
-	void to_rdf_xml(shared_ptr<base_resource>::pointer r,ostream& os){
+	CLASS_PTR get_class(CONST_RESOURCE_PTR r){return CLASS_PTR(r.pool_ptr->type_id);}
+	base_resource::type_iterator begin(RESOURCE_PTR r){return std::get<1>(get_class(r)->t)(r);}
+	base_resource::type_iterator end(RESOURCE_PTR r){return std::get<2>(get_class(r)->t)(r);}
+	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return std::get<3>(get_class(r)->t)(r);}
+	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r){return std::get<4>(get_class(r)->t)(r);}
+	void to_rdf_xml(CONST_RESOURCE_PTR r,ostream& os){
 		os<<"\n<"<<r->get_Class()->id<<" "<<(r->id.is_local() ? rdf::ID : rdf::about)<<"='";
 		r->id.to_uri(os);
 		os<<"'>";
 		//extract unique id
 		size_t _id=r.pool_ptr.index | (r.index<<(sizeof(r.pool_ptr.index)<<3));
 		os<<hex<<"{"<<_id<<"}"<<dec;
-		for(auto i=get_class(r)->_begin()(r);i!=get_class(r)->_end()(r);++i){
-			//for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
+		for(auto i=cbegin(r);i!=cend(r);++i){
 			for(base_resource::const_instance_iterator j=i->cbegin();j!=i->cend();++j){
 				//should test if constant or not
 				if(i->literalp())
@@ -418,6 +431,7 @@ void base_resource::to_xml(ostream& os){
 	}
 	os<<"</"<<get_Class()->id<<">";
 }
+#ifndef PERSISTENT
 void rdf::RDF::insert(shared_ptr<objrdf::base_resource> r){
 	if(r->id.empty()){//that should not be allowed!
 		get<V>().push_back(pp(r));
@@ -480,7 +494,7 @@ rdf::RDF::RDF(uri u):SELF(u){
 	for(auto i=rdf::Property::get_instances().begin();i<rdf::Property::get_instances().end();++i) insert(*i);
 	for(auto i=rdfs::Class::get_instances().begin();i<rdfs::Class::get_instances().end();++i) insert(*i);
 	#endif
-	insert(base_resource::nil);
+	//insert(base_resource::nil);
 	rdfs::Class::analyze();
 }
 rdf::RDF::~RDF(){
@@ -493,6 +507,7 @@ rdf::RDF::~RDF(){
 		}
 	}
 }
+#endif
 /*
 int main(){
 	rdfs::Class::get_class()->to_turtle(cout);
