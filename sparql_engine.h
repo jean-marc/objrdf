@@ -40,16 +40,12 @@
  */
 using namespace objrdf;
 typedef CONST_RESOURCE_PTR SPARQL_RESOURCE_PTR;//won't allow modification (update)
-struct match_property{
-	PROPERTY_PTR p;
-	match_property(PROPERTY_PTR p):p(p){};
-	bool operator()(property_info* g)const{return g->p==p;}
-};
 struct subject;
 /*
  *	could it be made more generic?
  *	we could have
  * 	most of the time we use base_resource::instance_iterator ex
+ * 	the problem is when we start from the whole document
  */
 //typedef std::pair<SPARQL_RESOURCE_PTR,base_resource::instance_iterator> R;
 typedef vector<vector<base_resource::const_instance_iterator> > RESULT;
@@ -74,7 +70,7 @@ typedef vector<vector<SPARQL_RESOURCE_PTR> > RRESULT;//resources only
 ostream& operator<<(ostream& os,const RRESULT& r){
 	for(auto i=r.begin();i<r.end();++i){
 		for(auto j=i->begin();j<i->end();++j){
-			os<<*j<<"\t|";
+			//os<<*j<<"\t|";
 		}
 	}
 	return os;
@@ -105,14 +101,17 @@ struct subject{
 	vector<verb> verbs;
 	subject(SPARQL_RESOURCE_PTR r=SPARQL_RESOURCE_PTR(0));
 	subject(string s);
-	//RRESULT run_r(SPARQL_RESOURCE_PTR _r,PROPERTY_PTR);//
 	RESULT run(base_resource::const_instance_iterator i,PROPERTY_PTR p);
+	//is this used?
 	RESULT run(SPARQL_RESOURCE_PTR _r,PROPERTY_PTR p);
-	RESULT run(rdf::RDF& doc,size_t n=1000);
+	//RESULT run(rdf::RDF& doc,size_t n=1000);
+	RESULT run(size_t n=1000000);
 	void del();
 	void ins();
 	int size();
 	vector<string> get_variables() const;
+	//hack
+	static objrdf::V _v;
 };
 
 
@@ -159,8 +158,8 @@ public:
   			//update_data_query
 		> 
 	> document;
-	rdf::RDF& doc;
-	shared_ptr<base_resource> d_resource;
+	//rdf::RDF& doc;
+	SPARQL_RESOURCE_PTR d_resource;
 	subject *sbj,*current_sbj,*where_s,*delete_s,*insert_s;
 	typedef enum{no_q,select_q,simple_describe_q,describe_q,insert_data_q,delete_data_q} query_type;
 	query_type q;
@@ -170,15 +169,14 @@ public:
 	PREFIX_NS prefix_ns;
 	//generic_property::PROVENANCE p;
 	PROVENANCE p;
-	//sparql_parser(rdf::RDF& doc,istream& is,generic_property::PROVENANCE p=2);
-	sparql_parser(rdf::RDF& doc,istream& is,PROVENANCE p=2);
+	sparql_parser(istream& is,PROVENANCE p=2);
 	bool go();
 	void out(ostream& os);
 	bool callback(PARSE_RES_TREE& r);
 	bool parse_where_statement(PARSE_RES_TREE& r);
 	PROPERTY_PTR parse_property(PARSE_RES_TREE& r);
 	//won't parse literal
-	shared_ptr<base_resource> parse_object(PARSE_RES_TREE& r);
+	SPARQL_RESOURCE_PTR parse_object(PARSE_RES_TREE& r);
 	bool parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete=false);
 	template<typename T> void callback(T,string){}
 };
