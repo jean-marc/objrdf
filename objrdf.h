@@ -535,7 +535,7 @@ namespace objrdf{
 		void set_string(std::string){}
 		RESOURCE_PTR get_object(){assert(0);return RESOURCE_PTR();};
 		CONST_RESOURCE_PTR get_const_object() const{assert(0);return CONST_RESOURCE_PTR(0);};
-		void set_object(RESOURCE_PTR){/*assert(0);*/};//still called by mistake on const properties
+		void set_object(RESOURCE_PTR){cerr<<"SHOULD NOT BE HERE"<<endl;/*assert(0);*/};//still called by mistake on const properties
 	};
 	template<typename RANGE> struct base_property:base{
 		RANGE t;
@@ -606,11 +606,10 @@ namespace objrdf{
 		typedef pseudo_ptr<T,STORE,POLYMORPHISM,INDEX> PTR;
 		base_property(){}
 		base_property(const PTR& s):PTR(s){}
-		size_t get_size() const{return (bool)PTR(*this);}
+		size_t get_size() const{return (bool)PTR(*this);}//dangerous notation
 		RESOURCE_PTR get_object() const{return *this;}
-		CONST_RESOURCE_PTR get_const_object() const{return (PTR)*this;}
-		void set_object(RESOURCE_PTR object){(PTR)*this=object;}
-
+		CONST_RESOURCE_PTR get_const_object() const{return *this;}
+		void set_object(RESOURCE_PTR object){this->PTR::operator=(object);}
 	};
 
 	template<
@@ -1231,6 +1230,8 @@ namespace objrdf{
 	}
 	RESOURCE_PTR create_by_type(CLASS_PTR c,uri id){
 		POOL_PTR p(c.index);
+		//we have to make sure it points to a valid pool
+		assert(p->type_id);
 		//get a generic pointer
 		RESOURCE_PTR rp(p->allocate(),p);
 		//invoke constructor
