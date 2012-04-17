@@ -104,19 +104,18 @@ struct subject{
 	RESULT run(base_resource::const_instance_iterator i,PROPERTY_PTR p);
 	//is this used?
 	RESULT run(SPARQL_RESOURCE_PTR _r,PROPERTY_PTR p);
-	//RESULT run(rdf::RDF& doc,size_t n=1000);
 	RESULT run(size_t n=1000000);
 	void del();
 	void ins();
 	int size();
-	vector<string> get_variables() const;
+	vector<string> get_variables();
 	//hack
 	static objrdf::V _v;
 };
 
 
 
-void to_xml(ostream& os,/*const*/ RESULT& r,const subject&);
+void to_xml(ostream& os,/*const*/ RESULT& r,/*const*/ subject&);
 void to_json(ostream& os,const RESULT& r,const subject&){}
 class sparql_parser:public char_iterator{
 /*

@@ -19,12 +19,16 @@ int verb::size(){
 	int n=is_selected && !p;
 	return n+object->size();
 }
-vector<string> subject::get_variables() const{
+vector<string> subject::get_variables(){
 	vector<string> v;
-	if(!bound && is_selected) v.push_back(name.substr(1));
-	for(vector<verb>::const_iterator j=verbs.begin();j<verbs.end();++j){
-		vector<string> tmp=j->get_variables();
-		v.insert(v.end(),tmp.begin(),tmp.end());
+	if(!busy){
+		if(!bound && is_selected) v.push_back(name.substr(1));
+		for(vector<verb>::const_iterator j=verbs.begin();j<verbs.end();++j){
+			busy=true;
+			vector<string> tmp=j->get_variables();
+			busy=false;
+			v.insert(v.end(),tmp.begin(),tmp.end());
+		}
 	}
 	return v;
 }
@@ -154,16 +158,37 @@ RESULT subject::run(base_resource::const_instance_iterator i,PROPERTY_PTR p){
 		}		
 		vector<RESULT> s;
 		unsigned int n=0,m=1;
-		for(vector<verb>::iterator j=verbs.begin();j<verbs.end();++j){
-			RESULT tmp=j->run(_r);
-			if(tmp.empty()) return RESULT();
-			if(tmp.size()==1 && tmp.front().size()==0){
+		//bind in case there is a cycle in the WHERE statement
+		//cleaner would be to stow away 
+		bool temp_bound=false;
+		if(!r){
+			r=_r;
+			temp_bound=true;
+		}	
+		if(!busy){
+			for(vector<verb>::iterator j=verbs.begin();j<verbs.end();++j){
+				busy=true;
+				RESULT tmp=j->run(_r);
+				busy=false;
+				if(tmp.empty()){
+					if(temp_bound){
+						r=SPARQL_RESOURCE_PTR();
+						temp_bound=false;//not needed
+					}
+					return RESULT();
+				}
+				if(tmp.size()==1 && tmp.front().size()==0){
 
-			}else{
-				n+=tmp.front().size();//all the same size 
-				m*=tmp.size();
-				s.push_back(tmp);
+				}else{
+					n+=tmp.front().size();//all the same size 
+					m*=tmp.size();
+					s.push_back(tmp);
+				}
 			}
+		}
+		if(temp_bound){
+			r=SPARQL_RESOURCE_PTR();
+			temp_bound=false;//not needed
 		}
 		RESULT ret=(r||!is_selected) ? RESULT(m) : RESULT(m,vector<base_resource::const_instance_iterator>(1,i));	
 		for(unsigned int i=0;i<m;++i){
@@ -187,15 +212,34 @@ RESULT subject::run(SPARQL_RESOURCE_PTR _r,PROPERTY_PTR p){//p is not used?
 	}		
 	vector<RESULT> s;
 	unsigned int n=0,m=1;
-	for(vector<verb>::iterator j=verbs.begin();j<verbs.end();++j){
-		RESULT tmp=j->run(_r);
-		if(tmp.empty()) return RESULT();
-		if(tmp.size()==1 && tmp.front().size()==0){
-		}else{
-			n+=tmp.front().size();//all the same size 
-			m*=tmp.size();
-			s.push_back(tmp);
+	bool temp_bound=false;
+	if(!r){
+		r=_r;
+		temp_bound=true;
+	}	
+	if(!busy){
+		for(vector<verb>::iterator j=verbs.begin();j<verbs.end();++j){
+			busy=true;
+			RESULT tmp=j->run(_r);
+			busy=false;
+			if(tmp.empty()){
+				if(temp_bound){
+					r=SPARQL_RESOURCE_PTR();
+					temp_bound=false;//not needed
+				}
+				return RESULT();
+			}
+			if(tmp.size()==1 && tmp.front().size()==0){
+			}else{
+				n+=tmp.front().size();//all the same size 
+				m*=tmp.size();
+				s.push_back(tmp);
+			}
 		}
+	}
+	if(temp_bound){
+		r=SPARQL_RESOURCE_PTR();
+		temp_bound=false;//not needed
 	}
 	//need to craft a special base_resource::const_instance_iterator where we can fit info about _r
 	base_resource::const_instance_iterator special(_r.operator->(),_v.cbegin(),0);//will crash if dereferenced!!!
@@ -279,7 +323,7 @@ struct comp_r{
  *	casting if all the types are the same, should the query be run first and 
  *	the result stored in a temporary array?
  */
-void to_xml(ostream& os,/*const*/ RESULT& r,const subject& s){
+void to_xml(ostream& os,/*const*/ RESULT& r,/*const*/ subject& s){
 	/*
  	*	we should not serialize empty literal but hard to know
  	*	before serializing (could use buffer), 
