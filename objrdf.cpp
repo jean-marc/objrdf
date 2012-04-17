@@ -26,28 +26,14 @@ bool base_resource::const_type_iterator::literalp() const{return static_cast<V::
 
 property_info::property_info(PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}
 void base_resource::erase(instance_iterator first,instance_iterator last){
-#ifdef WIN32
-
-#else
 	std::get<8>(first.i->t)(this,first.index,last.index);
-#endif
 }
 void base_resource::erase(instance_iterator position){
-#ifdef WIN32
-
-#else
 	std::get<8>(position.i->t)(this,position.index,position.index+1);
-#endif
 }
 void base_resource::get_output(ostream& os){
 	//what would be most appropriate HTTP message?	
 }
-#ifndef PERSISTENT
-vector<shared_ptr<rdfs::Class> >& rdfs::Class::get_instances(){
-	static vector<shared_ptr<rdfs::Class> > v;
-	return v;
-}
-#endif
 struct cmp_uri{
 	uri u;
 	cmp_uri(uri u):u(u){}
@@ -56,13 +42,6 @@ struct cmp_uri{
 rdfs::Class::Class(objrdf::uri id,rdfs::subClassOf s,objrdf::base_resource::class_function_table t,string comment_str):SELF(id),t(t)/*,debug(0xdeadbeef)*/{
 	#ifdef OBJRDF_VERB
 	cerr<<"create rdfs::Class `"<<id<<"'\t"<<this<</*"\t"<<t<<*/endl;
-	#endif
-	
-	#ifndef PERSISTENT
-	vector<shared_ptr<rdfs::Class>>::iterator i=find_if(get_instances().begin(),get_instances().end(),cmp_uri(id));
-	if(i!=get_instances().end()) throw runtime_error("duplicate class "+string(id.local));
-	get<c_index>().t=get_instances().size();
-	get_instances().push_back(shared_ptr<rdfs::Class>(this));
 	#endif
 	get<comment>().t=comment_str;
 	if(s){
@@ -75,22 +54,10 @@ rdfs::Class::Class(objrdf::uri id,rdfs::subClassOf s,objrdf::base_resource::clas
 	}
 	n=1;//otherwise crash when deleting
 }
-#ifndef PERSISTENT
-shared_ptr<rdfs::Class> rdfs::Class::create_Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,string comment){
-	//need to get rid of this
-	vector<shared_ptr<rdfs::Class> >::iterator i=find_if(get_instances().begin(),get_instances().end(),cmp_uri(id));
-	return (i!=get_instances().end())? i->get() : new Class(id,s,t,comment);
-}
-#endif
 bool rdfs::Class::operator==(const rdfs::Class& c) const{
 	return this==&c;	
 }
 bool rdfs::Class::operator<(const rdfs::Class& c) const{//is c subClass of this?
-	//can still use this with slight modification
-	//#ifdef PERSISTENT
-	//void* pointer comparison
-	//return (c.get_const<rdfs::subClassOf>().get()==this)||(c.get_const<rdfs::subClassOf>().get()&&(*this<*c.get_const<rdfs::subClassOf>()));
-	//#else
 	auto tmp=c.get_const<array<subClassOf> >();//not very efficient
 	for(auto i=tmp.begin();i<tmp.end();++i){
 		cerr<<this->id<<"\t"<<(*i)->id<<endl;
@@ -98,7 +65,6 @@ bool rdfs::Class::operator<(const rdfs::Class& c) const{//is c subClass of this?
 		if(*i==this) return true;
 	}
 	return false;
-	//#endif
 }
 bool rdfs::Class::operator<=(const rdfs::Class& c) const{
 	return (*this==c)||(*this<c);
@@ -111,26 +77,9 @@ bool rdfs::Class::literalp() const{
 	return *rdf::Literal::get_class()<*this;
 }
 void rdfs::Class::analyze(){
-	#ifdef PERSISTENT
-
-	#else
-	static bool first=true;
-	if(!first) return;
-	for(auto i=get_instances().begin();i<get_instances().end();++i){
-		for(auto j=(*i)->get<array<subClassOf> >().begin();j<(*i)->get<array<subClassOf> >().end();++j){
-			((subClassOf)(*j))->get<array<superClassOf> >().push_back(superClassOf(*i));
-		}
-	}
-	first=false;
-	#endif
 };
 CLASS_PTR base_resource::get_class(){
-	//POOL_PTR i=shared_ptr<base_resource>::pointer::get_pool();
-	//cerr<<"class `base_resource' uses pool number "<<(unsigned int)i.index<<endl;
-	//static shared_ptr<rdfs::Class> p(shared_ptr<rdfs::Class>::pointer::construct_at(
 	static CLASS_PTR p=CLASS_PTR::construct_at(
-		//i.index,
-		//shared_ptr<base_resource>::pointer::get_pool()->type_id,
 		POOL_PTR::get_type_id<base_resource>(),
 		objrdf::get_uri<rdfs::rdfs_namespace>("Resource"),
 		rdfs::subClassOf(),
@@ -140,86 +89,32 @@ CLASS_PTR base_resource::get_class(){
 			f_ptr::end<base_resource>,
 			f_ptr::cbegin<base_resource>,
 			f_ptr::cend<base_resource>
-			/*
-			,&base_resource::fbegin<base_resource>
-			,&base_resource::fend<base_resource>
-			*/
 		)			
 		,get_comment()
 		);
 	//);
 	return p;
 }
-#ifndef PERSISTENT
-vector<PROPERTY_PTR >& rdf::Property::get_instances(){
-	static vector<PROPERTY_PTR > v;
-	return v;
-}
-#endif
-/*
-rdf::Property::Property():literalp(true){
-	get<p_index>().t=get_instances().size();
-	get<p_self>()=this;
-	get_instances().push_back(this);
-}
-*/
 rdf::Property::Property(objrdf::uri id):SELF(id),literalp(true){
-	#ifdef OBJRDF_VERB
-	//cerr<<get<p_self>().use_count()<<endl;
-	#endif
-	//that does not work with shared_ptr
-	//problem here: we can not use this pointer, we need a pseudo_ptr to this instance, should be done at construction
-	#ifndef PERSISTENT
-	get<p_index>().t=get_instances().size();
-	get<p_self>()=p_self(p_self::PTR(this));
-	#endif
-	//get<p_self>()=p_self(this);
-	#ifdef OBJRDF_VERB
-	//cerr<<get<p_self>().use_count()<<endl;
-	#endif
-	#ifndef PERSISTENT
-	get_instances().push_back(p_self::PTR(this));
-	#endif
-	#ifdef OBJRDF_VERB
-	//cerr<<get<p_self>().use_count()<<endl;
-	#endif
 }
 rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp):rdf::Property::SELF(id),literalp(literalp){
 	cerr<<"creating Property "<<id<<" ref count:"<<n<<" range:"<<r->id<<" range ref count:"<<r->n<<endl;
 	get<rdfs::range>()=r;
-	#ifdef PERSISTENT
-	//n=1;
-	#else
-	get<p_index>().t=get_instances().size();
-	get<p_self>()=p_self(p_self::PTR(this));
-	get_instances().push_back(p_self::PTR(this));
-	#endif
 }
 base_resource::instance_iterator rdf::Property::get_self_iterator(){
 	//should do a static request
 	auto i=find_if(begin(),end(),match_property(p_self::get_property()));
 	assert(i!=end());
 	return i->begin();
-	//return base_resource::instance_iterator(this,v.begin()+2+tuple_index<objrdf::p_self,PROPERTIES>::value,0);
 }
 base_resource::const_instance_iterator rdf::Property::get_const_self_iterator() const{
 	auto i=find_if(cbegin(),cend(),match_property(p_self::get_property()));
 	assert(i!=cend());
 	return i->cbegin();
-	//return base_resource::const_instance_iterator(this,v.begin()+2+tuple_index<objrdf::p_self,PROPERTIES>::value,0);
 }
-#ifdef PERSISTENT
 PROPERTY_PTR rdf::Property::nil=PROPERTY_PTR(PROPERTY_PTR::pointer::construct(uri("nil_p")));
-#else
-PROPERTY_PTR rdf::Property::nil=PROPERTY_PTR(new rdf::Property(uri("nil_p")));
-#endif
-
 V base_resource::v=get_generic_property<base_resource>::go();
-#ifdef PERSISTENT
 CONST_RESOURCE_PTR base_resource::nil=CONST_RESOURCE_PTR::construct(uri("nil"));
-#else
-shared_ptr<base_resource> base_resource::nil=shared_ptr<base_resource>(new base_resource(uri("nil")));
-#endif
 PROPERTY_PTR base_resource::instance_iterator::get_Property() const{return i->p;}
 PROPERTY_PTR base_resource::const_instance_iterator::get_Property() const{return i->p;}
 
@@ -296,8 +191,6 @@ bool base_resource::is_a(const CLASS_PTR& c) const{
 }
 void base_resource::to_turtle(ostream& os){
 	os<<id<<" ";
-	//problem if we don't use virtual functions
-	//apply<begin>()
 	base_resource::type_iterator t_begin=begin();
 	for(base_resource::type_iterator i=t_begin;i!=end();++i){
 		base_resource::instance_iterator begin=i->begin(),end=i->end();
@@ -431,83 +324,6 @@ void base_resource::to_xml(ostream& os){
 	}
 	os<<"</"<<get_Class()->id<<">";
 }
-#ifndef PERSISTENT
-void rdf::RDF::insert(shared_ptr<objrdf::base_resource> r){
-	if(r->id.empty()){//that should not be allowed!
-		get<V>().push_back(pp(r));
-	}else{
-		MAP::iterator i=m.find(r->id);
-		if(i==m.end()){
-			get<V>().push_back(pp(r));
-			m[r->id]=r;
-			//mm.insert(MULTIMAP::value_type(r->get_Class()->get_const<objrdf::c_index>().t,r));
-		}else{
-			#ifdef OBJRDF_VERB
-			cerr<<"duplicate resource :'"<<r->id<<"'"<<endl;
-			#endif
-			//delete r when goes out of scope!
-		}
-	}
-};	
-shared_ptr<base_resource> rdf::RDF::find(uri s){
-	/*
- 	*		
- 	*/
-	MAP::iterator i=m.find(s);
-	return (i!=m.end()) ? shared_ptr<base_resource>(i->second) : shared_ptr<base_resource>();
-};
-void rdf::RDF::to_turtle(ostream& os){
-	//for(V::iterator i=v.begin();i!=v.end();++i) (*i)->to_turtle(os);
-}
-void rdf::RDF::to_turtle_pretty(ostream& os){
-	//for(V::iterator i=v.begin();i!=v.end();++i) (*i)->to_turtle_pretty(os);
-}
-void rdf::RDF::to_rdf_xml(ostream& os,const PROVENANCE& p){
-	os<<"<"<<_RDF<<"\n";
-	uri::ns_declaration(os);
-	os<<">";
-	//should test provenance here
-	for(V::iterator i=get<V>().begin();i!=get<V>().end();++i) (*i)->to_rdf_xml(os,p);
-	os<<"\n</"<<_RDF<<">\n";
-}
-void rdf::RDF::to_rdf_xml_pretty(ostream& os){
-	#ifdef WIN32 
-	return to_rdf_xml(os);
-	#endif
-	os<<"\033[36m<"<<_RDF<<"\n";
-	uri::ns_declaration(os);
-	os<<">";
-	for(V::iterator i=get<V>().begin();i!=get<V>().end();++i) (*i)->to_rdf_xml_pretty(os);
-	//for(auto i=m.begin();i!=m.end();++i) i->second->to_rdf_xml_pretty(os);//maybe we can get rid of vector<shared_ptr<base_resource> > and use solely map<>
-	os<<"\n\033[36m</"<<_RDF<<">\033[m\n";
-}
-shared_ptr<objrdf::base_resource> rdf::RDF::query(uri _i){
-	/*
- 	*	optimization for rdf::Property and rdfs::Class, they are the first resources
- 	*
- 	*/
-	MAP::iterator i=m.find(_i);	
-	return (i!=m.end()) ? shared_ptr<base_resource>(i->second) : shared_ptr<base_resource>();
-}
-rdf::RDF::RDF(uri u):SELF(u){
-	#ifndef PERSISTENT
-	for(auto i=rdf::Property::get_instances().begin();i<rdf::Property::get_instances().end();++i) insert(*i);
-	for(auto i=rdfs::Class::get_instances().begin();i<rdfs::Class::get_instances().end();++i) insert(*i);
-	#endif
-	//insert(base_resource::nil);
-	rdfs::Class::analyze();
-}
-rdf::RDF::~RDF(){
-	/*
- 	*	before deleting resources all the links need to be severed
- 	*/ 
-	for(auto i=get<V>().begin();i!=get<V>().end();++i){
-		for(auto j=((pp&)(*i))->begin();j<((pp&)(*i))->end();++j){
-			((pp&)(*i))->erase(j->begin(),j->end());
-		}
-	}
-}
-#endif
 /*
 int main(){
 	rdfs::Class::get_class()->to_turtle(cout);

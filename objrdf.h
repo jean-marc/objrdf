@@ -17,9 +17,7 @@
 using namespace std;
 using namespace special;//for shared_ptr
 #define LOG std::cerr
-#ifdef PERSISTENT
 #include "custom_allocator.h"
-#endif
 template<typename T> vector<T> concat(/*const*/ vector<T>& a,const vector<T>& b){
 	a.insert(a.end(),b.begin(),b.end());
 	return a;
@@ -88,9 +86,7 @@ namespace objrdf{
 	struct NIL{
 		typedef NIL SELF;
 	};
-	//should become rdfs::Resource
 	class base_resource;
-	//typedef shared_ptr<base_resource> RESOURCE_PTR;
 	/*
  	* it means that CONST_RESOURCE_PTR::construct will allocate on the free_store
  	* but any pseudo_ptr<T> can be cast to a CONST_RESOURCE_PTR
@@ -149,7 +145,6 @@ namespace objrdf{
 	};
 	
 
-	#ifdef PERSISTENT
 	template<typename PROPERTY> class array:public vector<
 		PROPERTY,
 		custom_allocator<
@@ -157,12 +152,6 @@ namespace objrdf{
 			pseudo_ptr_array<PROPERTY,typename get_store<typename PROPERTY::PTR>::value,false> //wont work with literal properties
 		>
 	>{
-	#else
-	template<
-		typename PROPERTY,
-		typename ALLOCATOR=std::allocator<PROPERTY>
-	> class array:public vector<PROPERTY,ALLOCATOR>{
-	#endif
 	public:
 		typedef array SELF;
 		static PROPERTY_PTR get_property(){return PROPERTY::get_property();}
@@ -174,7 +163,6 @@ namespace objrdf{
 		bool operator()(const property_info& g)const{return g.p==p;}
 		template<typename T> bool operator()(const T& g)const{return g.p==p;}
 	};
-	//could change name to rdfs::Resource
 	class base_resource{
 	public:
 		//to be investigated ...
@@ -193,10 +181,6 @@ namespace objrdf{
 			base_resource* subject;
 			V::iterator i;
 			size_t index;
-			//would be nice to have a constructor that takes static iterator
-			//instance_iterator():subject(0),index(0){} //what can we do with this?, not much
-			//can we get rid of this one?
-			//instance_iterator(V::iterator i,size_t index):subject(0),i(i),index(index){}
 			instance_iterator(base_resource* subject,V::iterator i,size_t index):subject(subject),i(i),index(index){}
 			instance_iterator& operator+=(const unsigned int& i){index+=i;return *this;}
 			instance_iterator& operator++(){++index;return *this;}
@@ -529,7 +513,8 @@ namespace objrdf{
 
 
 	struct base{
-		//all the functions we might ever use, they SHOULD NEVER be called
+		//all the functions we might ever use, they SHOULD NEVER be called, the function pointer should be 0
+		//the rdf:Property could also carry a property that indicates the constness
 		void in(istream&){}
 		void out(ostream&)const{}
 		void set_string(std::string){}
@@ -625,6 +610,7 @@ namespace objrdf{
 		base_property(const PTR& s):PTR(s){}
 		size_t get_size() const{return (bool)PTR(*this);}
 		CONST_RESOURCE_PTR get_const_object() const{return (PTR)*this;}
+		void set_object(RESOURCE_PTR object){this->PTR::operator=(object);}
 	};
 	/*
  	*	full control of implementation
@@ -665,7 +651,10 @@ namespace objrdf{
 		}
 		static PROPERTY_PTR get_property();
 	};
-	//optimization: get rid of functions (maybe compiler already does it)
+	/*optimization: get rid of functions (maybe compiler already does it)
+	* still a lot of useless function are generated, can we do something smart with base classes?
+	* the problem is how do we know if a function exists? see scratch.9.cpp
+	*/
 	template<
 		typename SUBJECT,
 		typename PROPERTY
@@ -679,8 +668,8 @@ namespace objrdf{
 		static CONST_RESOURCE_PTR get_const_object(const base_resource* subject,size_t){return get_const(subject).get_const_object();}
 		static void set_object(base_resource* subject,RESOURCE_PTR object,size_t){get(subject).set_object(object);}
 		static size_t get_size(const base_resource* subject){return get_const(subject).get_size();}
-		static void add_property(base_resource* subject,PROVENANCE p){}
-		static void erase(base_resource* subject,size_t,size_t){}	
+		static void add_property(base_resource* subject,PROVENANCE p){}//does not have to do anything
+		static void erase(base_resource* subject,size_t first,size_t last){set_object(subject,RESOURCE_PTR(0),0);}	
 		static PROVENANCE get_provenance(const base_resource* subject,size_t){return 0;/*get_const(subject).p;*/}
 		static function_table get_table(){
 			/* some functions could be made null if literal */ 
@@ -710,30 +699,11 @@ namespace objrdf{
 
 	//schema
 	typedef base_resource* (*fpt)(uri);
-	#ifdef PERSISTENT
 	namespace f_ptr{
 		template<typename T> void constructor(void* p,uri u){new(p)T(u);}//a lot simpler
 		template<> void constructor<rdfs::Class>(void* p,uri u){assert(0);}
 		template<> void constructor<rdf::Property>(void* p,uri u){assert(0);}
 	}
-	//problem here
-	//template<typename T> shared_ptr<base_resource>::pointer constructor(void* p,uri u){return shared_ptr<T>::pointer::construct(u);}
-	//should get rid of this we still need it
-	//template<> shared_ptr<base_resource>::pointer constructor<rdfs::Class>(uri u){return shared_ptr<base_resource>::pointer(0);}
-	//template<> shared_ptr<base_resource>::pointer constructor<rdf::Property>(uri u){return shared_ptr<base_resource>::pointer(0);}
-	#else
-	template<typename T> base_resource* constructor(uri u){return new T(u);}
-	//should get rid of this
-	template<> base_resource* constructor<rdfs::Class>(uri u){return 0;}
-	#endif
-	//placement new?
-	template<typename T> base_resource* constructorp(void* p,uri u){return new(p)T(u);}
-	template<> base_resource* constructorp<rdfs::Class>(void* p,uri u){return 0;}
-
-	//template<typename T> fpt get_constructor(){return &constructor<T>;}
-	//no need for destructor if we use pseudo_ptr
-	template<typename T> void destructor(base_resource* s){static_cast<T*>(s)->~T();}
-			
 	struct type_p{
 		CLASS_PTR t;
 		type_p(CLASS_PTR t):t(t){}
@@ -765,80 +735,6 @@ namespace rdf{
 namespace objrdf{
 	//PROPERTY(self,CONST_RESOURCE_PTR);
 }
-#ifndef PERSISTENT
-namespace objrdf{
-	//_PROPERTY(pp,base_resource*);
-	_PROPERTY(pp,RESOURCE_PTR);
-}
-namespace rdf{
-	/*
- 	*	the advantage of the vector storage is it provides some information
- 	*	about timing hence provenance: all the resources created at a given
- 	*	time but we can not use iterators as the container is modified	
- 	*/
-	/*
- 	*	the biggest problem now is how to deal with static resources created at
- 	*	run time, they will be serialized and create problems	
- 	*	we need to turn the representation into triples, we can use iterators for that
- 	*/
-	char _RDF_[]="RDF";
-	struct RDF:objrdf::resource<rdfs_namespace,_RDF_,std::tuple<objrdf::array<objrdf::pp> >,RDF>{//document
-		/*
- 		*	we have 3 different containers for resources: vector,map,multimap
- 		*	maybe we could get rid of vector?
- 		*
- 		*/
-		RDF(objrdf::uri id=objrdf::uri("rdf_doc"));
-		~RDF();
-		//index by id
-		typedef map<objrdf::uri,shared_ptr<objrdf::base_resource> > MAP;
-		MAP m;
-		//index by type, what is the best way to implement that?
-		typedef multimap<short/*objrdf::c_index::RANGE*/,shared_ptr<objrdf::base_resource> > MULTIMAP;	
-		MULTIMAP mm;
-		typedef objrdf::array<objrdf::pp> V;
-		void insert(shared_ptr<objrdf::base_resource> r);
-		shared_ptr<objrdf::base_resource> find(objrdf::uri s);
-		void to_rdf_xml(ostream& os,const objrdf::PROVENANCE& p=0);//the document should not have loops!!!
-		void to_rdf_xml_pretty(ostream& os);//the document should not have loops!!!
-		void to_turtle(ostream& os);
-		void to_turtle_pretty(ostream& os);
-		shared_ptr<objrdf::base_resource> query(objrdf::uri id);
-		/*
- 		* 	templated static version, the query is only run once, a type (or enum)
- 		* 	needs to be associated with the resource (similar to some_class::get_class())
- 		*	so each query has its own function.
- 		*	shared_ptr<base_resource> r=query_static<some_resource>(); 	
- 		*	the returned could also be typed 
- 		*/ 	
-		template<typename T> shared_ptr<objrdf::base_resource> query_static(){
-			return base_resource::nil;
-		}
-		template<typename T> shared_ptr<T> query_t(objrdf::uri id){
-			shared_ptr<objrdf::base_resource> tmp=query(id);
-			return (tmp.operator->()&&(*T::get_class()<=*tmp->get_Class()))? static_pointer_cast<T>(tmp) : shared_ptr<T>();
-		}
-		/*
-		template<typename T> vector<shared_ptr<T> > query_by_type_array(){
-			vector<shared_ptr<T> > r;
-			for(V::iterator i=v.begin();i<v.end();++i){
-				if((*i)->get_Class()==T::get_class())
-					r.push_back(*i);
-			}
-			return r;
-		}
-		*/
-	};
-	/*
-	char _type[]="type";typedef objrdf::property<
-		rdfs_namespace,
-		_type,
-		rdfs::Class*,
-		objrdf::non_literal_property<rdfs::Class,objrdf::CLASS_PTR> //notation a bit stupid
-	> type;
-	*/
-}
-#endif
 namespace objrdf{
 	template<
 		typename SUBJECT,
@@ -938,9 +834,6 @@ namespace objrdf{
 	template<> struct get_Literal<rdfs::XMLLiteral>:rdfs::XML_Literal{};
 }
 namespace objrdf{
-	#ifndef PERSISTENT
-	_PROPERTY(c_index,short);//each class has a unique index useful for fast serialization/parsing
-	#endif
 	_PROPERTY(superClassOf,objrdf::CLASS_PTR);
 }
 namespace rdfs{
@@ -951,9 +844,6 @@ namespace rdfs{
 		std::tuple<
 			objrdf::array<subClassOf>,
 			objrdf::array<objrdf::superClassOf>,
-			#ifndef PERSISTENT
-			objrdf::c_index
-			#endif
 			comment,
 			isDefinedBy
 		>,
@@ -968,13 +858,6 @@ namespace rdfs{
  		*	to the underlying property.
  		*/ 
 		const objrdf::base_resource::class_function_table t;
-		//there must be a better way to do that	
-		//what about union?
-		tuple_element<0,objrdf::base_resource::class_function_table>::type constructor() const{return std::get<0>(t);}	
-		tuple_element<1,objrdf::base_resource::class_function_table>::type _begin() const{return std::get<1>(t);}	
-		tuple_element<2,objrdf::base_resource::class_function_table>::type _end() const{return std::get<2>(t);}	
-		tuple_element<3,objrdf::base_resource::class_function_table>::type _cbegin() const{return std::get<3>(t);}	
-		tuple_element<4,objrdf::base_resource::class_function_table>::type _cend() const{return std::get<4>(t);}	
 		Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,string comment);
 		~Class(){
 			//quick fix to avoid infinite recursion
@@ -986,10 +869,6 @@ namespace rdfs{
 		bool operator<=(const Class& c) const;
 		bool is_subclass_of(const Class& c) const;
 		bool literalp() const;
-		#ifndef PERSISTENT
-		static vector<shared_ptr<Class> >& get_instances();
-		static shared_ptr<Class> create_Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,string comment);
-		#endif
 		/*
  		*	inference, should be run once all classes and properties have been created
  		*/ 
@@ -1020,16 +899,10 @@ namespace rdf{
 			rdfs::domain,
 			rdfs::range,
 			//rdfs::subPropertyOf,
-			#ifndef PERSISTENT
-			objrdf::p_index,
-			#endif	
 			objrdf::p_self
 		>,Property>{
 		Property(objrdf::uri u);
 		Property(objrdf::uri u,rdfs::range r,const bool literalp);
-		#ifndef PERSISTENT
-		static vector<shared_ptr<Property> >& get_instances();
-		#endif
 		const bool literalp;
 		//nil property?
 		static objrdf::PROPERTY_PTR nil;
@@ -1048,7 +921,6 @@ namespace objrdf{
 	>
 	CLASS_PTR resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS>::get_class(){
 		typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,resource,SUBCLASS>::ResultT TMP;
-		#ifdef PERSISTENT
 		//can be simplified because we already know the pointer value
 		//check if resource is derived from Literal
 		typedef typename IfThenElse<
@@ -1071,21 +943,6 @@ namespace objrdf{
 			TMP::get_comment!=SUPERCLASS::get_comment ? TMP::get_comment() : ""
 		);
 		return p;
-		#else
-		static shared_ptr<rdfs::Class> c(rdfs::Class::create_Class(
-			objrdf::get_uri<NAMESPACE>(NAME),
-			rdfs::subClassOf(SUPERCLASS::get_class()),
-			objrdf::base_resource::class_function_table(
-				constructor<TMP>,
-				constructorp<TMP>,
-				destructor<TMP>,
-				TMP::get_class
-			),
-			TMP::get_comment!=SUPERCLASS::get_comment ? TMP::get_comment() : ""
-			)
-		);
-		return c;
-		#endif
 	}
 	//there should be a cleaner way to do that
 	template<typename RANGE> struct selector{
@@ -1130,15 +987,15 @@ namespace objrdf{
 		property_info p(PROPERTY::get_property(),functions<SUBJECT,PROPERTY>::get_table());
 		/*
  		* by now we can't modify rdfs::domain, why is it broken down in the first place?
-		* because property does not know about SUBJECT, it is an important of meta information
+		* because property does not know about SUBJECT, it is an important piece of meta information
 		* very useful to optimize SPARQL queries, can we cheat?  
 		* or can we store the information in a different way? we can query objects and list all properties
 		* we can temporarily cast using the same store so we don't create a new store just for that
 		*/
+		//p.p->get<rdfs::domain>()=rdfs::domain(SUBJECT::get_class());
 		pseudo_ptr<rdf::Property,PROPERTY_PTR::STORE,false,PROPERTY_PTR::INDEX> tmp(p.p);
 		tmp->get<rdfs::domain>()=rdfs::domain(SUBJECT::get_class());
 		tmp->get<objrdf::p_self>()=objrdf::p_self(p.p);
-		//p.p->get<rdfs::domain>()=rdfs::domain(SUBJECT::get_class());
 		return p;
 	};
 	template<typename SUBJECT> struct _meta_{
@@ -1192,7 +1049,7 @@ namespace objrdf{
 		const uri u;
 		test_by_uri(const uri& u):u(u){}
 		//must be a pseudo_ptr<>
-		template<typename T> bool operator()(T t) const{return t->id==u;}//????
+		template<typename T> bool operator()(T t) const{return t->id==u;}
 	};
 	pool_iterator begin(){return pool_iterator(::begin<POOL_PTR>());}
 	pool_iterator end(){return pool_iterator(::end<POOL_PTR>());}
@@ -1235,25 +1092,14 @@ namespace objrdf{
 		//get a generic pointer
 		RESOURCE_PTR rp(p->allocate(),p);
 		//invoke constructor
-		c->constructor()(rp,id);
+		std::get<0>(c->t)(rp,id);
 		return rp;
 	}
 	RESOURCE_PTR create_by_type(uri type,uri id){
 		CLASS_PTR c=find_t<CLASS_PTR>(type);
-		if(c){
-			POOL_PTR p(c.index);
-			//get a generic pointer
-			RESOURCE_PTR rp(p->allocate(),p);
-			//invoke constructor
-			c->constructor()(rp,id);
-			return rp;
-		}else
-			return RESOURCE_PTR();
+		return c ? create_by_type(c,id) : RESOURCE_PTR();
 	}
-	
-
 }
-#ifdef PERSISTENT
 template<
 	const char* NAMESPACE,
 	const char* PREFIX,
@@ -1280,7 +1126,4 @@ template<
 	enum{IS_RESOURCE=false};
 	
 };
-
 #endif
-#endif
-
