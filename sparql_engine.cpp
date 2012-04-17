@@ -2,14 +2,6 @@
 subject::subject(SPARQL_RESOURCE_PTR r):r(r),is_selected(true),bound(r!=0),is_root(false),busy(false){}
 subject::subject(string s):r(0),s(s),is_selected(true),bound(s.size()),is_root(false),busy(false){}
 objrdf::V subject::_v;
-//#define LOG if(0) cerr
-//subject subject::bound(SPARQL_RESOURCE_PTR r){return subject(r);}
-//subject subject::bound(string s){return subject(s);}
-//subject subject::unbound(string name){
-	//subject s;
-	//s.name=name;
-	//return s;
-//}
 int subject::size(){
 	int n=is_selected && !r && s.empty();
 	for(vector<verb>::iterator j=verbs.begin();j<verbs.end();++j) n+=j->size();
@@ -65,8 +57,6 @@ RESULT subject::run(size_t n){
 			*	optimization : reason about given properties (bound or not)
 			*	if one of the property is rdfs:domain, rdfs:range, then subject must be a Property
 			*	if one of the property is rdfs:subClassOf then subject must be a Class
-			*	more optimization:
-			*		is the type given?
 			*/		
 			bool is_Property=false,is_Class=false;
 			for(auto i=verbs.begin();i<verbs.end();++i){
@@ -82,43 +72,6 @@ RESULT subject::run(size_t n){
 				}
 			}	
 		}
-		/*
-		auto i=doc.begin();++i;//could be simpler
-		for(auto i=doc.mm.begin();i!=doc.mm.end();++i)
-			cerr<<i->first<<"\t"<<i->second->id<<endl;
-		if(is_Class){
-			cerr<<"################"<<endl;
-			auto r=doc.mm.equal_range(rdfs::Class::get_class()->get<objrdf::c_index>().t);
-			RESULT rr;
-			for(auto j=r.first;j!=r.second;++j){
-				RESULT tmp=run(j->second.get(),0);
-				//cerr<<tmp<<endl;
-				rr.insert(rr.end(),tmp.begin(),tmp.end());
-			}
-			to_xml(cerr,rr,*this);		
-			cerr<<"################"<<endl;
-		}
-		if(is_Class){
-			//use pools instead
-			for(auto j=i->begin()+rdf::Property::get_instances().size();j<i->begin()+rdf::Property::get_instances().size()+rdfs::Class::get_instances().size();++j){
-				RESULT tmp=run(j,0);
-				r.insert(r.end(),tmp.begin(),tmp.end());
-				if(r.size()>=n) return r;
-			}
-		}else if(is_Property){
-			for(auto j=i->begin();j<i->begin()+rdf::Property::get_instances().size();++j){
-				RESULT tmp=run(j,0);
-				r.insert(r.end(),tmp.begin(),tmp.end());
-				if(r.size()>=n) return r;
-			}
-		}else{
-			for(auto j=i->begin();j<i->end();++j){
-				RESULT tmp=run(j,0);
-				r.insert(r.end(),tmp.begin(),tmp.end());
-				if(r.size()>=n) return r;
-			}
-		}
-		*/
 	}
 	return r;
 }
@@ -242,7 +195,9 @@ RESULT subject::run(SPARQL_RESOURCE_PTR _r,PROPERTY_PTR p){//p is not used?
 		temp_bound=false;//not needed
 	}
 	//need to craft a special base_resource::const_instance_iterator where we can fit info about _r
-	base_resource::const_instance_iterator special(_r.operator->(),_v.cbegin(),0);//will crash if dereferenced!!!
+	//can we stick a SPARQL_RESOURCE_PTR inside a size_t?
+	size_t _id=_r.pool_ptr.index | (_r.index<<(sizeof(_r.pool_ptr.index)<<3));
+	base_resource::const_instance_iterator special(_r.operator->(),_v.cbegin(),_id);//will crash if dereferenced!!!
 	RESULT ret=(r||!is_selected) ? RESULT(m) : RESULT(m,vector<base_resource::const_instance_iterator>(1,special));
 	//RESULT ret=(r||!is_selected) ? RESULT(m) : RESULT(m,vector<base_resource::const_instance_iterator>(1,base_resource::nil->cbegin()->cbegin()));//we lose information here	
 	for(unsigned int i=0;i<m;++i){
@@ -393,13 +348,28 @@ void sparql_parser::out(ostream& os){//sparql XML serialization
 				os<<">";
 				for(auto i=r.begin();i<r.end();++i){
 					//only if resource
-					for(auto j=i->begin();j<i->end();++j){
-						if(!j->literalp())
+					for(auto j=i->cbegin();j<i->cend();++j){
+						if(j->i==subject::_v.cbegin()){
+							//problem: we have lost the type!
+							//size_t _id=_r.pool_ptr.index | (_r.index<<(sizeof(_r.pool_ptr.index)<<3));
+							SPARQL_RESOURCE_PTR _r((uint16_t)(j->index>>8),POOL_PTR((uint8_t)(j->index&0xff)));
+							to_rdf_xml(_r,os);
+						}else{
+							if(j->literalp()){
+								//os<<"<literal>"<<*j<<"</literal>";
+							}else{
+								to_rdf_xml(j->get_const_object(),os);
+							}
+						}
+						/*
+
+						//if(!j->literalp())
 							if(j->i==subject::_v.cbegin()){
 								j->subject->to_rdf_xml(os);
 							}else{
 								to_rdf_xml(j->get_const_object(),os);
-						}
+						//}
+						*/
 					}
 				}
 				os<<"\n</"<<rdf::_RDF<<">\n";
@@ -526,17 +496,12 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					case turtle_parser::uriref::id:{
 						PROPERTY_PTR r=find_t<PROPERTY_PTR>(uri::hash_uri(i->v[0].t.second));
 						current_sbj->verbs.push_back(verb(r ? r : rdf::Property::nil,0));
-						//use pool
-						//auto r=find_if(begin<PROPERTY_PTR>(),end<PROPERTY_PTR>(),test_by_uri(uri::hash_uri(i->v[0].t.second)));
-						//current_sbj->verbs.push_back(verb(r!=end<PROPERTY_PTR>() ? *r : rdf::Property::nil,0));
 					}
 					break;
 					case turtle_parser::qname::id:{
 						PREFIX_NS::iterator j=prefix_ns.find(i->v[0].v[0].t.second);
 						if(j!=prefix_ns.end()){
 							uri u(j->second,i->v[0].v[1].t.second);
-							//auto r=find_if(begin<PROPERTY_PTR>(),end<PROPERTY_PTR>(),test_by_uri(u));
-							//current_sbj->verbs.push_back(verb(r!=end<PROPERTY_PTR>() ? *r : rdf::Property::nil,0));
 							PROPERTY_PTR r=find_t<PROPERTY_PTR>(u);
 							current_sbj->verbs.push_back(verb(r ? r : rdf::Property::nil,0));
 						}else{
@@ -646,10 +611,8 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 *	we could break it down in triples and put on stack
 */
 	RESOURCE_PTR sub;//subject, will be modified
-	//problem base_resource::nil is a CONST_RESOURCE_PTR but we need a base_resource::type_iterator
-	//base_resource::const_type_iterator current_property=base_resource::nil->cend();	
 	//needs a default value
-	base_resource::type_iterator current_property(0,objrdf::V::iterator());//=base_resource::nil->cend();	
+	base_resource::type_iterator current_property(0,objrdf::V::iterator());
 	for(auto i=r.v.begin();i<r.v.end();++i){
 		cerr<<"!!!current:\n"<<*i<<endl;
 		switch(i->t.first){
@@ -789,7 +752,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 						if(do_delete){
 							auto j=current_property->begin();
 							while(j!=current_property->end()){
-								if(j->get_object()->id==u){
+								if(j->get_const_object()->id==u){
 									sub->erase(j);
 									break;
 								}	
@@ -798,7 +761,6 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 						}else{
 							SPARQL_RESOURCE_PTR r=find(u);
 							if(r){
-								//how do we support shared_ptr?
 								current_property->add_property(p)->set_object(r);
 							}else{
 								cerr<<"resource `"<<u<<"' not found"<<endl;
@@ -818,7 +780,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 							if(do_delete){
 								auto j=current_property->begin();
 								while(j!=current_property->end()){
-									if(j->get_object()->id==u){
+									if(j->get_const_object()->id==u){
 										sub->erase(j);
 										break;
 									}	
