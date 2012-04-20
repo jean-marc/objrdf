@@ -24,9 +24,11 @@ template<typename T> vector<T> concat(/*const*/ vector<T>& a,const vector<T>& b)
 }
 #define PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<rdfs_namespace,_##n,__VA_ARGS__> n
 #define _PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
-#define __PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
+//#define __PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
 #define CLASS(n,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__> n
+#define DERIVED_CLASS(n,BASE,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__,NIL,BASE> n
 //
+/*
 #define CLASS0(n) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<>> n
 #define CLASS1(n,p0) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0>> n
 #define CLASS2(n,p0,p1) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0,p1>> n
@@ -34,7 +36,7 @@ template<typename T> vector<T> concat(/*const*/ vector<T>& a,const vector<T>& b)
 #define CLASS4(n,p0,p1,p2,p3) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0,p1,p2,p3>> n
 #define CLASS5(n,p0,p1,p2,p3,p4) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0,p1,p2,p3,p4>> n
 #define CLASS6(n,p0,p1,p2,p3,p4,p5) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0,p1,p2,p3,p4,p5>> n
-
+*/
 //#define DEFAULT_SET template<typename U> void set(U u){help_set<U>::go(this,u);}//need to copy this line in any struct that specializes the function
 /*
  * 	must be a public member of the Class!!!!!
@@ -43,9 +45,6 @@ template<typename T> vector<T> concat(/*const*/ vector<T>& a,const vector<T>& b)
  */
 #define COMMENT(str) static string get_comment(){return str;}
 #define HTML_COMMENT(str) static string get_comment(){return string("<p xmlns='http://www.w3.org/1999/xhtml'>")+str+"</p>";}
-#ifdef WIN32
-#pragma warning(disable: 4503)
-#endif
 namespace objrdf{
 	template<const char* _A,const char* _B> struct tpair{
 		//enum{N=(int)_A}; would be nice to have enums for Class/Property so we can use switch statements
@@ -123,7 +122,7 @@ namespace objrdf{
 		typename SUBJECT,
 		typename PROPERTY,
 		size_t INDEX=tuple_index<PROPERTY,typename SUBJECT::PROPERTIES>::value,
-		bool FOUND=tuple_index<PROPERTY,typename SUBJECT::PROPERTIES>::value<tuple_size<typename SUBJECT::PROPERTIES>::value
+		bool FOUND=tuple_index<PROPERTY,typename SUBJECT::PROPERTIES>::value < tuple_size<typename SUBJECT::PROPERTIES>::value
 	> struct helper{
 		static PROPERTY& get(SUBJECT& s){return std::get<INDEX>(s.p);}
 		static const PROPERTY& get_const(const SUBJECT& s){return std::get<INDEX>(s.p);}
@@ -144,7 +143,6 @@ namespace objrdf{
 	> struct get_store<shared_ptr<T,pointer,reference>>:get_store<pointer>{
 	};
 	
-
 	template<typename PROPERTY> class array:public vector<
 		PROPERTY,
 		custom_allocator<
@@ -153,6 +151,7 @@ namespace objrdf{
 		>
 	>{
 	public:
+		enum{TYPE=PROPERTY::TYPE};
 		typedef array SELF;
 		static PROPERTY_PTR get_property(){return PROPERTY::get_property();}
 		~array(){cerr<<"~array()"<<this->size()<<endl;}
@@ -361,6 +360,7 @@ namespace objrdf{
 			type_iterator (*)(base_resource*),	//end
 			const_type_iterator (*)(const base_resource*),//cbegin
 			const_type_iterator (*)(const base_resource*)	//cend
+			//shall we add a clone function?
 			/* add more functions here ... */
 			/* pointer to member function */
 			/*
@@ -467,7 +467,9 @@ namespace objrdf{
 			cerr<<"delete resource `"<<this->id<<"' "<<this<<endl;
 			#endif
 		}
-		void operator=(const resource& r){p=r.p;}
+		void operator=(const resource& r){
+			p=r.p;
+		}
 		template<typename U> U& get(){return helper<resource,U>::get(*this);}
 		template<typename U> const U& get_const() const{return helper<resource,U>::get_const(*this);}
 		/*
@@ -511,7 +513,7 @@ namespace objrdf{
 		typename SUPERCLASS	
 	> V resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS>::v=get_generic_property<resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS> >::go();
 
-
+	/*
 	struct base{
 		//all the functions we might ever use, they SHOULD NEVER be called, the function pointer should be 0
 		//the rdf:Property could also carry a property that indicates the constness
@@ -520,9 +522,14 @@ namespace objrdf{
 		void set_string(std::string){}
 		RESOURCE_PTR get_object(){assert(0);return RESOURCE_PTR();};
 		CONST_RESOURCE_PTR get_const_object() const{assert(0);return CONST_RESOURCE_PTR(0);};
-		void set_object(RESOURCE_PTR){cerr<<"SHOULD NOT BE HERE"<<endl;/*assert(0);*/};//still called by mistake on const properties
+		void set_object(RESOURCE_PTR){assert(0);};//still called by mistake on const properties
 	};
-	template<typename RANGE> struct base_property:base{
+	*/
+	enum{LITERAL=0x1};
+	enum{STRING=0x2};
+	enum{CONST=0x4};
+	template<typename RANGE> struct base_property/*:base*/{
+		enum{TYPE=LITERAL};
 		RANGE t;
 		//should it be constant?
 		base_property(RANGE t=RANGE()):t(t){}
@@ -530,7 +537,8 @@ namespace objrdf{
 		void out(ostream& os) const{os<<t;}
 		size_t get_size() const{return 1;}
 	};
-	template<> struct base_property<string>:base{
+	template<> struct base_property<string>/*:base*/{
+		enum{TYPE=STRING|LITERAL};
 		string t;
 		base_property(string t=string()):t(t){}
 		void set_string(string s){t=s;}
@@ -544,13 +552,14 @@ namespace objrdf{
  	* can use default value, also will cause problem when parsing (but its value
  	* should be set programmatically anyway	
  	*/
-	template<typename RANGE> struct base_property<const RANGE>:base{
+	template<typename RANGE> struct base_property<const RANGE>/*:base*/{
+		enum{TYPE=CONST|LITERAL};
 		const RANGE t;
 		base_property(const RANGE t=0):t(t){}
 		size_t get_size() const{return 1;}
 		void out(ostream& os){os<<t;}
 	};
-	template<int N> struct base_property<char[N]>:base{
+	template<int N> struct base_property<char[N]>/*:base*/{
 		char t[N];
 		base_property(){strcpy(t,"ola");}
 		base_property(const char[N]){strcpy(t,"ola");}
@@ -586,8 +595,9 @@ namespace objrdf{
 		bool POLYMORPHISM,
 		typename INDEX
 	>
-	class base_property<pseudo_ptr<T,STORE,POLYMORPHISM,INDEX>>:public pseudo_ptr<T,STORE,POLYMORPHISM,INDEX>,public base{
+	class base_property<pseudo_ptr<T,STORE,POLYMORPHISM,INDEX>>:public pseudo_ptr<T,STORE,POLYMORPHISM,INDEX>/*,public base*/{
 	public:
+		enum{TYPE=0};
 		typedef pseudo_ptr<T,STORE,POLYMORPHISM,INDEX> PTR;
 		base_property(){}
 		base_property(const PTR& s):PTR(s){}
@@ -603,8 +613,9 @@ namespace objrdf{
 		bool POLYMORPHISM,
 		typename INDEX
 	>
-	class base_property<pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX>>:public pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX>,public base{
+	class base_property<pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX>>:public pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX>/*,public base*/{
 	public:
+		enum{TYPE=CONST};
 		typedef pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX> PTR;
 		base_property(){}
 		base_property(const PTR& s):PTR(s){}
@@ -651,35 +662,175 @@ namespace objrdf{
 		}
 		static PROPERTY_PTR get_property();
 	};
-	/*optimization: get rid of functions (maybe compiler already does it)
-	* still a lot of useless function are generated, can we do something smart with base classes?
-	* the problem is how do we know if a function exists? see scratch.9.cpp
+	/*
+ 	*	property to keep track of versions, a pointer to the previous version
+ 	*	it can only be modified by the application
+ 	*/ 
+	_PROPERTY(prev,RESOURCE_PTR);
+
+
+	RESOURCE_PTR create_by_type(CLASS_PTR c,uri id);
+	/*
+	template<typename SUBJECT,typename PROPERTY,bool TRANSACTION=> struct base_0{
+
+	};
 	*/
+	template<typename P> uri get_uri(const P& p){
+		CONST_RESOURCE_PTR r(p);
+		size_t _id=r.pool_ptr.index | (r.index<<(sizeof(r.pool_ptr.index)<<3));
+		ostringstream os;
+		os<<hex<<_id;
+		return uri(os.str().c_str());
+	}
+	template<
+		typename SUBJECT,
+		typename PROPERTY
+	> struct base_f{
+		static inline PROPERTY& get(base_resource* subject,size_t){return static_cast<SUBJECT*>(subject)->template get<PROPERTY>();}
+		static inline const PROPERTY& get_const(const base_resource* subject,size_t){return static_cast<const SUBJECT*>(subject)->template get_const<PROPERTY>();}
+		static size_t get_size(const base_resource* subject){return get_const(subject,0).get_size();}
+		static void add_property(base_resource* subject,PROVENANCE p){}//does not have to do anything
+		static void add_property_t(base_resource* subject,PROVENANCE p){
+			/*
+ 			* could be the good place to implement a transaction
+			* we will have patch the function table or there could be a flag in PROPERTY to indicate we want transaction
+			* would be nice to hide a pointer to old version, could be a pseudo attribute based on id
+			* the pointer could also easily fit inside the base_resource::id
+			* ideally it should be a double-linked list so we could remove old history
+			* 	<obj:prev rdf:resource='...'/>
+			* 	<obj:next rdf:resource='...'/>
+			* What happens when a resource is deleted?
+			* would be better done at compile time static_cast<SUBJECT*>(subject)->get<objrdf::prev>()=c;
+			*/
+			/*static*/auto i=find_if(static_cast<SUBJECT*>(subject)->begin(),static_cast<SUBJECT*>(subject)->end(),match_property(objrdf::prev::get_property()));
+			if(i!=static_cast<SUBJECT*>(subject)->end()){
+				RESOURCE_PTR c=create_by_type(SUBJECT::get_class(),uri(""));
+				c->id=get_uri(c);	
+				static_cast<SUBJECT&>(*c)=static_cast<SUBJECT&>(*subject);//deep copy
+				i->add_property(0)->set_object(c);//careful with infinite recursion
+			}
+		}
+		//more work
+		static void erase(base_resource* subject,size_t first,size_t last){/*set_object(subject,RESOURCE_PTR(0),0);*/}	
+		static PROVENANCE get_provenance(const base_resource* subject,size_t){return 0;/*get_const(subject).p;*/}
+		static function_table get_table(){
+			function_table t;
+			std::get<6>(t)=get_size;
+			std::get<7>(t)=add_property;
+			std::get<8>(t)=erase;
+			std::get<9>(t)=get_provenance;
+			return t;	
+		}
+	};
+	template<
+		typename SUBJECT,
+		typename PROPERTY
+	> struct base_f<SUBJECT,array<PROPERTY>>{
+		static inline array<PROPERTY>& get(base_resource* subject){return static_cast<SUBJECT*>(subject)->template get<array<PROPERTY>>();}
+		static inline const array<PROPERTY>& get_const(const base_resource* subject){return static_cast<const SUBJECT*>(subject)->template get_const<array<PROPERTY>>();}
+		static inline PROPERTY& get(base_resource* subject,size_t index){return static_cast<SUBJECT*>(subject)->template get<array<PROPERTY>>()[index];}
+		static inline const PROPERTY& get_const(const base_resource* subject,size_t index){return static_cast<const SUBJECT*>(subject)->template get_const<array<PROPERTY>>()[index];}
+		static size_t get_size(const base_resource* subject){return get_const(subject).size();}
+		static void add_property(base_resource* subject,PROVENANCE p){typedef PROPERTY P;get(subject).push_back(P());}
+		static void erase(base_resource* subject,size_t first,size_t last){get(subject).erase(get(subject).begin()+first,get(subject).begin()+last);}
+		static PROVENANCE get_provenance(const base_resource* subject,size_t index){return 0;}
+		static function_table get_table(){
+			function_table t;
+			std::get<6>(t)=get_size;
+			std::get<7>(t)=add_property;
+			std::get<8>(t)=erase;
+			std::get<9>(t)=get_provenance;
+			return t;	
+		}
+	};
+
+	template<typename SUBJECT,typename PROPERTY,size_t TYPE=PROPERTY::TYPE> struct functions;
+
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONST|LITERAL>:base_f<SUBJECT,PROPERTY>{
+		typedef base_f<SUBJECT,PROPERTY> BASE;
+		static void out(const base_resource* subject,ostream& os,size_t index){BASE::get_const(subject,index).out(os);}	
+		static function_table get_table(){
+			auto t=BASE::get_table();
+			std::get<2>(t)=out;
+			return t;
+			//std::tuple does not like 0 for function pointer
+			//return function_table(0,0,out,0,0,0,BASE::get_size,BASE::add_property,BASE::erase,BASE::get_provenance);
+		}
+	};
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,LITERAL>:functions<SUBJECT,PROPERTY,CONST|LITERAL>{
+		typedef functions<SUBJECT,PROPERTY,CONST|LITERAL> BASE;
+		static void in(base_resource* subject,istream& is,size_t index){BASE::get(subject,index).in(is);}
+		static function_table get_table(){
+			auto t=BASE::get_table();
+			std::get<1>(t)=in;
+			return t;	
+		}
+	};
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,STRING|LITERAL>:functions<SUBJECT,PROPERTY,LITERAL>{
+		typedef functions<SUBJECT,PROPERTY,LITERAL> BASE;
+		static void set_string(base_resource* subject,string s,size_t index){BASE::get(subject,index).set_string(s);}
+		static function_table get_table(){
+			auto t=BASE::get_table();
+			std::get<0>(t)=set_string;
+			return t;	
+		}
+	};
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONST>:base_f<SUBJECT,PROPERTY>{
+		typedef base_f<SUBJECT,PROPERTY> BASE;
+		static CONST_RESOURCE_PTR get_const_object(const base_resource* subject,size_t index){return BASE::get_const(subject,index).get_const_object();}
+		static void set_object(base_resource* subject,RESOURCE_PTR object,size_t index){BASE::get(subject,index).set_object(object);}
+		//override
+		static void erase(base_resource* subject,size_t first,size_t last){set_object(subject,RESOURCE_PTR(0),0);}	
+		static function_table get_table(){
+			auto t=BASE::get_table();
+			std::get<4>(t)=get_const_object;
+			std::get<5>(t)=set_object;
+			//std::get<8>(t)=erase;
+			return t;	
+		}
+	};	
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,0>:functions<SUBJECT,PROPERTY,CONST>{
+		typedef functions<SUBJECT,PROPERTY,CONST> BASE;
+		static RESOURCE_PTR get_object(base_resource* subject,size_t index){return BASE::get(subject,index).get_object();}
+		static function_table get_table(){
+			auto t=BASE::get_table();
+			std::get<3>(t)=get_object;
+			return t;	
+		}
+	};
+	/*
 	template<
 		typename SUBJECT,
 		typename PROPERTY
 	> struct functions{
 		static inline PROPERTY& get(base_resource* subject){return static_cast<SUBJECT*>(subject)->template get<PROPERTY>();}
 		static inline const PROPERTY& get_const(const base_resource* subject){return static_cast<const SUBJECT*>(subject)->template get_const<PROPERTY>();}
+		//literal
 		static void set_string(base_resource* subject,string s,size_t){get(subject).set_string(s);}
 		static void in(base_resource* subject,istream& is,size_t){get(subject).in(is);}
 		static void out(const base_resource* subject,ostream& os,size_t){get_const(subject).out(os);}	
+		//non-literal
 		static RESOURCE_PTR get_object(base_resource* subject,size_t){return get(subject).get_object();}
 		static CONST_RESOURCE_PTR get_const_object(const base_resource* subject,size_t){return get_const(subject).get_const_object();}
 		static void set_object(base_resource* subject,RESOURCE_PTR object,size_t){get(subject).set_object(object);}
+		//common
 		static size_t get_size(const base_resource* subject){return get_const(subject).get_size();}
 		static void add_property(base_resource* subject,PROVENANCE p){}//does not have to do anything
 		static void erase(base_resource* subject,size_t first,size_t last){set_object(subject,RESOURCE_PTR(0),0);}	
-		static PROVENANCE get_provenance(const base_resource* subject,size_t){return 0;/*get_const(subject).p;*/}
+		static PROVENANCE get_provenance(const base_resource* subject,size_t){return 0;}
 		static function_table get_table(){
-			/* some functions could be made null if literal */ 
+			//some functions could be made null if literal  
 			return function_table(set_string,in,out,get_object,get_const_object,set_object,get_size,add_property,erase,get_provenance);
 		}
 	};
+	*/
+
+	/*
 	template<
 		typename SUBJECT,
-		typename PROPERTY
-	> struct functions<SUBJECT,array<PROPERTY>>{
+		typename PROPERTY,
+		size_t TYPE
+	> struct functions<SUBJECT,array<PROPERTY>,TYPE>{
 		static inline array<PROPERTY>& get(base_resource* subject){return static_cast<SUBJECT*>(subject)->template get<array<PROPERTY>>();}
 		static inline const array<PROPERTY>& get_const(const base_resource* subject){return static_cast<const SUBJECT*>(subject)->template get_const<array<PROPERTY>>();}
 		static void set_string(base_resource* subject,string s,size_t index){get(subject)[index].set_string(s);}
@@ -691,12 +842,12 @@ namespace objrdf{
 		static size_t get_size(const base_resource* subject){return get_const(subject).size();}
 		static void add_property(base_resource* subject,PROVENANCE p){typedef PROPERTY P;get(subject).push_back(P());}
 		static void erase(base_resource* subject,size_t first,size_t last){get(subject).erase(get(subject).begin()+first,get(subject).begin()+last);}
-		static PROVENANCE get_provenance(const base_resource* subject,size_t index){return 0;/*get_const(subject)[index].p;*/}
+		static PROVENANCE get_provenance(const base_resource* subject,size_t index){return 0;}
 		static function_table get_table(){
 			return function_table(set_string,in,out,get_object,get_const_object,set_object,get_size,add_property,erase,get_provenance);
 		}
 	};
-
+	*/
 	//schema
 	typedef base_resource* (*fpt)(uri);
 	namespace f_ptr{
@@ -1087,7 +1238,18 @@ namespace objrdf{
 	}
 	RESOURCE_PTR create_by_type(CLASS_PTR c,uri id){
 		POOL_PTR p(c.index);
-		//we have to make sure it points to a valid pool
+		/*
+ 		* we have to make sure it points to a valid pool
+ 		* is there anyway we could construct the pool on the fly?
+ 		* 	we only need to know the store:
+		*	template<
+		*		typename T,
+		*		typename STORE=free_store,	//free store or persistent, could also have no store
+		*		bool POLYMORPHISM=false,	//does not support derived types
+		*		typename _INDEX_=uint16_t	//can address 2^16 objects
+		*	> struct pseudo_ptr
+		* currently the Class only contains reference to the constructor, no information about allocator
+ 		*/
 		assert(p->type_id);
 		//get a generic pointer
 		RESOURCE_PTR rp(p->allocate(),p);
