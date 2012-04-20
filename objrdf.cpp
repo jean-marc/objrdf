@@ -166,7 +166,6 @@ base_resource::instance_iterator base_resource::type_iterator::add_property(PROV
 	#endif
 	//awkward
 	std::get<7>(static_cast<V::iterator>(*this)->t)(subject,p);
-	//return instance_iterator(*this,get_size()-1);
 	return instance_iterator(subject,*this,get_size()-1);
 }
 void base_resource::_tmp_::operator=(const string& value){
@@ -245,13 +244,16 @@ namespace objrdf{
 	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return std::get<3>(get_class(r)->t)(r);}
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r){return std::get<4>(get_class(r)->t)(r);}
 	void to_rdf_xml(CONST_RESOURCE_PTR r,ostream& os){
-		os<<"\n<"<<r->get_Class()->id<<" "<<(r->id.is_local() ? rdf::ID : rdf::about)<<"='";
+		os<<"\n<"<<get_class(r)->id<<" "<<(r->id.is_local() ? rdf::ID : rdf::about)<<"='";
 		r->id.to_uri(os);
 		os<<"'>";
 		//extract unique id
 		size_t _id=r.pool_ptr.index | (r.index<<(sizeof(r.pool_ptr.index)<<3));
 		os<<hex<<"{"<<_id<<"}"<<dec;
-		for(auto i=cbegin(r);i!=cend(r);++i){
+		auto i=cbegin(r);
+		++i;//skip first property rdf:type
+		for(;i!=cend(r);++i){
+		//for(auto i=cbegin(r)+1;i!=cend(r);++i){//skip first property rdf:type, does not work
 			for(base_resource::const_instance_iterator j=i->cbegin();j!=i->cend();++j){
 				//should test if constant or not
 				if(i->literalp())
@@ -264,7 +266,7 @@ namespace objrdf{
 				}
 			}
 		}
-		os<<"\n</"<<r->get_Class()->id<<">";
+		os<<"\n</"<<get_class(r)->id<<">";
 	}
 }
 void base_resource::to_rdf_xml_pretty(ostream& os){
