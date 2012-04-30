@@ -26,7 +26,7 @@ template<typename T> vector<T> concat(/*const*/ vector<T>& a,const vector<T>& b)
 #define _PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
 //#define __PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
 #define CLASS(n,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__> n
-#define DERIVED_CLASS(n,BASE,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__,NIL,BASE> n
+#define DERIVED_CLASS(n,BASE,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__,objrdf::NIL,BASE> n
 //
 /*
 #define CLASS0(n) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<>> n
@@ -95,6 +95,9 @@ namespace objrdf{
 	typedef pseudo_ptr<const rdfs::Class,free_store,false,uint16_t> CLASS_PTR;
 	typedef pseudo_ptr<const rdf::Property,free_store,false,uint16_t> PROPERTY_PTR;
 	typedef char PROVENANCE;
+	/*
+ 	*	can we define default functions that will give a helpful error message when called?
+ 	*/ 
 	typedef std::tuple<
 		/*literal*/
 		void (*)(base_resource*,string,size_t),	/* 0	set_string */
@@ -559,11 +562,14 @@ namespace objrdf{
 		void out(ostream& os) const{os<<t;}
 		size_t get_size() const{return t.size()>0;}
 	};
+	template<> struct base_property<uri>{
+		enum{TYPE=STRING|LITERAL};
+	};
 	/*
  	* constant property, needs more work, can not be in array
  	* not really easy to use unless it is only property or tuple constructor
  	* can use default value, also will cause problem when parsing (but its value
- 	* should be set programmatically anyway	
+ 	* should be set programmatically anyway, ... not sure)
  	*/
 	template<typename RANGE> struct base_property<const RANGE>/*:base*/{
 		enum{TYPE=CONST|LITERAL};
@@ -899,9 +905,38 @@ namespace rdf{
 	PROPERTY(type,objrdf::CLASS_PTR);
 }
 namespace objrdf{
+	//make it possible to modify a resource's id after it has been created, it is possible because the db
+	//relies on pointers, not on id
+	_PROPERTY(id,uri);
+	//we can specialize for objrdf::id
+	template<typename SUBJECT> struct functions<SUBJECT,objrdf::id,STRING|LITERAL>{
+		static void set_string(base_resource* subject,string s,size_t){subject->id=uri(s);}
+		static void in(base_resource* subject,istream& is,size_t){
+			string tmp;
+			is>>tmp;
+			set_string(subject,tmp,0);
+		}	
+		static void out(const base_resource* subject,ostream& os,size_t){os<<subject->id;}	
+		static size_t get_size(const base_resource* subject){return 1;}
+		static void add_property(base_resource* subject,PROVENANCE p){}//does not have to do anything
+		static void erase(base_resource* subject,size_t first,size_t last){}	
+		static function_table get_table(){
+			function_table t;
+			std::get<0>(t)=set_string;
+			std::get<1>(t)=in;
+			std::get<2>(t)=out;
+			std::get<6>(t)=get_size;
+			std::get<7>(t)=add_property;
+			std::get<8>(t)=erase;
+			return t;
+		}
+	};
 	//PROPERTY(self,CONST_RESOURCE_PTR);
 }
 namespace objrdf{
+	/*
+ 	*	pseudo-properties, they don't use any memory
+ 	*/
 	template<
 		typename SUBJECT,
 		size_t INDEX
@@ -961,6 +996,7 @@ namespace xsd{
 	char _Short[]="short";typedef objrdf::resource<rdfs_namespace,_Short,std::tuple<>,objrdf::NIL,rdf::Literal> Short;
 	char _Unsigned_Short[]="unsignedShort";typedef objrdf::resource<rdfs_namespace,_Unsigned_Short,std::tuple<>,objrdf::NIL,rdf::Literal> Unsigned_short;
 	char _String[]="string";typedef objrdf::resource<rdfs_namespace,_String,std::tuple<>,objrdf::NIL,rdf::Literal> String;
+	char _anyURI[]="anyURI";typedef objrdf::resource<rdfs_namespace,_anyURI,std::tuple<>,objrdf::NIL,rdf::Literal> anyURI;
 }
 namespace objrdf{
 	char _Char[]="Char";typedef objrdf::resource<_rdfs_namespace,_Char,std::tuple<>,NIL,rdf::Literal> Char;
@@ -976,6 +1012,7 @@ namespace objrdf{
 	template<> struct get_Literal<unsigned short>:xsd::Unsigned_short{};
 	template<> struct get_Literal<char>:Char{};
 	template<> struct get_Literal<string>:xsd::String{};
+	template<> struct get_Literal<uri>:xsd::anyURI{};
 	//extra types
 	template<> struct get_Literal<size_t>:xsd::Unsigned_int{};//not accurate	
 	template<> struct get_Literal<bool>:xsd::Int{};
@@ -991,10 +1028,12 @@ namespace rdfs{
 	struct XMLLiteral{}; //symbolic type
 	char _XML_Literal[]="XML_Literal";
 	typedef objrdf::resource<rdfs_namespace,_XML_Literal,std::tuple<>,objrdf::NIL,rdf::Literal> XML_Literal;
+	//DERIVED_CLASS(XML_Literal,std::tuple<>,rdf::Literal);
 	//JSON type
-	struct JSON{};
-	char _JSON[]="JSON";
-	typedef objrdf::resource<rdfs_namespace,_JSON,std::tuple<>,objrdf::NIL,rdf::Literal> JSON_type;
+	//struct JSON{};
+	//char _JSON[]="JSON";
+	//typedef objrdf::resource<rdfs_namespace,_JSON,std::tuple<>,objrdf::NIL,rdf::Literal> JSON_type;
+	//DERIVED_CLASS(JSON,std::tuple<>,rdf::Literal);
 }
 namespace objrdf{
 	template<> struct get_Literal<rdfs::XMLLiteral>:rdfs::XML_Literal{};
@@ -1063,7 +1102,7 @@ namespace objrdf{
 	*  it can be safely resolved by checking range and using the TEST function, client should store that
 	*  unique id for very fast look-up
 	*/
-	_PROPERTY(_id,size_t);
+	//_PROPERTY(_id,size_t);
 }
 namespace rdf{
 	char _Property[]="Property";
@@ -1109,9 +1148,6 @@ namespace objrdf{
 		//we can chain a function to add superClassOf
 		static CLASS_PTR p=rdfs::Class::super(CLASS_PTR::construct_at(
 			//in case of persistent storage we will override old version and refresh pointers and function pointers
-			//POOL_PTR::get_type_id<TMP>(),
-			//this where we should create the pools for consistency
-			//POOL_PTR::help<TMP>()->type_id,
 			POOL_PTR::help<TMP>().index,
 			objrdf::get_uri<NAMESPACE>(NAME),
 			rdfs::subClassOf(SUPERCLASS::get_class()),
@@ -1155,7 +1191,8 @@ namespace objrdf{
 			PROPERTY_PTR::construct(
 				objrdf::get_uri<NAMESPACE>(NAME),
 				rdfs::range(selector<RANGE>::ResultT::get_class()),
-				(bool)selector<RANGE>::IS_LITERAL
+				//(bool)selector<RANGE>::IS_LITERAL
+				property<NAMESPACE,NAME,RANGE,IMPLEMENTATION>::TYPE&LITERAL
 			)
 		);
 		return c;
@@ -1166,6 +1203,10 @@ namespace objrdf{
 		bool operator()(const property_info& p) const;
 	};
 	template<typename SUBJECT,typename PROPERTY> property_info get_property_info(){
+		/*
+ 		*	once we have the function table we know if property literal, 
+ 		*
+ 		*/
 		property_info p(PROPERTY::get_property(),functions<SUBJECT,PROPERTY>::get_table());
 		/*
  		* by now we can't modify rdfs::domain, why is it broken down in the first place?
@@ -1189,7 +1230,11 @@ namespace objrdf{
 	template<> struct get_generic_property<base_resource>{
 		static V go(){
 			LOG<<"get_generic_property:`base_resource'"<<endl;
-			return V(1,get_property_info<base_resource,rdf::type>());
+			V v;
+			v.push_back(get_property_info<base_resource,rdf::type>());
+			v.push_back(get_property_info<base_resource,objrdf::id>());
+			return v;
+			//return V(1,get_property_info<base_resource,rdf::type>());
 		}
 	};
 	template<
@@ -1281,6 +1326,7 @@ namespace objrdf{
 		*	> struct pseudo_ptr
 		* currently the Class only contains reference to the constructor, no information about allocator
  		*/
+		//can get rid of that now
 		assert(p->type_id);
 		//get a generic pointer
 		RESOURCE_PTR rp(p->allocate(),p);
