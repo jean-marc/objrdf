@@ -1,7 +1,12 @@
+/*
+ *	support for entailment?
+ *
+ */
 #include "sparql_engine.h"
 subject::subject(SPARQL_RESOURCE_PTR r):r(r),is_selected(true),bound(r!=0),is_root(false),busy(false){}
 subject::subject(string s):r(0),s(s),is_selected(true),bound(s.size()),is_root(false),busy(false){}
-objrdf::V subject::_v;
+//we need to put some information inside it
+objrdf::V subject::_v=objrdf::V(1,property_info(rdf::Property::nil,objrdf::function_table()));
 int subject::size(){
 	int n=is_selected && !r && s.empty();
 	for(vector<verb>::iterator j=verbs.begin();j<verbs.end();++j) n+=j->size();
@@ -42,35 +47,69 @@ RESULT subject::run(size_t n){
  		*/
 		auto i=find_if(verbs.begin(),verbs.end(),match_property(rdf::type::get_property()));	
 		if(i!=verbs.end()&&i->object&&i->object->bound){
+			//we should remove the rdf:type from the graph otherwise we are going to check the type again in run
 			//find the pool
-			cerr<<"optimization..."<<endl;
-			POOL_PTR p(CLASS_PTR(i->object->r).index);
+			//we have to make sure it is not base_resource::nil, why can't we use null??
+			cerr<<"optimization..."<<i->object->r->id<<endl;
+			if(i->object->r==base_resource::nil) return RESULT();
+			if(get_class(i->object->r)!=rdfs::Class::get_class()) return RESULT();
+			CLASS_PTR c(i->object->r);
+			//check if the pool exists
+			POOL_PTR p(c.index);
+			//not needed anymore
+			cerr<<"assert pool `"<<c->id<<"'..."<<endl;
+			assert(p->type_id);
 			//iterate through the cells
 			for(auto j=pool_iterator::cell_iterator(p,p->get_size());j<pool_iterator::cell_iterator(p);++j){
 				RESULT tmp=run(*j,0);
 				r.insert(r.end(),tmp.begin(),tmp.end());
 				if(r.size()>=n) return r;
 			}
+			//now we have to find all the subclasses: we use superClassOf
+			for(auto k=c->get_const<array<superClassOf>>().begin();k<c->get_const<array<superClassOf>>().end();++k){
+				POOL_PTR p((*k).index);
+				cerr<<"assert pool `"<<c->id<<"'..."<<endl;
+				assert(p->type_id);
+				//iterate through the cells
+				for(auto j=pool_iterator::cell_iterator(p,p->get_size());j<pool_iterator::cell_iterator(p);++j){
+					RESULT tmp=run(*j,0);
+					r.insert(r.end(),tmp.begin(),tmp.end());
+					if(r.size()>=n) return r;
+				}
+			}
 		}else{
-		
 			/*
 			*	optimization : reason about given properties (bound or not)
 			*	if one of the property is rdfs:domain, rdfs:range, then subject must be a Property
 			*	if one of the property is rdfs:subClassOf then subject must be a Class
+			*	could be done in a generic way
 			*/		
 			bool is_Property=false,is_Class=false;
 			for(auto i=verbs.begin();i<verbs.end();++i){
 				is_Property|=(i->p==rdfs::domain::get_property())||(i->p==rdfs::range::get_property());
 				is_Class|=i->p==rdfs::subClassOf::get_property();
 			}
-			
-			for(auto i=objrdf::begin();i<objrdf::end();++i){
-				for(auto j=i.begin();j<i.end();++j){
+			if(is_Property){
+				for(auto j=::begin<PROPERTY_PTR>();j< ::end<PROPERTY_PTR>();++j){
 					RESULT tmp=run(*j,0);
 					r.insert(r.end(),tmp.begin(),tmp.end());
 					if(r.size()>=n) return r;
 				}
-			}	
+			}else if(is_Class){
+				for(auto j=::begin<CLASS_PTR>();j< ::end<CLASS_PTR>();++j){
+					RESULT tmp=run(*j,0);
+					r.insert(r.end(),tmp.begin(),tmp.end());
+					if(r.size()>=n) return r;
+				}
+			}else{	
+				for(auto i=objrdf::begin();i<objrdf::end();++i){
+					for(auto j=i.begin();j<i.end();++j){
+						RESULT tmp=run(*j,0);
+						r.insert(r.end(),tmp.begin(),tmp.end());
+						if(r.size()>=n) return r;
+					}
+				}	
+			}
 		}
 	}
 	return r;
@@ -85,6 +124,7 @@ RESULT subject::run(base_resource::const_instance_iterator i,PROPERTY_PTR p){
 				LOG<<"bound\tR "<<this<<" to `"<<s<<"'"<<endl;
 				return (i.str()==s) ? RESULT(1) : RESULT(0);
 			}else{
+				//this causes memory corruption!!!
 				if(i.get_Property()->get_const<rdfs::range>()==rdfs::XML_Literal::get_class()){
 					/*
  					*	shouldn't bind if empty, shouldn't be here in the first place
@@ -104,7 +144,41 @@ RESULT subject::run(base_resource::const_instance_iterator i,PROPERTY_PTR p){
 		SPARQL_RESOURCE_PTR _r=i->get_const_object();			
 		if(r){
 			LOG<<"bound\tR "<<this<<" to `"<<r->id<<"'"<<endl;
-			bool result=(r==_r);
+			/*
+ 			* bool result=(r==_r);
+			* if(!result) return RESULT();
+			*/
+			bool result=false;
+			if(r==_r){
+				result=true;
+			}else if(get_class(r)==rdfs::Class::get_class()&&get_class(_r)==rdfs::Class::get_class()){
+				cerr<<"entailment"<<endl;
+				CLASS_PTR a(r),b(_r);		
+				//entailment rules depend on property
+				//what about rdf::type?
+				PROPERTY_PTR p=i->get_Property();
+				if(p==rdfs::domain::get_property()) result=*b<*a;
+				else if(p==rdfs::range::get_property()||p==rdfs::subClassOf::get_property()||p==rdf::type::get_property()) result=*a<*b;
+			}
+			if(!result) return RESULT();
+		}else if(!u.empty()){
+			LOG<<"bound\tR "<<this<<" to `"<<u<<"'"<<endl;
+			/*
+ 			*	should compare URI's instead
+ 			*/ 
+			bool result=false;
+			if(_r->id==u){
+				cerr<<"URI comparison: "<<r->id<<"=="<<u<<endl;
+				result=true;
+			}else if(get_class(_r)==rdfs::Class::get_class()){
+				//now we have to look up the resource but we know it is a Class
+				CLASS_PTR a(find_t<CLASS_PTR>(u)),b(_r);
+				if(a){
+					PROPERTY_PTR p=i->get_Property();
+					if(p==rdfs::domain::get_property()) result=*b<*a;
+					else if(p==rdfs::range::get_property()||p==rdfs::subClassOf::get_property()||p==rdf::type::get_property()) result=*a<*b;
+				}
+			}
 			if(!result) return RESULT();
 		}else{
 			LOG<<"binding R "<<this<<" to `"<<_r->id<<"'"<<endl;
@@ -199,7 +273,6 @@ RESULT subject::run(SPARQL_RESOURCE_PTR _r,PROPERTY_PTR p){//p is not used?
 	size_t _id=_r.pool_ptr.index | (_r.index<<(sizeof(_r.pool_ptr.index)<<3));
 	base_resource::const_instance_iterator special(_r.operator->(),_v.cbegin(),_id);//will crash if dereferenced!!!
 	RESULT ret=(r||!is_selected) ? RESULT(m) : RESULT(m,vector<base_resource::const_instance_iterator>(1,special));
-	//RESULT ret=(r||!is_selected) ? RESULT(m) : RESULT(m,vector<base_resource::const_instance_iterator>(1,base_resource::nil->cbegin()->cbegin()));//we lose information here	
 	for(unsigned int i=0;i<m;++i){
 		for(unsigned int j=0;j<s.size();++j){
 			for(unsigned int k=0;k<s[j].front().size();++k){
@@ -215,9 +288,6 @@ RESULT verb::run(SPARQL_RESOURCE_PTR r){
 	if(p){
 		LOG<<"bound\tP "<<this<<" to `"<<p->id<<"'"<<endl;	
 		base_resource::const_type_iterator current_property=std::find_if(cbegin(r),cend(r),match_property(p));
-		/*
- 		*	maybe the sub class has that property
- 		*/ 
 		if(current_property!=cend(r)){
 			RESULT ret;
 			for(base_resource::const_instance_iterator j=current_property->cbegin();j!=current_property->cend();++j){
@@ -225,22 +295,6 @@ RESULT verb::run(SPARQL_RESOURCE_PTR r){
 				RESULT tmp=object->run(j,p);
 				LOG<<tmp<<endl;
 				ret.insert(ret.end(),tmp.begin(),tmp.end());
-			}
-			//we can use inference here too
-			//we use superClassOf
-			//more generic? if(p->get_Property()->get<rdfs::range>().t==rdfs::Class::get_class()){}
-			//careful at exponential growth of results!!!, could use the rule only when object is bound.... 
-			if(/*p==rdfs::range::get_property()||*/p==rdfs::domain::get_property()){
-				if(current_property->cbegin()!=current_property->cend()){
-					CLASS_PTR c(current_property->cbegin()->get_const_object());
-					auto c_p=std::find_if(c->cbegin(),c->cend(),match_property(objrdf::superClassOf::get_property()));
-					for(base_resource::const_instance_iterator j=c_p->cbegin();j!=c_p->cend();++j){
-						//they are all the same size so we just stack them up
-						RESULT tmp=object->run(j,p);
-						LOG<<tmp<<endl;
-						ret.insert(ret.end(),tmp.begin(),tmp.end());
-					}
-				}
 			}
 			return ret;
 		}else{
@@ -274,6 +328,16 @@ struct comp_r{
 		return a[i].get_const_object()<b[i].get_const_object();	
 	}	
 };
+/*
+ *	take care of extracting pseudo_ptr from const_instance_iterator
+ *	to be replaced
+ *	size_t _id=_r.pool_ptr.index | (_r.index<<(sizeof(_r.pool_ptr.index)<<3));
+ *	we have to make sure it is not literal!
+ *	base_resource::const_instance_iterator special(_r.operator->(),_v.cbegin(),_id);//will crash if dereferenced!!!
+ */
+CONST_RESOURCE_PTR get_resource(const base_resource::const_instance_iterator& j){
+	return (j->i==subject::_v.cbegin()) ?  CONST_RESOURCE_PTR((uint16_t)(j->index>>8),POOL_PTR((uint8_t)(j->index&0xff))) : j->get_const_object();
+}
 /*	it would be neat to have an iterator based on a sparql query but with
  *	casting if all the types are the same, should the query be run first and 
  *	the result stored in a temporary array?
@@ -292,21 +356,14 @@ void to_xml(ostream& os,/*const*/ RESULT& r,/*const*/ subject& s){
 	for(auto i=r.begin();i<r.end();++i){
 		os<<"<result>\n";
 		int v_i=0;
-		for(auto j=i->cbegin();j<i->cend();++j){
+		for(vector<base_resource::const_instance_iterator>::const_iterator j=i->cbegin();j<i->cend();++j){
 			os<<"<binding name='"<<v[v_i++]<<"'>";
-			//if(*j==base_resource::nil->cbegin()->cbegin()){
-			if(j->i==subject::_v.cbegin()){
+			if(j->literalp())
+				os<<"<literal>"<<*j<<"</literal>";
+			else{
 				os<<"<uri>";
-				j->subject->id.to_uri(os);
+				get_resource(*j)->id.to_uri(os);
 				os<<"</uri>";
-			}else{
-				if(j->literalp())
-					os<<"<literal>"<<*j<<"</literal>";
-				else{
-					os<<"<uri>";
-					j->get_const_object()->id.to_uri(os);
-					os<<"</uri>";
-				}
 			}
 			os<<"</binding>\n";
 		}
@@ -349,27 +406,11 @@ void sparql_parser::out(ostream& os){//sparql XML serialization
 				for(auto i=r.begin();i<r.end();++i){
 					//only if resource
 					for(auto j=i->cbegin();j<i->cend();++j){
-						if(j->i==subject::_v.cbegin()){
-							//problem: we have lost the type!
-							//size_t _id=_r.pool_ptr.index | (_r.index<<(sizeof(_r.pool_ptr.index)<<3));
-							SPARQL_RESOURCE_PTR _r((uint16_t)(j->index>>8),POOL_PTR((uint8_t)(j->index&0xff)));
-							to_rdf_xml(_r,os);
+						if(j->literalp()){
+							//os<<"<literal>"<<*j<<"</literal>";
 						}else{
-							if(j->literalp()){
-								//os<<"<literal>"<<*j<<"</literal>";
-							}else{
-								to_rdf_xml(j->get_const_object(),os);
-							}
+							to_rdf_xml(get_resource(*j),os);
 						}
-						/*
-
-						//if(!j->literalp())
-							if(j->i==subject::_v.cbegin()){
-								j->subject->to_rdf_xml(os);
-							}else{
-								to_rdf_xml(j->get_const_object(),os);
-						//}
-						*/
 					}
 				}
 				os<<"\n</"<<rdf::_RDF<<">\n";
@@ -387,6 +428,7 @@ void sparql_parser::out(ostream& os){//sparql XML serialization
 bool sparql_parser::callback(PARSE_RES_TREE& r){
 	cerr<<r<<endl;
 	switch(r.t.first){
+		//what about multiple statements?
 		case prefix_decl::id:
 			prefix_ns[r.v[0].t.second]=r.v[1].t.second;	
 		break;
@@ -426,8 +468,30 @@ bool sparql_parser::callback(PARSE_RES_TREE& r){
 			q=delete_data_q;
 			return parse_update_data_statement(r,true);
 		}break;
-		//case delete_data_statement::id://need to process where statement first
-		//break;
+		case update_query::id:{
+			//we have 2 statements
+			cerr<<"update query"<<endl;
+			for(auto i=r.v.begin();i<r.v.end();++i)
+				cerr<<i->t.first<<endl;
+			//need to process where statement first
+			parse_where_statement(r.v[1]);
+			//all the variables are defined, we can iterate
+			//we can repeatedly parse that statement with variables replaced or patch the parser output
+			//how do we deal with properties?, maybe no properties for now
+			RESULT res=sbj->run();				
+			vector<string> var=sbj->get_variables();	
+			for(auto i=res.begin();i<res.end();++i){
+				//we can define the current variable list
+				VARIABLES v;
+				auto v_i=var.cbegin();
+				for(auto j=i->begin();j<i->end();++j,++v_i){
+					cerr<<"copying variable `"<<*v_i<<"'"<<endl;
+					 v[*v_i]=*j;
+				}
+				parse_update_data_statement(r.v[0],r.v[0].t.first==delete_statement::id,v);
+			}
+
+		}break;
 		//case insert_data_statement::id://need to process where statement first
 			//return parse_insert_data_statement(r);
 		//break;
@@ -459,8 +523,13 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					}
 					break;
 					case turtle_parser::uriref::id:{
-						SPARQL_RESOURCE_PTR r=find(uri::hash_uri(i->v[0].t.second));
+						//optimization: use the properties to restrict search
+						uri u=uri::hash_uri(i->v[0].t.second);
+						//SPARQL_RESOURCE_PTR r=find(uri::hash_uri(i->v[0].t.second));
+						SPARQL_RESOURCE_PTR r=find(u);
+						//we should bail out there if not found
 						sbj=new subject(r ? r : base_resource::nil);
+						sbj->u=u;
 						index[i->v[0].t.second]=sbj;
 						current_sbj=sbj;
 					}
@@ -471,6 +540,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 							uri u(j->second,i->v[0].v[1].t.second);
 							SPARQL_RESOURCE_PTR r=find(u);
 							sbj=new subject(r ? r : base_resource::nil);
+							sbj->u=u;
 							index[i->v[0].v[0].t.second]=sbj;
 							current_sbj=sbj;
 						}else{
@@ -532,9 +602,14 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						}	
 					}
 					break;
+					//should not try to resolve resources, waste
 					case turtle_parser::uriref::id:{
-						SPARQL_RESOURCE_PTR r=find(uri::hash_uri(i->v[0].t.second));
+						SPARQL_RESOURCE_PTR r;
+						uri u=uri::hash_uri(i->v[0].t.second);
+						//r=find(uri::hash_uri(i->v[0].t.second));
+						r=find(u);
 						subject* object=new subject(r ? r : base_resource::nil );//should get rid of that
+						object->u=u;
 						//cerr<<"####"<<r<<"\t"<<i->v[0].t.second<<endl;
 						index[i->v[0].t.second]=object;
 						current_sbj->verbs.back().object=object;
@@ -546,6 +621,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 							uri u(j->second,i->v[0].v[1].t.second);
 							SPARQL_RESOURCE_PTR r=find(u);
 							subject* object=new subject(r ? r : base_resource::nil);
+							object->u=u;
 							index[i->v[0].v[0].t.second]=object;
 							current_sbj->verbs.back().object=object;
 						}else{
@@ -601,7 +677,7 @@ SPARQL_RESOURCE_PTR sparql_parser::parse_object(PARSE_RES_TREE& r){
 		default:return PROPERTY_PTR();//???	
 	}
 }
-bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete){
+bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete,VARIABLES v){
 /*
 *	it is actually a plain turtle parser, it might not be practical to store thr document in a PARSE_RES_TREE,
 *	we need a generic resource that can store literals and pointers, could use it for rdf_xml_parser as well
@@ -609,6 +685,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 *	pair<uri,SPARQL_RESOURCE_PTR >
 *	it could be build 
 *	we could break it down in triples and put on stack
+*	a lot of optimizations when using the schema
 */
 	RESOURCE_PTR sub;//subject, will be modified
 	//needs a default value
@@ -689,6 +766,15 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 						}
 					}
 					break;
+					//what if variable?
+					case turtle_parser::variable::id:{
+						auto j=v.find(i->v[0].t.second.substr(1));
+						if(j!=v.end())
+							sub=get_resource(j->second);
+						else
+							cerr<<"subject variable `"<<i->v[0].t.second<<"' not found"<<endl;	
+							
+					}break;
 					default:return false;
 				}
 			}
@@ -721,6 +807,9 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 					break;
 					case turtle_parser::is_a::id:{
 						current_property=begin(sub);//first property is rdf::type
+					}break;
+					case turtle_parser::variable::id:{
+						cerr<<"property variable not supported!"<<endl;	
 					}break;
 					default:return false;
 				}
@@ -800,6 +889,25 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 						}
 					}
 					break;
+					case turtle_parser::variable::id:{
+						auto j=v.find(i->v[0].t.second.substr(1));
+						if(j!=v.end()){
+							CONST_RESOURCE_PTR obj=get_resource(j->second);
+							if(do_delete){
+								auto j=current_property->begin();
+								while(j!=current_property->end()){
+									if(j->get_const_object()==obj){
+										sub->erase(j);
+										break;
+									}	
+									++j;
+								}
+							}else{
+								current_property->add_property(p)->set_object(obj);
+							}
+						}else
+							cerr<<"object variable `"<<i->v[0].t.second<<"' not found"<<endl;	
+					}break;
 					default:return false;
 				}
 			}break;

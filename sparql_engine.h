@@ -92,6 +92,7 @@ struct verb{
 };
 struct subject{
 	SPARQL_RESOURCE_PTR r;//0 -> not bound	
+	uri u;//empty not bound
 	string s;//empty not bound
 	string name;
 	bool is_selected;//will be returned in result set
@@ -135,15 +136,15 @@ public:
 	typedef seq_c<'D','E','S','C','R','I','B','E'> DESCRIBE;
 	typedef event_1<seqw<BASE,turtle_parser::_uriref_>,__COUNTER__> base_decl;
 	typedef event_1<seqw<PREFIX,turtle_parser::pname_ns,turtle_parser::_uriref_>,__COUNTER__> prefix_decl;
-	typedef	event_1<seqw<WHERE,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'> >,__COUNTER__> where_statement; 
-	//typedef	event_1<seqw<DELETE,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'> >,__COUNTER__> delete_statement; 
-	//typedef	event_1<seqw<INSERT,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'> >,__COUNTER__> insert_statement; 
-	typedef	event_1<seqw<DELETE,DATA,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'> >,__COUNTER__> delete_data_query; 
-	typedef	event_1<seqw<INSERT,DATA,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'> >,__COUNTER__> insert_data_query; 
-	typedef event_1<seqw<SELECT,or_p<plus_pw<turtle_parser::variable>,char_p<'*'> >,where_statement>,__COUNTER__> select_query;	
-	typedef event_1<seqw<DESCRIBE,or_p<turtle_parser::_uriref_,turtle_parser::qname> >,__COUNTER__> simple_describe_query;	
-	typedef event_1<seqw<DESCRIBE,or_p<plus_pw<turtle_parser::variable>,char_p<'*'> >,where_statement>,__COUNTER__> describe_query;	
-	//typedef seqw<or_p<delete_statement,true_p>,or_p<insert_statement,true_p>,where_statement> update_query;
+	typedef	event_1<seqw<WHERE,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> where_statement; 
+	typedef	event_1<seqw<DELETE,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> delete_statement; 
+	typedef	event_1<seqw<INSERT,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> insert_statement; 
+	typedef event_1<seqw<or_p<delete_statement,true_p>,or_p<insert_statement,true_p>,where_statement>,__COUNTER__> update_query;
+	typedef	event_1<seqw<DELETE,DATA,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> delete_data_query; 
+	typedef	event_1<seqw<INSERT,DATA,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> insert_data_query; 
+	typedef event_1<seqw<SELECT,or_p<plus_pw<turtle_parser::variable>,char_p<'*'>>,where_statement>,__COUNTER__> select_query;	
+	typedef event_1<seqw<DESCRIBE,or_p<turtle_parser::_uriref_,turtle_parser::qname>>,__COUNTER__> simple_describe_query;	
+	typedef event_1<seqw<DESCRIBE,or_p<plus_pw<turtle_parser::variable>,char_p<'*'>>,where_statement>,__COUNTER__> describe_query;	
 	typedef seqw<
 		or_p<base_decl,true_p>,
 		kleene_pw<prefix_decl>,
@@ -151,12 +152,13 @@ public:
 			select_query,
 			simple_describe_query,
 			describe_query,
-			insert_data_query,
-			delete_data_query
-			//,update_query,
+			insert_data_query,//need to add support to delete insert (update) query
+			delete_data_query,
+			update_query
   			//update_data_query
 		> 
 	> document;
+	typedef map<string,base_resource::const_instance_iterator> VARIABLES;
 	//rdf::RDF& doc;
 	SPARQL_RESOURCE_PTR d_resource;
 	subject *sbj,*current_sbj,*where_s,*delete_s,*insert_s;
@@ -176,7 +178,7 @@ public:
 	PROPERTY_PTR parse_property(PARSE_RES_TREE& r);
 	//won't parse literal
 	SPARQL_RESOURCE_PTR parse_object(PARSE_RES_TREE& r);
-	bool parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete=false);
+	bool parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete=false,VARIABLES v=VARIABLES());
 	template<typename T> void callback(T,string){}
 };
 #endif
