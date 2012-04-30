@@ -26,7 +26,35 @@
 </xsl:template>
 <xsl:template match='s:result'><tr><xsl:apply-templates/></tr></xsl:template>
 <xsl:template match='s:binding'><xsl:apply-templates/></xsl:template>
-<xsl:template match='s:uri'><td><a href='#'><xsl:value-of select='.'/></a></td></xsl:template>
+<xsl:template match="s:uri[contains(.,'#')]"><td>
+<xsl:variable name='esc_uri' select="concat(substring-before(.,'#'),'%23',substring-after(.,'#'))"/>
+<!-- send to editing form -->
+<a href="{concat('/sparql?query=select * where {&lt;',$esc_uri,'&gt; ?p ?v .}')}&amp;xsl=edit_form.xsl"><xsl:value-of select='.'/></a>|
+<!--<a href="{concat('/sparql?query=DESCRIBE &lt;',$esc_uri,'&gt;')}"><xsl:value-of select='.'/></a>|-->
+<!--
+	only makes sense if the URI is a Class, can we pass parameters to style sheet? yes!
+	we can look up the type of the current objects
+-->
+<a href="{concat('/sparql?query=SELECT * WHERE {?x a &lt;',$esc_uri,'&gt; .}&amp;xsl=describe.xsl')}">list</a>|
+<!--
+	a form to add a new element, need to list all the properties of the Class
+	how do we separate literal from non literal
+	should look into caching common queries
+-->
+<a href="{concat('/sparql?query=SELECT * WHERE {?p rdfs:domain &lt;',$esc_uri,'&gt; . ?p rdfs:range ?r .}&amp;xsl=add_form.xsl&amp;xslt-param-name=type&amp;xslt-param-value=',$esc_uri)}">add</a>
+</td></xsl:template>
+
+<xsl:template match="s:uri"><td>
+<a href="{concat('/sparql?query=select * where {&lt;',.,'&gt; ?p ?v .}&amp;xsl=edit_form.xsl&amp;xslt-param-name=id&amp;xslt-param-value=',.)}"><xsl:value-of select='.'/></a>|
+<!--
+<a href="{concat('/sparql?query=DESCRIBE &lt;',.,'&gt;')}"><xsl:value-of select='.'/></a>|
+-->
+<!--
+	only makes sense if the URI is a Class
+-->
+<a href="{concat('/sparql?query=SELECT * WHERE {?x a &lt;',.,'&gt; .}&amp;xsl=describe.xsl')}">list</a>
+</td></xsl:template>
+
 <xsl:template match='s:literal'><td><xsl:apply-templates/></td></xsl:template>
 <xsl:template match='rdf:RDF'>
 	<xsl:apply-templates mode='resource'/>
