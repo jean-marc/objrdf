@@ -31,7 +31,7 @@ void base_resource::erase(instance_iterator first,instance_iterator last){
 void base_resource::erase(instance_iterator position){
 	std::get<8>(position.i->t)(this,position.index,position.index+1);
 }
-void base_resource::get_output(ostream& os){
+void base_resource::get_output(ostream& os) const{
 	//what would be most appropriate HTTP message?	
 }
 struct cmp_uri{
@@ -39,7 +39,7 @@ struct cmp_uri{
 	cmp_uri(uri u):u(u){}
 	bool operator()(CLASS_PTR s)const{return s->id==u;}
 };
-rdfs::Class::Class(objrdf::uri id,rdfs::subClassOf s,objrdf::base_resource::class_function_table t,string comment_str):SELF(id),t(t)/*,debug(0xdeadbeef)*/{
+rdfs::Class::Class(objrdf::uri id,rdfs::subClassOf s,objrdf::base_resource::class_function_table t,string comment_str):SELF(id),t(t){
 	#ifdef OBJRDF_VERB
 	cerr<<"create rdfs::Class `"<<id<<"'\t"<<this<</*"\t"<<t<<*/endl;
 	#endif
@@ -58,13 +58,8 @@ bool rdfs::Class::operator==(const rdfs::Class& c) const{
 	return this==&c;	
 }
 bool rdfs::Class::operator<(const rdfs::Class& c) const{//is c subClass of this?
-	auto tmp=c.get_const<array<subClassOf> >();//not very efficient
-	for(auto i=tmp.begin();i<tmp.end();++i){
-		cerr<<this->id<<"\t"<<(*i)->id<<endl;
-		//cerr<<this->id<<"\t"<<((subClassOf)(*i))->id<<endl;
-		if(*i==this) return true;
-	}
-	return false;
+	auto i=find(c.get_const<array<subClassOf>>().cbegin(),c.get_const<array<subClassOf>>().cend(),this);
+	return i!=c.get_const<array<subClassOf>>().cend();
 }
 bool rdfs::Class::operator<=(const rdfs::Class& c) const{
 	return (*this==c)||(*this<c);
@@ -73,14 +68,13 @@ bool rdfs::Class::is_subclass_of(const Class& c) const{
 	return c<=*this;
 }
 bool rdfs::Class::literalp() const{
-	//return (this==rdf::Literal::get_class().get()) || (get<subClassOf>() && get<subClassOf>()->literalp());
 	return *rdf::Literal::get_class()<*this;
 }
 void rdfs::Class::analyze(){
 };
 CLASS_PTR base_resource::get_class(){
 	static CLASS_PTR p=CLASS_PTR::construct_at(
-		POOL_PTR::get_type_id<base_resource>(),
+		POOL_PTR::help<base_resource>().index,
 		objrdf::get_uri<rdfs::rdfs_namespace>("Resource"),
 		rdfs::subClassOf(),
 		objrdf::base_resource::class_function_table(
@@ -238,7 +232,7 @@ void base_resource::to_rdf_xml(ostream& os,const PROVENANCE& p) const{
 	os<<"\n</"<<get_Class()->id<<">";
 }
 namespace objrdf{
-	CLASS_PTR get_class(CONST_RESOURCE_PTR r){return CLASS_PTR(r.pool_ptr->type_id);}
+	CLASS_PTR get_class(CONST_RESOURCE_PTR r){return CLASS_PTR(r.pool_ptr.index);}
 	base_resource::type_iterator begin(RESOURCE_PTR r){return std::get<1>(get_class(r)->t)(r);}
 	base_resource::type_iterator end(RESOURCE_PTR r){return std::get<2>(get_class(r)->t)(r);}
 	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return std::get<3>(get_class(r)->t)(r);}
@@ -247,13 +241,7 @@ namespace objrdf{
 		os<<"\n<"<<get_class(r)->id<<" "<<(r->id.is_local() ? rdf::ID : rdf::about)<<"='";
 		r->id.to_uri(os);
 		os<<"'>";
-		//extract unique id
-		size_t _id=r.pool_ptr.index | (r.index<<(sizeof(r.pool_ptr.index)<<3));
-		os<<hex<<"{"<<_id<<"}"<<dec;
-		auto i=cbegin(r);
-		++i;//skip first property rdf:type
-		for(;i!=cend(r);++i){
-		//for(auto i=cbegin(r)+1;i!=cend(r);++i){//skip first property rdf:type, does not work
+		for(auto i=++cbegin(r);i!=cend(r);++i){//skip first property rdf::type
 			for(base_resource::const_instance_iterator j=i->cbegin();j!=i->cend();++j){
 				//should test if constant or not
 				if(i->literalp())
@@ -261,7 +249,6 @@ namespace objrdf{
 				else{
 					os<<"\n\t<"<<i->get_Property()->id<<" "<<rdf::resource<<"='"<<(j->get_const_object()->id.is_local() ? "#" : "");
 					j->get_const_object()->id.to_uri(os);
-					//os<<j->get_const_object()->id.local;
 					os<<"'/>";
 				}
 			}
