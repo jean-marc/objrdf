@@ -174,6 +174,11 @@ namespace objrdf{
 			return r.id.local[0];
 		}
 		typedef base_resource SELF;
+		/*
+ 		*	default storage is the free store, to override your class must define STORE
+ 		*/ 
+		//typedef free_store STORE;
+		typedef persistent_store STORE;
 		typedef std::tuple<> PROPERTIES; //base_resource does not have properties
 		struct instance_iterator{
 			friend class base_resource; //for base_resource::erase
@@ -217,12 +222,13 @@ namespace objrdf{
 			const base_resource* subject;
 			V::const_iterator i;
 			size_t index;
+			const_instance_iterator():subject(0),index(0){}
 			const_instance_iterator(const base_resource* subject,V::const_iterator i,size_t index):subject(subject),i(i),index(index){}
 			const_instance_iterator& operator+=(const unsigned int& i){index+=i;return *this;}
 			const_instance_iterator& operator++(){++index;return *this;}
 			//tricky here
-			const const_instance_iterator* operator->(){return this;}
-			const const_instance_iterator& operator*(){return *this;}
+			const const_instance_iterator* operator->()const{return this;}
+			const const_instance_iterator& operator*()const{return *this;}
 			/*
  			*	this operator is a bit more expensive 
  			*/ 
@@ -302,6 +308,10 @@ namespace objrdf{
  			* very confusing syntactic sugar
  			* because V::iterator points to property_info
  			*/
+			const_type_iterator& operator++(){
+				this->V::const_iterator::operator++();
+				return *this;
+			}
 			const_type_iterator* operator->(){return this;}
 			const_instance_iterator cbegin(){return const_instance_iterator(subject,*this,0);}
 			const_instance_iterator cend(){return const_instance_iterator(subject,*this,get_size());}
@@ -346,7 +356,7 @@ namespace objrdf{
 		/*virtual*/ type_iterator end();
 		/*virtual*/ const_type_iterator cbegin() const;
 		/*virtual*/ const_type_iterator cend() const;
-		/*virtual*/ void get_output(ostream& os);//local resources can have content accessible through a URL scheme 
+		/*virtual*/ void get_output(ostream& os) const;//local resources can have content accessible through a URL scheme 
 		/*virtual*/ void end_resource(){};//will be invoked when finished parsing the element
 		/*
 		template<typename T> type_iterator fbegin(){return type_iterator(this,T::v.begin());}
@@ -434,6 +444,9 @@ namespace objrdf{
 		/*
  		*	could add information about the expected number of instances when using persistent store
  		*/ 
+		/*
+ 		*	information about the STORE 	
+ 		*/
 	>
 	struct resource:_SUPERCLASS_{
 		typedef _PROPERTIES_ PROPERTIES;
@@ -695,11 +708,13 @@ namespace objrdf{
  			* could be the good place to implement a transaction
 			* we will have patch the function table or there could be a flag in PROPERTY to indicate we want transaction
 			* would be nice to hide a pointer to old version, could be a pseudo attribute based on id
+			* should only be recorded if property value is modified
 			* the pointer could also easily fit inside the base_resource::id
 			* ideally it should be a double-linked list so we could remove old history
 			* 	<obj:prev rdf:resource='...'/>
 			* 	<obj:next rdf:resource='...'/>
 			* What happens when a resource is deleted?
+			* we have to make sure that a copy can not be modified
 			* would be better done at compile time static_cast<SUBJECT*>(subject)->get<objrdf::prev>()=c;
 			*/
 			/*static*/auto i=find_if(static_cast<SUBJECT*>(subject)->begin(),static_cast<SUBJECT*>(subject)->end(),match_property(objrdf::prev::get_property()));
@@ -975,11 +990,11 @@ namespace rdfs{
 	*/
 	struct XMLLiteral{}; //symbolic type
 	char _XML_Literal[]="XML_Literal";
-	typedef objrdf::resource<rdfs_namespace,_XML_Literal,std::tuple<>,rdf::Literal> XML_Literal;
+	typedef objrdf::resource<rdfs_namespace,_XML_Literal,std::tuple<>,objrdf::NIL,rdf::Literal> XML_Literal;
 	//JSON type
 	struct JSON{};
 	char _JSON[]="JSON";
-	typedef objrdf::resource<rdfs_namespace,_JSON,std::tuple<>,rdf::Literal> JSON_type;
+	typedef objrdf::resource<rdfs_namespace,_JSON,std::tuple<>,objrdf::NIL,rdf::Literal> JSON_type;
 }
 namespace objrdf{
 	template<> struct get_Literal<rdfs::XMLLiteral>:rdfs::XML_Literal{};
@@ -1008,6 +1023,7 @@ namespace rdfs{
  		*	similar to instance_iterator::get_Property(), although instance_iterator never returns an actual reference/pointer 
  		*	to the underlying property.
  		*/ 
+		typedef free_store STORE;
 		const objrdf::base_resource::class_function_table t;
 		Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,string comment);
 		~Class(){
@@ -1020,6 +1036,14 @@ namespace rdfs{
 		bool operator<=(const Class& c) const;
 		bool is_subclass_of(const Class& c) const;
 		bool literalp() const;
+		static objrdf::CLASS_PTR super(objrdf::CLASS_PTR c){
+			for(auto i=c->get_const<objrdf::array<subClassOf>>().cbegin();i<c->get_const<objrdf::array<subClassOf>>().end();++i){
+				//problem *i is CLASS_PTR, we need to cast away constness
+				pseudo_ptr<rdfs::Class,objrdf::CLASS_PTR::STORE,false,objrdf::CLASS_PTR::INDEX> tmp(*i);
+				tmp->get<objrdf::array<objrdf::superClassOf>>().push_back(objrdf::superClassOf(c));
+			}
+			return c;
+		}
 		/*
  		*	inference, should be run once all classes and properties have been created
  		*/ 
@@ -1052,6 +1076,7 @@ namespace rdf{
 			//rdfs::subPropertyOf,
 			objrdf::p_self
 		>,Property>{
+		typedef free_store STORE;
 		Property(objrdf::uri u);
 		Property(objrdf::uri u,rdfs::range r,const bool literalp);
 		const bool literalp;
@@ -1074,14 +1099,20 @@ namespace objrdf{
 		typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,resource,SUBCLASS>::ResultT TMP;
 		//can be simplified because we already know the pointer value
 		//check if resource is derived from Literal
+		/*
 		typedef typename IfThenElse<
 			is_derived<TMP,rdf::Literal>::value,
 			pseudo_ptr<TMP,empty_store,false>,//it MUST be false otherwise template ambiguity
 			pseudo_ptr<TMP,free_store,false>
 		>::ResultT PTR;
-		static CLASS_PTR p=CLASS_PTR::construct_at(
+		*/
+		//we can chain a function to add superClassOf
+		static CLASS_PTR p=rdfs::Class::super(CLASS_PTR::construct_at(
 			//in case of persistent storage we will override old version and refresh pointers and function pointers
-			POOL_PTR::get_type_id<TMP>(),
+			//POOL_PTR::get_type_id<TMP>(),
+			//this where we should create the pools for consistency
+			//POOL_PTR::help<TMP>()->type_id,
+			POOL_PTR::help<TMP>().index,
 			objrdf::get_uri<NAMESPACE>(NAME),
 			rdfs::subClassOf(SUPERCLASS::get_class()),
 			objrdf::base_resource::class_function_table(
@@ -1092,7 +1123,7 @@ namespace objrdf{
 				f_ptr::cend<TMP>
 			),
 			TMP::get_comment!=SUPERCLASS::get_comment ? TMP::get_comment() : ""
-		);
+		));
 		return p;
 	}
 	//there should be a cleaner way to do that
@@ -1119,7 +1150,7 @@ namespace objrdf{
 		typename RANGE,
 		typename IMPLEMENTATION
 	> PROPERTY_PTR property<NAMESPACE,NAME,RANGE,IMPLEMENTATION>::get_property(){
-		cerr<<"about to construct Property `"<<NAME<<"'"<<endl;
+		//cerr<<"about to construct Property `"<<NAME<<"'"<<endl;
 		static PROPERTY_PTR c(
 			PROPERTY_PTR::construct(
 				objrdf::get_uri<NAMESPACE>(NAME),
