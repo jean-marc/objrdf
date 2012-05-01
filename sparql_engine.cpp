@@ -5,6 +5,7 @@
 #include "sparql_engine.h"
 subject::subject(SPARQL_RESOURCE_PTR r):r(r),is_selected(true),bound(r!=0),is_root(false),busy(false){}
 subject::subject(string s):r(0),s(s),is_selected(true),bound(s.size()),is_root(false),busy(false){}
+subject::subject(uri u):r(0),u(u),is_selected(true),bound(!u.empty()),is_root(false),busy(false){}
 //we need to put some information inside it
 objrdf::V subject::_v=objrdf::V(1,property_info(rdf::Property::nil,objrdf::function_table()));
 int subject::size(){
@@ -39,14 +40,22 @@ vector<string> verb::get_variables() const{
 RESULT subject::run(size_t n){
 	RESULT r;
 	//optimization when subject is bound
+	/*
 	if(bound){
+		if(!this->r){
+			//is there any information we can use?
+			this->r=find(u);
+		}
 		r=run(this->r,0);
 	}else{
-		/*
+	*/	/*
  		* before going through all the resources let's look at the properties bound and un-bound
  		*/
 		auto i=find_if(verbs.begin(),verbs.end(),match_property(rdf::type::get_property()));	
 		if(i!=verbs.end()&&i->object&&i->object->bound){
+			if(!i->object->r){
+				i->object->r=find_t<CLASS_PTR>(i->object->u);
+			}	
 			//we should remove the rdf:type from the graph otherwise we are going to check the type again in run
 			//find the pool
 			//we have to make sure it is not base_resource::nil, why can't we use null??
@@ -62,17 +71,19 @@ RESULT subject::run(size_t n){
 			//iterate through the cells
 			for(auto j=pool_iterator::cell_iterator(p,p->get_size());j<pool_iterator::cell_iterator(p);++j){
 				RESULT tmp=run(*j,0);
+				if(bound&&tmp.size()) return tmp;
 				r.insert(r.end(),tmp.begin(),tmp.end());
 				if(r.size()>=n) return r;
 			}
 			//now we have to find all the subclasses: we use superClassOf
 			for(auto k=c->get_const<array<superClassOf>>().begin();k<c->get_const<array<superClassOf>>().end();++k){
 				POOL_PTR p((*k).index);
-				cerr<<"assert pool `"<<c->id<<"'..."<<endl;
+				cerr<<"assert pool `"<<(*k)->id<<"'..."<<endl;
 				assert(p->type_id);
 				//iterate through the cells
 				for(auto j=pool_iterator::cell_iterator(p,p->get_size());j<pool_iterator::cell_iterator(p);++j){
 					RESULT tmp=run(*j,0);
+					if(bound&&tmp.size()) return tmp;
 					r.insert(r.end(),tmp.begin(),tmp.end());
 					if(r.size()>=n) return r;
 				}
@@ -92,12 +103,14 @@ RESULT subject::run(size_t n){
 			if(is_Property){
 				for(auto j=::begin<PROPERTY_PTR>();j< ::end<PROPERTY_PTR>();++j){
 					RESULT tmp=run(*j,0);
+					if(bound&&tmp.size()) return tmp;
 					r.insert(r.end(),tmp.begin(),tmp.end());
 					if(r.size()>=n) return r;
 				}
 			}else if(is_Class){
 				for(auto j=::begin<CLASS_PTR>();j< ::end<CLASS_PTR>();++j){
 					RESULT tmp=run(*j,0);
+					if(bound&&tmp.size()) return tmp;
 					r.insert(r.end(),tmp.begin(),tmp.end());
 					if(r.size()>=n) return r;
 				}
@@ -105,13 +118,14 @@ RESULT subject::run(size_t n){
 				for(auto i=objrdf::begin();i<objrdf::end();++i){
 					for(auto j=i.begin();j<i.end();++j){
 						RESULT tmp=run(*j,0);
+						if(bound&&tmp.size()) return tmp;
 						r.insert(r.end(),tmp.begin(),tmp.end());
 						if(r.size()>=n) return r;
 					}
 				}	
 			}
 		}
-	}
+	//}
 	return r;
 }
 RESULT subject::run(base_resource::const_instance_iterator i,PROPERTY_PTR p){
@@ -162,24 +176,29 @@ RESULT subject::run(base_resource::const_instance_iterator i,PROPERTY_PTR p){
 			}
 			if(!result) return RESULT();
 		}else if(!u.empty()){
-			LOG<<"bound\tR "<<this<<" to `"<<u<<"'"<<endl;
+			LOG<<"bound\tR "<<this<<" to URI `"<<u<<"'"<<endl;
 			/*
- 			*	should compare URI's instead
+ 			*	compare URI's instead
  			*/ 
 			bool result=false;
 			if(_r->id==u){
-				cerr<<"URI comparison: "<<r->id<<"=="<<u<<endl;
+				cerr<<"URI comparison: "<<_r->id<<"=="<<u<<endl;
+				r=_r;//bind!
 				result=true;
 			}else if(get_class(_r)==rdfs::Class::get_class()){
 				//now we have to look up the resource but we know it is a Class
 				CLASS_PTR a(find_t<CLASS_PTR>(u)),b(_r);
 				if(a){
+					r=a;//bind!
 					PROPERTY_PTR p=i->get_Property();
 					if(p==rdfs::domain::get_property()) result=*b<*a;
 					else if(p==rdfs::range::get_property()||p==rdfs::subClassOf::get_property()||p==rdf::type::get_property()) result=*a<*b;
 				}
 			}
 			if(!result) return RESULT();
+			/*
+ 			*	what if still not bound at this stage? fine
+ 			*/ 
 		}else{
 			LOG<<"binding R "<<this<<" to `"<<_r->id<<"'"<<endl;
 		}		
@@ -187,21 +206,22 @@ RESULT subject::run(base_resource::const_instance_iterator i,PROPERTY_PTR p){
 		unsigned int n=0,m=1;
 		//bind in case there is a cycle in the WHERE statement
 		//cleaner would be to stow away 
+		/*
 		bool temp_bound=false;
 		if(!r){
 			r=_r;
 			temp_bound=true;
 		}	
 		if(!busy){
-			for(vector<verb>::iterator j=verbs.begin();j<verbs.end();++j){
+		*/	for(vector<verb>::iterator j=verbs.begin();j<verbs.end();++j){
 				busy=true;
 				RESULT tmp=j->run(_r);
 				busy=false;
 				if(tmp.empty()){
-					if(temp_bound){
+					/*if(temp_bound){
 						r=SPARQL_RESOURCE_PTR();
 						temp_bound=false;//not needed
-					}
+					}*/
 					return RESULT();
 				}
 				if(tmp.size()==1 && tmp.front().size()==0){
@@ -212,12 +232,14 @@ RESULT subject::run(base_resource::const_instance_iterator i,PROPERTY_PTR p){
 					s.push_back(tmp);
 				}
 			}
-		}
+		//}
+		/*
 		if(temp_bound){
 			r=SPARQL_RESOURCE_PTR();
 			temp_bound=false;//not needed
 		}
-		RESULT ret=(r||!is_selected) ? RESULT(m) : RESULT(m,vector<base_resource::const_instance_iterator>(1,i));	
+		*/
+		RESULT ret=((r||!u.empty())||!is_selected) ? RESULT(m) : RESULT(m,vector<base_resource::const_instance_iterator>(1,i));	
 		for(unsigned int i=0;i<m;++i){
 			for(unsigned int j=0;j<s.size();++j){
 				for(unsigned int k=0;k<s[j].front().size();++k){
@@ -234,26 +256,50 @@ RESULT subject::run(SPARQL_RESOURCE_PTR _r,PROPERTY_PTR p){//p is not used?
 		LOG<<"bound\tR "<<this<<" to `"<<r->id<<"'"<<endl;
 		bool result=(r==_r);
 		if(!result) return RESULT();
+	}else if(!u.empty()){
+		LOG<<"bound\tR "<<this<<" to URI`"<<u<<"'"<<endl;
+		/*
+		*	compare URI's instead
+		*/ 
+		bool result=false;
+		if(_r->id==u){
+			cerr<<"URI comparison: "<<_r->id<<"=="<<u<<endl;
+			r=_r;//bind!
+			result=true;
+		/*}else if(get_class(_r)==rdfs::Class::get_class()){
+			//now we have to look up the resource but we know it is a Class
+			CLASS_PTR a(find_t<CLASS_PTR>(u)),b(_r);
+			if(a){
+				r=a;//bind!
+				PROPERTY_PTR p=i->get_Property();
+				if(p==rdfs::domain::get_property()) result=*b<*a;
+				else if(p==rdfs::range::get_property()||p==rdfs::subClassOf::get_property()||p==rdf::type::get_property()) result=*a<*b;
+			}*/
+		}
+		if(!result) return RESULT();
+		/*
+		*	what if still not bound at this stage? fine
+		*/ 
 	}else{
 		LOG<<"binding R "<<this<<" to `"<<_r->id<<"'"<<endl;
 	}		
 	vector<RESULT> s;
 	unsigned int n=0,m=1;
-	bool temp_bound=false;
+	/*bool temp_bound=false;
 	if(!r){
 		r=_r;
 		temp_bound=true;
 	}	
 	if(!busy){
-		for(vector<verb>::iterator j=verbs.begin();j<verbs.end();++j){
+	*/	for(vector<verb>::iterator j=verbs.begin();j<verbs.end();++j){
 			busy=true;
 			RESULT tmp=j->run(_r);
 			busy=false;
 			if(tmp.empty()){
-				if(temp_bound){
+				/*if(temp_bound){
 					r=SPARQL_RESOURCE_PTR();
 					temp_bound=false;//not needed
-				}
+				}*/
 				return RESULT();
 			}
 			if(tmp.size()==1 && tmp.front().size()==0){
@@ -263,11 +309,12 @@ RESULT subject::run(SPARQL_RESOURCE_PTR _r,PROPERTY_PTR p){//p is not used?
 				s.push_back(tmp);
 			}
 		}
-	}
+	/*}
 	if(temp_bound){
 		r=SPARQL_RESOURCE_PTR();
 		temp_bound=false;//not needed
 	}
+	*/
 	//need to craft a special base_resource::const_instance_iterator where we can fit info about _r
 	//can we stick a SPARQL_RESOURCE_PTR inside a size_t?
 	size_t _id=_r.pool_ptr.index | (_r.index<<(sizeof(_r.pool_ptr.index)<<3));
@@ -526,10 +573,10 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						//optimization: use the properties to restrict search
 						uri u=uri::hash_uri(i->v[0].t.second);
 						//SPARQL_RESOURCE_PTR r=find(uri::hash_uri(i->v[0].t.second));
-						SPARQL_RESOURCE_PTR r=find(u);
+						//SPARQL_RESOURCE_PTR r=find(u);
 						//we should bail out there if not found
-						sbj=new subject(r ? r : base_resource::nil);
-						sbj->u=u;
+						//sbj=new subject(r ? r : base_resource::nil);
+						sbj=new subject(u);
 						index[i->v[0].t.second]=sbj;
 						current_sbj=sbj;
 					}
@@ -538,9 +585,10 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						PREFIX_NS::iterator j=prefix_ns.find(i->v[0].v[0].t.second);
 						if(j!=prefix_ns.end()){
 							uri u(j->second,i->v[0].v[1].t.second);
-							SPARQL_RESOURCE_PTR r=find(u);
-							sbj=new subject(r ? r : base_resource::nil);
-							sbj->u=u;
+							//SPARQL_RESOURCE_PTR r=find(u);
+							//sbj=new subject(r ? r : base_resource::nil);
+							//sbj->u=u;
+							sbj=new subject(u);
 							index[i->v[0].v[0].t.second]=sbj;
 							current_sbj=sbj;
 						}else{
@@ -607,9 +655,10 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						SPARQL_RESOURCE_PTR r;
 						uri u=uri::hash_uri(i->v[0].t.second);
 						//r=find(uri::hash_uri(i->v[0].t.second));
-						r=find(u);
-						subject* object=new subject(r ? r : base_resource::nil );//should get rid of that
-						object->u=u;
+						//r=find(u);
+						//subject* object=new subject(r ? r : base_resource::nil );//should get rid of that
+						//object->u=u;
+						subject* object=new subject(u);
 						//cerr<<"####"<<r<<"\t"<<i->v[0].t.second<<endl;
 						index[i->v[0].t.second]=object;
 						current_sbj->verbs.back().object=object;
@@ -619,9 +668,10 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						PREFIX_NS::iterator j=prefix_ns.find(i->v[0].v[0].t.second);
 						if(j!=prefix_ns.end()){
 							uri u(j->second,i->v[0].v[1].t.second);
-							SPARQL_RESOURCE_PTR r=find(u);
-							subject* object=new subject(r ? r : base_resource::nil);
-							object->u=u;
+							//SPARQL_RESOURCE_PTR r=find(u);
+							//subject* object=new subject(r ? r : base_resource::nil);
+							//object->u=u;
+							subject* object=new subject(u);
 							index[i->v[0].v[0].t.second]=object;
 							current_sbj->verbs.back().object=object;
 						}else{
