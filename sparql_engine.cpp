@@ -1,6 +1,11 @@
 /*
  *	support for entailment?
  *
+ * 	need to find a way to detect when 2 statements share same object
+ *
+ * 	s_0--->O
+ *	       ^
+ *	s_1----+
  */
 #include "sparql_engine.h"
 subject::subject(SPARQL_RESOURCE_PTR r):r(r),is_selected(true),bound(r!=0),is_root(false),busy(false){}
@@ -856,10 +861,20 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 					}
 					break;
 					case turtle_parser::is_a::id:{
-						current_property=begin(sub);//first property is rdf::type
+						current_property=begin(sub);//first property is always rdf::type
 					}break;
 					case turtle_parser::variable::id:{
-						cerr<<"property variable not supported!"<<endl;	
+						cerr<<"property variable: `"<<i->v[0].t.second<<"'"<<endl;
+						auto j=v.find(i->v[0].t.second.substr(1));
+						if(j!=v.end()){
+							current_property=std::find_if(begin(sub),end(sub),match_property(get_resource(j->second)));
+							if(current_property==end(sub)){
+								cerr<<"property `"<<get_resource(j->second)->id<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
+								return false;
+							}
+						}else
+							cerr<<"property variable `"<<i->v[0].t.second<<"' not found"<<endl;	
+							
 					}break;
 					default:return false;
 				}
@@ -873,8 +888,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 
 							}else{
 								istringstream is(i->v[0].v[0].t.second);
-								current_property->add_property(p)->in(is);
-								//could check if any char left in stream
+								current_property->add_property(0)->in(is);
 							}
 						}else{
 							cerr<<"current property `"<<current_property->get_Property()->id<<"' is not literal"<<endl;
@@ -900,7 +914,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 						}else{
 							SPARQL_RESOURCE_PTR r=find(u);
 							if(r){
-								current_property->add_property(p)->set_object(r);
+								current_property->add_property(0)->set_object(r);
 							}else{
 								cerr<<"resource `"<<u<<"' not found"<<endl;
 								return false;
@@ -927,7 +941,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 							}else{
 								SPARQL_RESOURCE_PTR r=find(u);
 								if(r){
-									current_property->add_property(p)->set_object(r);
+									current_property->add_property(0)->set_object(r);
 								}else{
 									cerr<<"resource `"<<u<<"' not found"<<endl;
 									return false;
@@ -942,18 +956,48 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 					case turtle_parser::variable::id:{
 						auto j=v.find(i->v[0].t.second.substr(1));
 						if(j!=v.end()){
-							CONST_RESOURCE_PTR obj=get_resource(j->second);
-							if(do_delete){
-								auto j=current_property->begin();
-								while(j!=current_property->end()){
-									if(j->get_const_object()==obj){
-										sub->erase(j);
-										break;
+							if(current_property.literalp()){
+								if(j->second.literalp()){
+									ostringstream os;
+									os<<*j->second;
+									string object_str=os.str();
+									if(do_delete){
+										auto k=current_property->begin();
+										while(k!=current_property->end()){
+											ostringstream os;
+											os<<*k;
+											if(os.str()==object_str){		
+												sub->erase(k);
+												break;
+											}	
+											++k;
+										}
+									}else{
+										current_property->add_property(0)->set_string(object_str);
 									}	
-									++j;
+								}else{
+									cerr<<"current property `"<<current_property->get_Property()->id<<"' is literal"<<endl;
+									return false;
 								}
 							}else{
-								current_property->add_property(p)->set_object(obj);
+								if(j->second.literalp()){
+									cerr<<"current property `"<<current_property->get_Property()->id<<"' is not literal"<<endl;
+									return false;
+								}else{
+									CONST_RESOURCE_PTR obj=get_resource(j->second);
+									if(do_delete){
+										auto k=current_property->begin();
+										while(k!=current_property->end()){
+											if(k->get_const_object()==obj){
+												sub->erase(k);
+												break;
+											}	
+											++k;
+										}
+									}else{
+										current_property->add_property(0)->set_object(obj);
+									}
+								}
 							}
 						}else
 							cerr<<"object variable `"<<i->v[0].t.second<<"' not found"<<endl;	
@@ -966,3 +1010,29 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 	}
 	return true;
 }
+ostream& operator<<(ostream& os,const RESULT& r){
+	for(auto i=r.begin();i<r.end();++i){
+		for(auto j=i->cbegin();j<i->cend();++j){
+			if((*j)!=base_resource::nil->cbegin()->cbegin()){
+				if(j->get_Property()->get_const<rdfs::range>()==rdfs::XML_Literal::get_class())
+					os<<"XML_Literal ...\t|";
+				else{
+					os<<*j<<"\t|";
+				}
+			}else{
+				os<<"nil\t|";
+			}
+		}
+	}
+	return os;
+}
+typedef vector<vector<SPARQL_RESOURCE_PTR> > RRESULT;//resources only
+ostream& operator<<(ostream& os,const RRESULT& r){
+	for(auto i=r.begin();i<r.end();++i){
+		for(auto j=i->begin();j<i->end();++j){
+			//os<<*j<<"\t|";
+		}
+	}
+	return os;
+}
+
