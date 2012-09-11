@@ -16,6 +16,8 @@
 #include <sstream>
 #include <math.h>
 #include <set>
+#include <assert.h>
+#include <fstream>
 #include "ifthenelse.hpp"
 
 using namespace std;
@@ -75,20 +77,8 @@ using namespace std;
 /*
  * http://en.wikipedia.org/wiki/Jenkins_hash_function
  */
-uint32_t jenkins_one_at_a_time_hash(const char *key, size_t len)
-{
-    uint32_t hash, i;
-    for(hash = i = 0; i < len; ++i)
-    {
-        hash += key[i];
-        hash += (hash << 10);
-        hash ^= (hash >> 6);
-    }
-    hash += (hash << 3);
-    hash ^= (hash >> 11);
-    hash += (hash << 15);
-    return hash;
-}
+
+uint32_t jenkins_one_at_a_time_hash(const char *key, size_t len);
 class param{
 public:
 	void* v;
@@ -100,15 +90,10 @@ public:
 	*	when not writable the allocator should always return 0, and const pointers
 	*	should be used
 	*/ 
-	param(void* v,size_t n,const size_t cell_size,const size_t max_size):v(v),n(n),cell_size(cell_size),max_size(max_size){}
+	param(void* v,size_t n,const size_t cell_size,const size_t max_size);
 	virtual void resize_impl(size_t n)=0;
 	//should be smarter and clip to maximum value
-	void resize(size_t n){
-		if(n<max_size)
-			resize_impl(n);
-		else
-			throw std::runtime_error("maximum pool size reached");
-	}
+	void resize(size_t n);
 };
 
 struct pool{
@@ -125,6 +110,7 @@ struct pool{
 		typedef unsigned short FIELD;
 		FIELD next;
 		FIELD n_cells;
+		info();//:next(0),n_cells(0){}
 	};
 	template<typename T> struct helper{
 		static_assert(sizeof(T)>=sizeof(info),"T smaller than struct info{}");
@@ -141,40 +127,19 @@ struct pool{
 	const size_t type_id;
 	struct match_type_id{
 		const size_t type_id;
-		match_type_id(const size_t type_id):type_id(type_id){}
+		match_type_id(const size_t type_id);
 		template<typename T> bool operator()(const T& t)const{
 			cerr<<type_id<<"=="<<t->type_id<<endl;
 			return t->type_id==type_id;
 		}
 	};
 	param& p;
-	pool(param& p,DESTRUCTOR destructor,size_t type_id):p(p),destructor(destructor),type_id(type_id){
-		info& first=*static_cast<info*>(p.v);
-		info& second=*static_cast<info*>(p.v+p.cell_size);
-		if(first.next==0){
-			first.next=1;
-			first.n_cells=0;
-		}
-		cerr<<"new pool "<<this<<" "<<(size_t)first.n_cells<<" out of "<<p.n<<" cells used type_id:"<<type_id<<" max_size:"<<p.max_size<<" hash:"<<hash()<<endl;
-	}
-	uint32_t hash() const{return jenkins_one_at_a_time_hash((char*)p.v,p.n);}
+	pool(param& p,DESTRUCTOR destructor,size_t type_id);
+	uint32_t hash() const;
 	//never called
-	virtual ~pool(){
-		cerr<<"~hash: "<<hash()<<" "<<this<<endl;
-	}
+	virtual ~pool();
 	//we still need this 
-	size_t allocate(){
-		info& first=*static_cast<info*>(p.v);
-		info& current=*static_cast<info*>(p.v+first.next*p.cell_size);
-		size_t i=first.next;
-		if(current.next==0)
-			first.next++;
-		else
-			first.next=current.next;
-		first.n_cells++;
-		cerr<<"allocate cell at index "<<i<<"{"<<(p.v+i*p.cell_size)<<"} in pool "<<this<<endl;
-		return i;	
-	}
+	size_t allocate();
 	//typed version is safer and cleaner
 	template<typename T> size_t allocate_t(){
 		auto v=static_cast<helper<T>*>(p.v);
@@ -198,33 +163,8 @@ struct pool{
 	}
 	//we can choose the pointer value
 	//do not mix allocate_at() with allocate() !
-	size_t allocate_at(size_t i){
-		info& first=*static_cast<info*>(p.v);
-		cerr<<"allocate cell at set index "<<i<<"{"<<p.v+i*p.cell_size<<"} in pool "<<this<<endl;
-		assert(i<p.n);
-		//that is not correct: keeps increasing counter even if previously occupied
-		//should only allowed on non persistent store
-		first.n_cells++;
-		return i;	
-	}
-	void deallocate(size_t i){
-		//assume only 1 cell allocated
-		cerr<<"deallocate cell at index "<<i<<" in pool "<<this<<endl;
-		info& first=*static_cast<info*>(p.v);
-		info& current=*static_cast<info*>(p.v+i*p.cell_size);
-		//keep linked list of empty cells ordered for iterator
-		//it does not work, not really in order, will cause problems in iterator!
-		//need to clear the memory 
-		if(i<first.next){
-			current.next=first.next;
-			first.next=i;
-		}else{
-			info& second=*static_cast<info*>(p.v+first.next*p.cell_size);
-			current.next=second.next;
-			second.next=i;
-		}
-		first.n_cells--;
-	}
+	size_t allocate_at(size_t i);
+	void deallocate(size_t i);
 	template<typename T> void deallocate_t(size_t i){
 		auto v=static_cast<helper<T>*>(p.v);
 		cerr<<"deallocate cell at index "<<i<<" in pool "<<this<<endl;
@@ -238,11 +178,9 @@ struct pool{
 		}
 		v[0].n_cells()--;
 	}
-	void* get(size_t i){
-		return p.v+i*p.cell_size;
-	}
+	void* get(size_t i);
 	//could use function pointer:allocate, deallocate,...
-	size_t get_size()const{return static_cast<info*>(p.v)->n_cells;}
+	size_t get_size()const;
 	//we need to pass information about the pointer to the store
 	template<typename P> static pool* get_instance(){
 		typedef typename P::STORE STORE;
@@ -259,11 +197,7 @@ struct pool{
  	*	the problem is that an empty cell still needs an iterator to the next empty cell.
  	*	only one bit would be enough
  	*/ 
-	static bool TEST(const pool& p){
-		//tricky because it might be all zeroes, we can not use p.p because it is a reference
-		//problem classes without instances (literal) won't show up here
-		return p.type_id;//good because the type_id can not be 0
-	}
+	static bool TEST(const pool& p);
 	//P must be a pseudo_ptr	
 	template<typename P> struct iterator{
 		typedef P value_type;	
@@ -331,27 +265,11 @@ struct pool_array{
  	* 	more than one pool per type possible
  	*/
 	const size_t type_id;
-	pool_array(param& p,DESTRUCTOR destructor,size_t type_id):p(p),destructor(destructor),type_id(type_id){
-		info& first=*static_cast<info*>(p.v);
-		info& second=*static_cast<info*>(p.v+p.cell_size);
-		if(first.n_cells==0){
-			first.next=1;
-			//only used when using allocate_t(int)
-			second.next=0;
-			second.cell_size=p.n-1;	
-		}
-		cerr<<"new pool_array "<<this<<" "<<(size_t)first.n_cells<<" out of "<<p.n<<" cells used type_id:"<<type_id<<" max_size:"<<p.max_size<<" hash:"<<hash()<<endl;
-	}
-	static bool TEST(const pool_array& p){
-		//tricky because it might be all zeroes, we can not use p.p because it is a reference
-		//problem classes without instances (literal) won't show up here
-		return p.type_id;//good because the type_id can not be 0
-	}
-	uint32_t hash() const{return jenkins_one_at_a_time_hash((char*)p.v,p.n);}
+	pool_array(param& p,DESTRUCTOR destructor,size_t type_id);
+	static bool TEST(const pool_array& p);
+	uint32_t hash() const;
 	//never called
-	virtual ~pool_array(){
-		cerr<<"~hash: "<<hash()<<" "<<this<<endl;
-	}
+	virtual ~pool_array();
 	template<typename T> size_t allocate_t(size_t n){
 		auto v=static_cast<helper<T>*>(p.v);
 		size_t i=help_allocate_t<T>(v[0].next(),n);
@@ -410,11 +328,9 @@ struct pool_array{
 		v[0].next()=index;
 		v[0].n_cells()-=n;
 	}
-	void* get(size_t i){
-		return p.v+i*p.cell_size;
-	}
+	void* get(size_t i);
 	//could use function pointer:allocate, deallocate,...
-	size_t get_size()const{return static_cast<info*>(p.v)->n_cells;}
+	size_t get_size()const;
 	//we need to pass information about the pointer to the store
 	template<typename P> static pool_array* get_instance(){
 		typedef typename P::STORE STORE;
@@ -423,15 +339,23 @@ struct pool_array{
 	}
 
 };
-
+/*
 struct empty_store{//for classes with no instance
 	enum{N=0};
+};
+*/
+struct empty_store:public param{//for classes with no instance
+	enum{N=0};
+	//it needs to have a minimum size
+	empty_store();
+	template<typename P> static param* go(){return new empty_store();}
+	virtual void resize_impl(size_t);
 };
 class free_store:public param{
 public:
 	enum{N=1};
 	enum{SIZE=256};//minimum size required for 8bit hash
-	free_store(void* v,size_t n,const size_t cell_size,const size_t max_size):param(v,n,cell_size,max_size){}
+	free_store(void* v,size_t n,const size_t cell_size,const size_t max_size);
 	template<typename P> static free_store* go(){
 		char* v=new char[SIZE*sizeof(typename P::value_type)];
 		memset(v,0,SIZE*sizeof(typename P::value_type));
@@ -439,18 +363,7 @@ public:
 		return new free_store(v,SIZE,sizeof(typename P::value_type),1L<<(sizeof(typename P::INDEX)<<3));
 	}
 	//_n new number of cells
-	virtual void resize_impl(size_t _n){
-		//let's just grow for now	
-		if(_n>n){
-			char* _v=new char[_n*cell_size];
-			memcpy(_v,v,n*cell_size);
-			memset(_v+n*cell_size,0,(_n-n)*cell_size);
-			delete[] v;
-			v=_v;
-			n=_n;
-		}
-	}
-	
+	virtual void resize_impl(size_t _n);
 };
 template<typename T> struct name;//{static const string get(){return "none";}};
 template<> struct name<pool>{static const string get(){return "pool";}};
@@ -466,21 +379,22 @@ public:
 	//how to add support for read-only file?
 	int fd;
 	size_t file_size;//not really needed, we could just stat
-	persistent_store(void* v,size_t n,const size_t cell_size,const size_t max_size,int fd,size_t file_size):param(v,n,cell_size,max_size),fd(fd),file_size(file_size){}
-	~persistent_store(){
-		if(munmap(v,file_size)){
-			cerr<<"munmap failed"<<endl;
-			exit(EXIT_FAILURE);
-		}
-	}
+	persistent_store(void* v,size_t n,const size_t cell_size,const size_t max_size,int fd,size_t file_size);
+	~persistent_store();
 	template<typename P> static persistent_store* go(){
 		/*
  		* should add ascii file with version information, that number could come from git
 		* to build compatible executable
 		*/ 
-		string filename="db/"+name<typename P::value_type::SELF>::get();//prevents from using with other type!
+		char* db=getenv("OBJRDF_DB");
+		string db_path=db? db : "db";
+		string filename=db_path+"/"+name<typename P::value_type::SELF>::get();//prevents from using with other type!
 		cerr<<"opening file `"<<filename<<"'"<<endl;
-		int fd = open(filename.c_str(), O_RDWR | O_CREAT/* | O_TRUNC*/, (mode_t)0600);
+		//int fd = open(filename.c_str(), O_RDWR | O_CREAT/* | O_TRUNC*/, (mode_t)0600);
+		/*
+ 		*	should still work if file read-only
+ 		*/ 
+		int fd = open(filename.c_str(), O_RDONLY | O_CREAT/* | O_TRUNC*/, (mode_t)0600);
 		if (fd == -1) {
 			cerr<<"\nError opening file `"<<filename<<"' for writing"<<endl;
 			exit(EXIT_FAILURE);
@@ -513,7 +427,8 @@ public:
 		}else{
 			file_size=s.st_size;
 		}
-		void* v = mmap((void*)NULL,file_size,PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+		//void* v = mmap((void*)NULL,file_size,PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+		void* v = mmap((void*)NULL,file_size,PROT_READ /*| PROT_WRITE*/, MAP_SHARED, fd, 0);
 		cerr<<"new mapping at "<<v<<" size:"<<file_size<<endl;
 		if (v == MAP_FAILED) {
 			close(fd);
@@ -524,60 +439,7 @@ public:
 		cerr<<"max_size:"<<sizeof(typename P::INDEX)<<"\t"<<(1L<<(sizeof(typename P::INDEX)<<3))<<endl;
 		return new persistent_store(v,n_cell,sizeof(typename P::value_type),1L<<(sizeof(typename P::INDEX)<<3),fd,file_size);
 	}
-	virtual void resize_impl(size_t _n){
-		if(_n>n){
-			size_t n_page=max<size_t>(ceil((double)(cell_size*_n)/PAGE_SIZE),1);
-			size_t _file_size=n_page*PAGE_SIZE;
-			if(_file_size>file_size){
-				//grow the file
-				/*if(munmap(v,file_size)){
-					cerr<<"munmap failed"<<endl;
-					exit(EXIT_FAILURE);
-				}
-				*/
-				//system call
-				//system("cp db/sat_C db/sat_C.old");		
-				int result = lseek(fd,_file_size-1, SEEK_SET);
-				if (result == -1) {
-					close(fd);
-					cerr<<"Error calling lseek() to 'stretch' the file"<<endl;
-					exit(EXIT_FAILURE);
-				}
-				result = write(fd, "", 1);
-				if (result != 1) {
-					close(fd);
-					cerr<<"Error writing last byte of the file"<<endl;
-					exit(EXIT_FAILURE);
-				}
-				/*
-				result = msync(v,file_size,MS_SYNC);
-				if (result != 0){
-					cerr<<"Error synchronizing"<<endl;
-					exit(EXIT_FAILURE);
-				}
-				*/
-				/*
-				v = (char*)mmap((void*)NULL,_file_size,PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-				if (v == MAP_FAILED) {
-					close(fd);
-					cerr<<"Error mmapping the file"<<endl;
-					exit(EXIT_FAILURE);
-				}
-				cerr<<"new mapping at "<<v<<" size:"<<_file_size<<endl;
-				*/
-				void* _v=(char*)mremap(v,file_size,_file_size,MAP_SHARED,MREMAP_MAYMOVE);
-				if (_v == MAP_FAILED) {
-					close(fd);
-					cerr<<"Error mremapping the file"<<endl;
-					exit(EXIT_FAILURE);
-				}
-				v=_v;
-				cerr<<"new mapping at "<<v<<" size:"<<_file_size<<endl;
-				file_size=_file_size;
-				n=file_size/cell_size;
-			}
-		}
-	}
+	virtual void resize_impl(size_t _n);
 };
 template<typename T> struct const_test{enum{N=0};};
 template<typename T> struct const_test<const T>{enum{N=1};};
@@ -671,13 +533,37 @@ struct pseudo_ptr_pool{
 		return p;
 	}
 	*/
+	/*
+	template<
+		typename VALUE_TYPE,
+		typename OTHER_STORE=typename VALUE_TYPE::STORE
+	> struct find_impl{
+		static pseudo_ptr_pool go(){
+			auto i=find_if(get_pool()->template begin<pseudo_ptr_pool>(),get_pool()->template end<pseudo_ptr_pool>(),pool::match_type_id(get_type_id<VALUE_TYPE>()));
+			pseudo_ptr_pool p=(i==get_pool()->template end<pseudo_ptr_pool>()) ? allocate() : *i;
+			//problem here could also be pseudo_ptr_array, need to investigate
+			//even if we find it we need to override it because of stale pointers
+			new(p)POOL(*OTHER_STORE::template go<pseudo_ptr<VALUE_TYPE,OTHER_STORE,false,uint16_t>>(),destructor<VALUE_TYPE>,get_type_id<VALUE_TYPE>());
+			return p;
+		}
+	};
+	template<
+		typename VALUE_TYPE
+	>struct find_impl<VALUE_TYPE,empty_store>{
+		static pseudo_ptr_pool go(){
+			auto i=find_if(get_pool()->template begin<pseudo_ptr_pool>(),get_pool()->template end<pseudo_ptr_pool>(),pool::match_type_id(get_type_id<VALUE_TYPE>()));
+			return (i==get_pool()->template end<pseudo_ptr_pool>()) ? allocate() : *i;
+		}
+	};
+	template<typename VALUE_TYPE> static pseudo_ptr_pool find(){return find_impl<VALUE_TYPE>::go();}
+	*/
 	template<typename VALUE_TYPE> static pseudo_ptr_pool find(){
 		typedef typename VALUE_TYPE::STORE OTHER_STORE;
- 		//look-up by type_id
 		auto i=find_if(get_pool()->template begin<pseudo_ptr_pool>(),get_pool()->template end<pseudo_ptr_pool>(),pool::match_type_id(get_type_id<VALUE_TYPE>()));
-		//even if we find it we need to override it because of stale pointers
 		pseudo_ptr_pool p=(i==get_pool()->template end<pseudo_ptr_pool>()) ? allocate() : *i;
 		//problem here could also be pseudo_ptr_array, need to investigate
+		//what if OTHER_STORE=empty_store, we should just skip
+		//even if we find it we need to override it because of stale pointers
 		new(p)POOL(*OTHER_STORE::template go<pseudo_ptr<VALUE_TYPE,OTHER_STORE,false,uint16_t>>(),destructor<VALUE_TYPE>,get_type_id<VALUE_TYPE>());
 		return p;
 	}
@@ -734,6 +620,7 @@ typedef pseudo_ptr_pool<
  *	hash collision
  *
  */
+/*
 template<
 	typename T,
 	typename _INDEX_
@@ -743,7 +630,7 @@ template<
 		return p;
 	}
 }; 
-
+*/
 template<typename S,typename T> struct is_derived{enum{value=false};};
 template<typename S> struct is_derived<S,S>{enum{value=true};};	
 /*
@@ -791,6 +678,7 @@ template<
 		//we can make it safe but should be optional 
 		//static_assert(is_derived<S,T>::value||is_derived<T,S>::value,"types are not related");
 		//only if p.index!=0
+		//the problem is that we need one null pointer for each type
 		assert(p.pool_ptr==get_pool()||index==0);
 	} 
 	//cast away constness, should be used with care
@@ -937,6 +825,7 @@ struct pseudo_ptr<T,_STORE_,true,_INDEX_>{
 		typedef typename IfThenElse<a||b,pseudo_ptr,T>::ResultT::STORE A;
 		typedef typename IfThenElse<a||b,pseudo_ptr,S>::ResultT::STORE B;
 		static_assert(is_derived<typename S::SELF,typename T::SELF>::value||is_derived<typename T::SELF,typename S::SELF>::value,"types are not related");
+		//does not prevent unrelated types
 	}
 	template<
 		typename S,
