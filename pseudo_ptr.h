@@ -85,12 +85,12 @@ public:
 	size_t n;
 	const size_t cell_size;
 	const size_t max_size;//based on pointer size
+	const bool writable;
 	/*
-	*	const bool writable;
 	*	when not writable the allocator should always return 0, and const pointers
 	*	should be used
 	*/ 
-	param(void* v,size_t n,const size_t cell_size,const size_t max_size);
+	param(void* v,size_t n,const size_t cell_size,const size_t max_size,const bool writable=true);
 	virtual void resize_impl(size_t n)=0;
 	//should be smarter and clip to maximum value
 	void resize(size_t n);
@@ -379,24 +379,29 @@ public:
 	//how to add support for read-only file?
 	int fd;
 	size_t file_size;//not really needed, we could just stat
-	persistent_store(void* v,size_t n,const size_t cell_size,const size_t max_size,int fd,size_t file_size);
+	persistent_store(void* v,size_t n,const size_t cell_size,const size_t max_size,const bool writable,int fd,size_t file_size);
 	~persistent_store();
 	template<typename P> static persistent_store* go(){
 		/*
  		* should add ascii file with version information, that number could come from git
 		* to build compatible executable
 		*/ 
+		bool writable=true;
 		char* db=getenv("OBJRDF_DB");
 		string db_path=db? db : "db";
 		string filename=db_path+"/"+name<typename P::value_type::SELF>::get();//prevents from using with other type!
-		cerr<<"opening file `"<<filename<<"'"<<endl;
-		//int fd = open(filename.c_str(), O_RDWR | O_CREAT/* | O_TRUNC*/, (mode_t)0600);
+		cerr<<"opening file `"<<filename<<"' O_RDWR"<<endl;
+		int fd = open(filename.c_str(), O_RDWR | O_CREAT/* | O_TRUNC*/, (mode_t)0600);
+		if(fd ==-1){
+			cerr<<"opening file `"<<filename<<"' O_RDONLY"<<endl;
+			fd = open(filename.c_str(), O_RDONLY/* | O_TRUNC*/, (mode_t)0600);
+			writable=false;
+		}
 		/*
  		*	should still work if file read-only
  		*/ 
-		int fd = open(filename.c_str(), O_RDONLY | O_CREAT/* | O_TRUNC*/, (mode_t)0600);
 		if (fd == -1) {
-			cerr<<"\nError opening file `"<<filename<<"' for writing"<<endl;
+			cerr<<"\nError opening file `"<<filename<<"' for writing or reading"<<endl;
 			exit(EXIT_FAILURE);
 		}
 		//set the size
@@ -427,8 +432,7 @@ public:
 		}else{
 			file_size=s.st_size;
 		}
-		//void* v = mmap((void*)NULL,file_size,PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-		void* v = mmap((void*)NULL,file_size,PROT_READ /*| PROT_WRITE*/, MAP_SHARED, fd, 0);
+		void* v = writable ? mmap((void*)NULL,file_size,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0) : mmap((void*)NULL,file_size,PROT_READ,MAP_SHARED,fd,0);
 		cerr<<"new mapping at "<<v<<" size:"<<file_size<<endl;
 		if (v == MAP_FAILED) {
 			close(fd);
@@ -437,7 +441,7 @@ public:
 		}
 		size_t n_cell=file_size/sizeof(typename P::value_type);
 		cerr<<"max_size:"<<sizeof(typename P::INDEX)<<"\t"<<(1L<<(sizeof(typename P::INDEX)<<3))<<endl;
-		return new persistent_store(v,n_cell,sizeof(typename P::value_type),1L<<(sizeof(typename P::INDEX)<<3),fd,file_size);
+		return new persistent_store(v,n_cell,sizeof(typename P::value_type),1L<<(sizeof(typename P::INDEX)<<3),writable,fd,file_size);
 	}
 	virtual void resize_impl(size_t _n);
 };
