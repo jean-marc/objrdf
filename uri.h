@@ -30,8 +30,15 @@ namespace objrdf{
 		static void print();
 		static void ns_declaration(ostream& os);
 		static void ns_declaration_pretty(ostream& os);
-		void to_uri(ostream& os);
+		void to_uri(ostream& os) const;
+		#ifdef PERSISTENT
+		uri(const uri& u);
+		uri& operator=(const uri& u);
+		enum{STR_SIZE=16};
+		char local[STR_SIZE];	
+		#else
 		const string local;
+		#endif
 	private:
 		//make sure all prefixes are different
 		static void check();
@@ -46,6 +53,7 @@ namespace objrdf{
  		*	and disregard prefix	
  		*
  		*/ 
+	public:
 		static vector<ns_prefix>& ns_v();
 		short index;
 	};
