@@ -9,43 +9,55 @@
  *	it could also be combined with monitoring system but then needs to be made secure because will
  *	be on-line, we could tunnel through ssh
  *	need to be able to dump to RDF anytime for back-up and schema upgrade
+ *	need to have generic schema defined in a library
  */
 #include "objrdf.h"
 #include "sparql_engine.h"
 #include "httpd.h"
+#include "geo.h"
 #include "rdf_xml_parser.h"
-//#include "rdf_xml_parser.h"
 using namespace objrdf;
 
 RDFS_NAMESPACE("http://www.example.org/inventory#","inv")
 
 typedef persistent_store STORE;
-CLASS(Site,std::tuple<>);
-PROPERTY(located,pseudo_ptr<Site,STORE>);
-CLASS(Organization,std::tuple<>);
 
+CLASS(Organization,std::tuple<>);
+PROPERTY(organization,pseudo_ptr<Organization,STORE>);
+//CLASS(Site,std::tuple<organization>);
+DERIVED_CLASS(Site,geo::Point,std::tuple<organization>);
+PROPERTY(located,pseudo_ptr<Site,STORE>);
 //maybe should use friend of a friend ontology for people
 //people
 PROPERTY(phone,long);
 //typedef located site;//alias does not work!
 PROPERTY(site,pseudo_ptr<Site,STORE>);
+//not quite ready yet
+//CLASS(Person,std::tuple<array<phone,STORE>,site>);// template array<> is broken with literal properties
 CLASS(Person,std::tuple<phone,site>);
 PROPERTY(status,int);//needs to be developed: working/not working,...history
-PROPERTY(mac,long);//MAC address 48 bytes
+PROPERTY(_mac_,long);//MAC address 48 bytes
+struct mac:_mac_{
+	void in(istream& is){is>>hex>>t>>dec;}
+	void out(ostream& os) const{os<<hex<<t<<dec;}
+};
 /*
  *	a server can send an update based on its own mac address and the one returned by arp
  *	
  *	insert data {?x :status 1 .} where {?x :mac 00:11:22:33:44:55 .}
- *	insert data {?x :status 1 .} where {?x :mac 00:11:22:33:44:55 .}
- *	insert data {?x :status 1 .} where {?x :mac 00:11:22:33:44:55 .}
- *	insert data {?x :status 1 .} where {?x :mac 00:11:22:33:44:55 .}
  */
 //would be nice to know where a piece of equipment has been, also to know if it has been serviced
 //history is a linked-list (how does git work?)
-//what if it's in storage, we define a special set?
+CLASS(Manufacturer,std::tuple<>);
+PROPERTY(manufacturer,pseudo_ptr<Manufacturer,STORE,false>);
+CLASS(Model,std::tuple<manufacturer>);
+PROPERTY(model,pseudo_ptr<Model,STORE,false>);
 CLASS(Set,std::tuple<located/*,array<part>*/>);
 PROPERTY(partOf,pseudo_ptr<Set,STORE,true>);
-CLASS(Equipment,std::tuple<partOf,status>);
+/*
+ *	we could have manufacturer & model but it could become inconsistent, so only model is used
+ */
+CLASS(Equipment,std::tuple<partOf,model,status>);
 //PROPERTY(part,pseudo_ptr<Equipment,STORE>);
 //a digital doorway or a drum could be considered a Set
 //could also see a set as a Bag of equipment, using RDF semantic
@@ -54,8 +66,6 @@ DERIVED_CLASS(DDoorway,Set,std::tuple<>);
 DERIVED_CLASS(DDrum,Set,std::tuple<>);
 DERIVED_CLASS(Uniport,Set,std::tuple<>);
 DERIVED_CLASS(Kiosk,Set,std::tuple<>);
-//mac address property 11:22:33:44:55:66
-//48bit so we can use long
 
 //equipment
 /*what kind of ID shall we use? 
@@ -73,17 +83,25 @@ DERIVED_CLASS(Kiosk,Set,std::tuple<>);
 *
 * serial number? useful when dealing with manufacturer
 */
-DERIVED_CLASS(Drive,Equipment,std::tuple<>);//information about OS/software version
+CLASS(Version,std::tuple<>);
+//PROPERTY(version,pseudo_ptr<base_resource>);//most general
+PROPERTY(version,pseudo_ptr<Version>);//most general
+DERIVED_CLASS(Drive,Equipment,std::tuple<version>);//information about OS/software version
 //could define versions with some explanations and link to them
 //eg ubuntu-desktop-11.10-amd64
-DERIVED_CLASS(Laptop,Equipment,std::tuple<>);
-DERIVED_CLASS(Server,Equipment,std::tuple<>);
+DERIVED_CLASS(Laptop,Equipment,std::tuple<mac>);
+DERIVED_CLASS(Server,Equipment,std::tuple<mac>);
 DERIVED_CLASS(UPS,Equipment,std::tuple<>);
 PROPERTY(sim,char[20]);
 DERIVED_CLASS(Modem,Equipment,std::tuple<sim>);
-//need to keep track of batteries
-
-int main(){
+PROPERTY(power,int);
+PROPERTY(voltage,int);
+DERIVED_CLASS(PV_panel,Equipment,std::tuple<power,voltage>);
+//need to keep track of batteries, also used to give unique ID because they don't come with s/n
+DERIVED_CLASS(Battery,Equipment,std::tuple<>);
+DERIVED_CLASS(Charge_Controller,Equipment,std::tuple<>);
+DERIVED_CLASS(Relay_Driver,Equipment,std::tuple<>);
+int main(int argc,char* argv[]){
 	Site::get_class();
 	Person::get_class();
 	Set::get_class();
@@ -97,15 +115,24 @@ int main(){
 	Server::get_class();
 	UPS::get_class();
 	Modem::get_class();	
-	cerr<<"parsing!"<<endl;
-	rdf_xml_parser r(cin);
-	r.go();
-	/*
-	//start web server
+	PV_panel::get_class();
+	Battery::get_class();
+	Charge_Controller::get_class();
+	Relay_Driver::get_class();
+	Organization::get_class();
+	Model::get_class();	
+	for(int i=1;i<argc;++i){
+		ifstream in(argv[i]);
+		rdf_xml_parser r(in);
+		cerr<<"parsing file `"<<argv[1]<<"'"<<endl;
+		r.go();
+	}
 	to_rdf_xml(cout);
+	//start web server
 	objrdf::httpd h;
-	h.start();
-	
+	h.run();
+	/*
+	//h.start();
 	cin.exceptions(iostream::eofbit);
 	sparql_parser sp(std::cin);
 	bool r=sp.go();
@@ -117,7 +144,6 @@ int main(){
 		exit(1);
 	}
 	*/
-
 };
 
 
