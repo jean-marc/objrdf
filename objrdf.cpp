@@ -1,12 +1,16 @@
 #include "objrdf.h"
 #include <sstream>
 #include <algorithm>
+#include <fstream>
 namespace objrdf{
 	//color scheme in bash, could be customized by namespace
 	char start_id[]="\033[32m";
 	char stop_id[]="\033[m";
 }
 using namespace objrdf;
+
+template<> void f_ptr::constructor<rdfs::Class>(void* p,uri u){assert(0);}
+template<> void f_ptr::constructor<rdf::Property>(void* p,uri u){assert(0);}
 
 name_p::name_p(uri n):n(n){}
 bool name_p::operator()(const property_info& p) const{return p.p->id==n;}
@@ -33,6 +37,11 @@ void base_resource::erase(instance_iterator position){
 }
 void base_resource::get_output(ostream& os) const{
 	//what would be most appropriate HTTP message?	
+}
+
+base_resource::instance_iterator operator+(const base_resource::instance_iterator& a,const unsigned int& b){
+	base_resource::instance_iterator tmp(a);
+	return tmp+=b;
 }
 struct cmp_uri{
 	uri u;
@@ -70,8 +79,7 @@ bool rdfs::Class::is_subclass_of(const Class& c) const{
 bool rdfs::Class::literalp() const{
 	return *rdf::Literal::get_class()<*this;
 }
-void rdfs::Class::analyze(){
-};
+void rdfs::Class::analyze(){};
 CLASS_PTR base_resource::get_class(){
 	static CLASS_PTR p=CLASS_PTR::construct_at(
 		POOL_PTR::help<base_resource>().index,
@@ -85,8 +93,7 @@ CLASS_PTR base_resource::get_class(){
 			f_ptr::cend<base_resource>
 		)			
 		,get_comment()
-		);
-	//);
+	);
 	return p;
 }
 rdf::Property::Property(objrdf::uri id):SELF(id),literalp(true){
@@ -95,20 +102,18 @@ rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp):rdf::P
 	cerr<<"creating Property "<<id<<" ref count:"<<n<<" range:"<<r->id<<" range ref count:"<<r->n<<endl;
 	get<rdfs::range>()=r;
 }
-base_resource::instance_iterator rdf::Property::get_self_iterator(){
-	//should do a static request
-	auto i=find_if(begin(),end(),match_property(p_self::get_property()));
-	assert(i!=end());
-	return i->begin();
-}
-base_resource::const_instance_iterator rdf::Property::get_const_self_iterator() const{
-	auto i=find_if(cbegin(),cend(),match_property(p_self::get_property()));
-	assert(i!=cend());
-	return i->cbegin();
-}
-PROPERTY_PTR rdf::Property::nil=PROPERTY_PTR(PROPERTY_PTR::pointer::construct(uri("nil_p")));
-V base_resource::v=get_generic_property<base_resource>::go();
+/*
+ *	problem: no garbage collection so a new resource `nil' is created at each run, creating duplicates 
+ *	one solution is to not persist base_resources but we might need them as cheap symbols 
+ *
+ */
+
 CONST_RESOURCE_PTR base_resource::nil=CONST_RESOURCE_PTR::construct(uri("nil"));
+
+PROPERTY_PTR rdf::Property::nil=PROPERTY_PTR(PROPERTY_PTR::pointer::construct(uri("nil_p")));
+PROPERTY_PTR rdf::Property::rdfs_member=rdfs::member::get_property();
+
+V base_resource::v=get_generic_property<base_resource>::go();
 PROPERTY_PTR base_resource::instance_iterator::get_Property() const{return i->p;}
 PROPERTY_PTR base_resource::const_instance_iterator::get_Property() const{return i->p;}
 
@@ -140,13 +145,18 @@ RESOURCE_PTR base_resource::instance_iterator::get_object() const{
 	return std::get<3>(i->t)(subject,index);
 }
 CONST_RESOURCE_PTR base_resource::instance_iterator::get_const_object() const{
-	return std::get<4>(i->t)(subject,index);
+	return std::get<4>(i->t)(subject,CONST_RESOURCE_PTR(),index);
 }
 CONST_RESOURCE_PTR base_resource::const_instance_iterator::get_const_object() const{
-	return std::get<4>(i->t)(subject,index);
+	assert(std::get<4>(i->t));
+	return std::get<4>(i->t)(subject,alt_subject,index);
 }
 void base_resource::instance_iterator::set_object(RESOURCE_PTR r){
-	std::get<5>(i->t)(subject,r,index);
+	/*
+ 	*	if r=base_resource::nil it should be converted to RESOURCE_PTR(0)
+ 	*/ 
+	//std::get<5>(i->t)(subject,r,index);
+	std::get<5>(i->t)(subject,base_resource::nil==r ? RESOURCE_PTR(0) : r,index);
 }
 PROVENANCE base_resource::instance_iterator::get_provenance() const{
 	return std::get<9>(i->t)(subject,index);
@@ -156,7 +166,7 @@ PROVENANCE base_resource::const_instance_iterator::get_provenance() const{
 }
 base_resource::instance_iterator base_resource::type_iterator::add_property(PROVENANCE p){
 	#ifdef OBJRDF_VERB
-	cerr<<"add_property:"<<p<<endl;
+	cerr<<"add_property with provenance "<<(int)p<<endl;
 	#endif
 	//awkward
 	std::get<7>(static_cast<V::iterator>(*this)->t)(subject,p);
@@ -237,11 +247,15 @@ namespace objrdf{
 	base_resource::type_iterator end(RESOURCE_PTR r){return std::get<2>(get_class(r)->t)(r);}
 	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return std::get<3>(get_class(r)->t)(r);}
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r){return std::get<4>(get_class(r)->t)(r);}
+	base_resource::const_instance_iterator get_const_self_iterator(CONST_RESOURCE_PTR r){
+		return base_resource::const_instance_iterator(r,r,base_resource::v.cbegin()+2,0);
+	}
 	void to_rdf_xml(CONST_RESOURCE_PTR r,ostream& os){
 		os<<"\n<"<<get_class(r)->id<<" "<<(r->id.is_local() ? rdf::ID : rdf::about)<<"='";
 		r->id.to_uri(os);
 		os<<"'>";
-		for(auto i=++cbegin(r);i!=cend(r);++i){//skip first property rdf::type
+		//for(auto i=++cbegin(r);i!=cend(r);++i){//skip first property rdf::type
+		for(auto i=cbegin(r);i!=cend(r);++i){//skip first property rdf::type
 			for(base_resource::const_instance_iterator j=i->cbegin();j!=i->cend();++j){
 				//should test if constant or not
 				if(i->literalp())
@@ -313,7 +327,74 @@ void base_resource::to_xml(ostream& os){
 	}
 	os<<"</"<<get_Class()->id<<">";
 }
+void objrdf::to_rdf_xml(ostream& os){
+	os<<"<?xml version='1.0'?>\n";
+	os<<"<"<<rdf::_RDF<<"\n";
+	uri::ns_declaration(os);
+	//we need xml:base declaration
+	os<<"xml:base='http://inventory.unicefuganda.org/'"<<endl;
+	os<<">";
+	for(auto i=objrdf::begin();i<objrdf::end();++i){
+		/*
+		*	should throw if the class is not defined
+		*/ 
+		cerr<<"reading pool `"<<CLASS_PTR(i.index)->id<<"'"<<endl;
+		assert(CLASS_PTR(i.index)->id.local[0]);
+		for(auto j=i.begin();j<i.end();++j){
+			to_rdf_xml(*j,os);
+		}
+		os<<endl;
+	}
+	os<<"\n</"<<rdf::_RDF<<">\n";
+}
+//dumb scanner
+CONST_RESOURCE_PTR objrdf::find(uri u){
+	cerr<<"looking up uri `"<<u<<"'...";
+	for(auto i=objrdf::begin();i<objrdf::end();++i){
+		for(auto j=i.begin();j<i.end();++j){
+			if((*j)->id==u){
+				cerr<<"found"<<endl;	
+				return *j;
+			}
+		}
+	}	
+	cerr<<"not found"<<endl;	
+	return CONST_RESOURCE_PTR();
+}
+RESOURCE_PTR objrdf::create_by_type(CLASS_PTR c,uri id){
+	POOL_PTR p(c.index);
+	/*
+	* we have to make sure it points to a valid pool
+	* is there anyway we could construct the pool on the fly?
+	* 	we only need to know the store:
+	*	template<
+	*		typename T,
+	*		typename STORE=free_store,	//free store or persistent, could also have no store
+	*		bool POLYMORPHISM=false,	//does not support derived types
+	*		typename _INDEX_=uint16_t	//can address 2^16 objects
+	*	> struct pseudo_ptr
+	* currently the Class only contains reference to the constructor, no information about allocator
+	*/
+	//can get rid of that now
+	assert(p->type_id);
+	//get a generic pointer
+	//should not allocate if constructor not defined???
+	//constructor always defined, just does not do anything sometime
+	RESOURCE_PTR rp(p->allocate(),p);
+	//invoke constructor
+	std::get<0>(c->t)(rp,id);
+	return rp;
+}
+RESOURCE_PTR objrdf::create_by_type(uri type,uri id){
+	CLASS_PTR c=find_t<CLASS_PTR>(type);
+	return c ? objrdf::create_by_type(c,id) : RESOURCE_PTR();
+}
+pool_iterator objrdf::begin(){return pool_iterator(::begin<POOL_PTR>());}
+pool_iterator objrdf::end(){return pool_iterator(::end<POOL_PTR>());}
+
+
+
 /*
 int main(){
-	rdfs::Class::get_class()->to_turtle(cout);
+rdfs::Class::get_class()->to_turtle(cout);
 }*/

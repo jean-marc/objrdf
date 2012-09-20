@@ -23,25 +23,21 @@ template<typename T> vector<T> concat(/*const*/ vector<T>& a,const vector<T>& b)
 	return a;
 }
 #define PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<rdfs_namespace,_##n,__VA_ARGS__> n
-#define _PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
+//property that exists in the objrdf namespace
+#define OBJRDF_PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
 //#define __PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
 #define CLASS(n,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__> n
 #define DERIVED_CLASS(n,BASE,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__,objrdf::NIL,BASE> n
-//
 /*
-#define CLASS0(n) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<>> n
-#define CLASS1(n,p0) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0>> n
-#define CLASS2(n,p0,p1) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0,p1>> n
-#define CLASS3(n,p0,p1,p2) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0,p1,p2>> n
-#define CLASS4(n,p0,p1,p2,p3) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0,p1,p2,p3>> n
-#define CLASS5(n,p0,p1,p2,p3,p4) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0,p1,p2,p3,p4>> n
-#define CLASS6(n,p0,p1,p2,p3,p4,p5) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,std::tuple<p0,p1,p2,p3,p4,p5>> n
-*/
+ *	could we define lightweight classes? to reuse code?, that would all use the same pool because they are identical
+ *	they only differ by their rdfs::type
+ */
+//
 //#define DEFAULT_SET template<typename U> void set(U u){help_set<U>::go(this,u);}//need to copy this line in any struct that specializes the function
 /*
  * 	must be a public member of the Class!!!!!
  * 	multiple symbols will be defined
- * 	as an alternative could use a C++ comment and parse this file to generate RDF
+ * 	as an alternative could use a C++ comment and parse this file to generate RDF, preprocessor
  */
 #define COMMENT(str) static string get_comment(){return str;}
 #define HTML_COMMENT(str) static string get_comment(){return string("<p xmlns='http://www.w3.org/1999/xhtml'>")+str+"</p>";}
@@ -60,7 +56,7 @@ namespace objrdf{
  *	hash namespace vs slash namespace, use hash for now because of optimization, could catch non hash uri at compile-time or run-time
  */
 #define RDFS_NAMESPACE(uri,prefix) char _uri_[]=uri;char _prefix_[]=prefix;typedef objrdf::tpair<_uri_,_prefix_> rdfs_namespace;
-#define _RDFS_NAMESPACE(uri,prefix) char __uri_[]=uri;char __prefix_[]=prefix;typedef objrdf::tpair<__uri_,__prefix_> _rdfs_namespace;
+#define OBJRDF_RDFS_NAMESPACE(uri,prefix) char __uri_[]=uri;char __prefix_[]=prefix;typedef objrdf::tpair<__uri_,__prefix_> _rdfs_namespace;
 namespace rdf{
 	//multiple definitions, linker will complain
 	RDFS_NAMESPACE("http://www.w3.org/1999/02/22-rdf-syntax-ns#","rdf");
@@ -80,38 +76,49 @@ namespace special{
 	struct shared_ptr<rdfs::Class>;
 	struct shared_ptr<rdf::Property>;
 }
+//
 namespace objrdf{
-	 _RDFS_NAMESPACE("http://www.example.org/objrdf#","obj");
+	OBJRDF_RDFS_NAMESPACE("http://www.example.org/objrdf#","obj");
 	struct NIL{
 		typedef NIL SELF;
 	};
 	class base_resource;
+}
+//test to make sure we do not persist objrdf::base_resource, because of duplicates objrdf::base_resource::nil
+template< > struct pseudo_ptr<objrdf::base_resource,persistent_store,false,uint16_t>;
+
+namespace objrdf{
 	/*
  	* it means that CONST_RESOURCE_PTR::construct will allocate on the free_store
  	* but any pseudo_ptr<T> can be cast to a CONST_RESOURCE_PTR
+ 	* this is confusing because each type should define its own typedef STORE
  	*/
 	typedef pseudo_ptr<base_resource,free_store,true> RESOURCE_PTR;
 	typedef pseudo_ptr<const base_resource,free_store,true> CONST_RESOURCE_PTR;
 	typedef pseudo_ptr<const rdfs::Class,free_store,false,uint16_t> CLASS_PTR;
 	typedef pseudo_ptr<const rdf::Property,free_store,false,uint16_t> PROPERTY_PTR;
+	typedef base_resource* ITERATOR_RESOURCE_PTR;
+	typedef const base_resource* ITERATOR_CONST_RESOURCE_PTR;
 	typedef char PROVENANCE;
 	/*
  	*	can we define default functions that will give a helpful error message when called?
  	*/ 
 	typedef std::tuple<
 		/*literal*/
-		void (*)(base_resource*,string,size_t),	/* 0	set_string */
-		void (*)(base_resource*,istream&,size_t),//1 in
-		void (*)(const base_resource*,ostream&,size_t),//2 out
+		void (*)(ITERATOR_RESOURCE_PTR,string,size_t),	/* 0	set_string */
+		void (*)(ITERATOR_RESOURCE_PTR,istream&,size_t),//1 in
+		void (*)(ITERATOR_CONST_RESOURCE_PTR,ostream&,size_t),//2 out
 		/*non-literal*/
-		RESOURCE_PTR (*)(base_resource*,size_t),//3 get_object
-		CONST_RESOURCE_PTR (*)(const base_resource*,size_t),//4 get_const_object
-		void (*)(base_resource*,RESOURCE_PTR,size_t),//5 set_object
+		RESOURCE_PTR (*)(ITERATOR_RESOURCE_PTR,size_t),//3 get_object
+		//CONST_RESOURCE_PTR (*)(ITERATOR_CONST_RESOURCE_PTR,size_t),//4 get_const_object
+		//change the signature
+		CONST_RESOURCE_PTR (*)(ITERATOR_CONST_RESOURCE_PTR,CONST_RESOURCE_PTR,size_t),//4 get_const_object
+		void (*)(ITERATOR_RESOURCE_PTR,RESOURCE_PTR,size_t),//5 set_object
 		/*common*/
-		size_t  (*)(const base_resource*),//6 get_size
-		void (*)(base_resource*,PROVENANCE),//7 add_property	
-		void (*)(base_resource*,size_t,size_t),//8 erase
-		PROVENANCE (*)(const base_resource*,size_t)//9 get_provenance
+		size_t  (*)(ITERATOR_CONST_RESOURCE_PTR),//6 get_size
+		void (*)(ITERATOR_RESOURCE_PTR,PROVENANCE),//7 add_property	
+		void (*)(ITERATOR_RESOURCE_PTR,size_t,size_t),//8 erase
+		PROVENANCE (*)(ITERATOR_CONST_RESOURCE_PTR,size_t)//9 get_provenance
 	> function_table;
 	struct property_info{
 		//because now stored in vector<property_info>
@@ -145,12 +152,19 @@ namespace objrdf{
 		typename reference
 	> struct get_store<shared_ptr<T,pointer,reference>>:get_store<pointer>{
 	};
-	
-	template<typename PROPERTY> class array:public vector<
+	/*
+ 	*	problem with using array: the information is lost in the schema, we could use 
+ 	*	rdfs:member http://www.w3.org/TR/rdf-schema/#ch_member
+ 	*/ 	
+	template<
+		typename PROPERTY,
+		typename STORE=typename get_store<typename PROPERTY::PTR>::value
+	> class array:public vector<
 		PROPERTY,
 		custom_allocator<
 			PROPERTY,
-			pseudo_ptr_array<PROPERTY,typename get_store<typename PROPERTY::PTR>::value,false> //wont work with literal properties
+			//pseudo_ptr_array<PROPERTY,typename get_store<typename PROPERTY::PTR>::value,false> //wont work with literal properties
+			pseudo_ptr_array<PROPERTY,STORE,false> //wont work with literal properties
 		>
 	>{
 	public:
@@ -180,15 +194,16 @@ namespace objrdf{
 		/*
  		*	default storage is the free store, to override your class must define STORE
  		*/ 
-		//typedef free_store STORE;
-		typedef persistent_store STORE;
+		typedef free_store STORE;
+		//typedef persistent_store STORE;
 		typedef std::tuple<> PROPERTIES; //base_resource does not have properties
 		struct instance_iterator{
 			friend class base_resource; //for base_resource::erase
-			base_resource* subject;
+			ITERATOR_RESOURCE_PTR subject;
+			//we could also store a RESOURCE_PTR along
 			V::iterator i;
 			size_t index;
-			instance_iterator(base_resource* subject,V::iterator i,size_t index):subject(subject),i(i),index(index){}
+			instance_iterator(ITERATOR_RESOURCE_PTR subject,V::iterator i,size_t index):subject(subject),i(i),index(index){}
 			instance_iterator& operator+=(const unsigned int& i){index+=i;return *this;}
 			instance_iterator& operator++(){++index;return *this;}
 			instance_iterator* operator->(){return this;}
@@ -203,7 +218,7 @@ namespace objrdf{
 			void out(ostream& os) const;
 			RESOURCE_PTR get_object() const;
 			CONST_RESOURCE_PTR get_const_object() const;
-			base_resource* get_subject()const;
+			ITERATOR_RESOURCE_PTR get_subject()const;
 			void set_object(RESOURCE_PTR);
 			//need those sometime
 			PROPERTY_PTR get_Property() const;
@@ -222,11 +237,15 @@ namespace objrdf{
 		};
 		struct const_instance_iterator{
 			friend class base_resource; //for base_resource::erase
-			const base_resource* subject;
+			ITERATOR_CONST_RESOURCE_PTR subject;
+			CONST_RESOURCE_PTR alt_subject;
 			V::const_iterator i;
 			size_t index;
 			const_instance_iterator():subject(0),index(0){}
-			const_instance_iterator(const base_resource* subject,V::const_iterator i,size_t index):subject(subject),i(i),index(index){}
+			const_instance_iterator(ITERATOR_CONST_RESOURCE_PTR subject,V::const_iterator i,size_t index):subject(subject),alt_subject(CONST_RESOURCE_PTR()),i(i),index(index){}
+			const_instance_iterator(ITERATOR_CONST_RESOURCE_PTR subject,CONST_RESOURCE_PTR alt_subject,V::const_iterator i,size_t index):subject(subject),alt_subject(alt_subject),i(i),index(index){
+				//cerr<<"const_instance_iterator alt:"<<this->subject<<"\t"<<this->alt_subject<<endl;
+			}
 			const_instance_iterator& operator+=(const unsigned int& i){index+=i;return *this;}
 			const_instance_iterator& operator++(){++index;return *this;}
 			//tricky here
@@ -240,7 +259,7 @@ namespace objrdf{
 			bool operator<(const const_instance_iterator& j) const{return index<j.index;}
 			void out(ostream& os) const;
 			CONST_RESOURCE_PTR get_const_object() const;
-			base_resource* get_subject()const;
+			ITERATOR_RESOURCE_PTR get_subject()const;
 			//need those sometime
 			PROPERTY_PTR get_Property() const;
 			bool literalp() const;
@@ -257,8 +276,8 @@ namespace objrdf{
 		};
 		//should be moved to .cpp
 		struct type_iterator:V::iterator{
-			base_resource* subject;
-			type_iterator(base_resource* subject,V::iterator i):V::iterator(i),subject(subject){}
+			ITERATOR_RESOURCE_PTR subject;
+			type_iterator(ITERATOR_RESOURCE_PTR subject,V::iterator i):V::iterator(i),subject(subject){}
 			/* what is that for? to get an iterator from a type PROPERTY 
  			*	not sure it is worth the trouble
  			*/ 
@@ -289,8 +308,13 @@ namespace objrdf{
 			instance_iterator add_property(PROVENANCE p);
 		};
 		struct const_type_iterator:V::const_iterator{
-			const base_resource* subject;
-			const_type_iterator(const base_resource* subject,V::const_iterator i):V::const_iterator(i),subject(subject){}
+			ITERATOR_CONST_RESOURCE_PTR subject;
+			CONST_RESOURCE_PTR alt_subject;
+			const_type_iterator(ITERATOR_CONST_RESOURCE_PTR subject,V::const_iterator i):V::const_iterator(i),subject(subject),alt_subject(CONST_RESOURCE_PTR(0)){}
+			const_type_iterator(ITERATOR_CONST_RESOURCE_PTR subject,CONST_RESOURCE_PTR alt_subject,V::const_iterator i):V::const_iterator(i),subject(subject),alt_subject(alt_subject){
+				//assert(0);
+				//cerr<<"const_type_iterator alt:"<<this->subject<<"\t"<<this->alt_subject<<endl;
+			}
 			/* what is that for? */
 			/*
 			template<typename PROPERTY,typename RESOURCE> static const_type_iterator get(RESOURCE* subject){
@@ -316,8 +340,10 @@ namespace objrdf{
 				return *this;
 			}
 			const_type_iterator* operator->(){return this;}
-			const_instance_iterator cbegin(){return const_instance_iterator(subject,*this,0);}
-			const_instance_iterator cend(){return const_instance_iterator(subject,*this,get_size());}
+			//const_instance_iterator cbegin(){return const_instance_iterator(subject,*this,0);}
+			//const_instance_iterator cend(){return const_instance_iterator(subject,*this,get_size());}
+			const_instance_iterator cbegin(){return const_instance_iterator(subject,alt_subject,*this,0);}
+			const_instance_iterator cend(){return const_instance_iterator(subject,alt_subject,*this,get_size());}
 		};
 
 		void erase(instance_iterator first,instance_iterator last);
@@ -369,10 +395,12 @@ namespace objrdf{
 			//do we even need this when using PERSISTENT?
 			//yes when creating new resource in the parser or sparql update query
 			void (*)(void*,uri),	//in-place constructor
-			type_iterator (*)(base_resource*),	//begin
-			type_iterator (*)(base_resource*),	//end
-			const_type_iterator (*)(const base_resource*),//cbegin
-			const_type_iterator (*)(const base_resource*)	//cend
+			type_iterator (*)(ITERATOR_RESOURCE_PTR),	//begin
+			type_iterator (*)(ITERATOR_RESOURCE_PTR),	//end
+			//const_type_iterator (*)(ITERATOR_CONST_RESOURCE_PTR),//cbegin
+			//const_type_iterator (*)(ITERATOR_CONST_RESOURCE_PTR)	//cend
+			const_type_iterator (*)(CONST_RESOURCE_PTR),//cbegin
+			const_type_iterator (*)(CONST_RESOURCE_PTR)	//cend
 			//shall we add a clone function?
 			/* add more functions here ... */
 			/* pointer to member function */
@@ -414,21 +442,21 @@ namespace objrdf{
 	};
 	//to get function pointers, could use less conspicuous names or wrap into namespace
 	namespace f_ptr{
-		template<typename T> base_resource::type_iterator begin(base_resource* r){return base_resource::type_iterator(r,T::v.begin());}
-		template<typename T> base_resource::type_iterator end(base_resource* r){return base_resource::type_iterator(r,T::v.end());}
-		template<typename T> base_resource::const_type_iterator cbegin(const base_resource* r){return base_resource::const_type_iterator(r,T::v.cbegin());}
-		template<typename T> base_resource::const_type_iterator cend(const base_resource* r){return base_resource::const_type_iterator(r,T::v.cend());}
+		template<typename T> base_resource::type_iterator begin(ITERATOR_RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.begin());}
+		template<typename T> base_resource::type_iterator end(ITERATOR_RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.end());}
+		//template<typename T> base_resource::const_type_iterator cbegin(ITERATOR_CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,T::v.cbegin());}
+		//template<typename T> base_resource::const_type_iterator cend(ITERATOR_CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,T::v.cend());}
+		template<typename T> base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,r,T::v.cbegin());}
+		template<typename T> base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,r,T::v.cend());}
 	}
-	base_resource::instance_iterator operator+(const base_resource::instance_iterator& a,const unsigned int& b){
-		base_resource::instance_iterator tmp(a);
-		return tmp+=b;
-	}
+	base_resource::instance_iterator operator+(const base_resource::instance_iterator& a,const unsigned int& b);
 
 	CLASS_PTR get_class(CONST_RESOURCE_PTR r);
 	base_resource::type_iterator begin(RESOURCE_PTR r);
 	base_resource::type_iterator end(RESOURCE_PTR r);
 	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r);
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r);
+	base_resource::const_instance_iterator get_const_self_iterator(CONST_RESOURCE_PTR r);
 	void to_rdf_xml(CONST_RESOURCE_PTR r,ostream& os);
 	
 	
@@ -455,6 +483,7 @@ namespace objrdf{
 		typedef _PROPERTIES_ PROPERTIES;
 		typedef _SUPERCLASS_ SUPERCLASS;
 		typedef resource SELF;
+		typedef persistent_store STORE;
 		/*
  		*	not optimal when no properties (std::tuple<>)
  		*/ 
@@ -529,31 +558,24 @@ namespace objrdf{
 		typename SUPERCLASS	
 	> V resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS>::v=get_generic_property<resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS> >::go();
 
-	/*
-	struct base{
-		//all the functions we might ever use, they SHOULD NEVER be called, the function pointer should be 0
-		//the rdf:Property could also carry a property that indicates the constness
-		void in(istream&){}
-		void out(ostream&)const{}
-		void set_string(std::string){}
-		RESOURCE_PTR get_object(){assert(0);return RESOURCE_PTR();};
-		CONST_RESOURCE_PTR get_const_object() const{assert(0);return CONST_RESOURCE_PTR(0);};
-		void set_object(RESOURCE_PTR){assert(0);};//still called by mistake on const properties
-	};
-	*/
 	enum{LITERAL=0x1};
 	enum{STRING=0x2};
 	enum{CONST=0x4};
-	template<typename RANGE> struct base_property/*:base*/{
+	template<typename RANGE> struct base_property{
+		typedef persistent_store STORE;
 		enum{TYPE=LITERAL};
 		RANGE t;
 		//should it be constant?
 		base_property(RANGE t=RANGE()):t(t){}
+		//sometime we want to override those functions, eg:hex type
 		void in(istream& is){is>>t;}
 		void out(ostream& os) const{os<<t;}
 		size_t get_size() const{return 1;}
+		void erase(){t=0;}
 	};
-	template<> struct base_property<string>/*:base*/{
+	template<> struct base_property<string>{
+		//no STORE defined because string is not supported yet, need to define special allocator
+		//typedef persistent_store STORE;
 		enum{TYPE=STRING|LITERAL};
 		string t;
 		base_property(string t=string()):t(t){}
@@ -561,8 +583,10 @@ namespace objrdf{
 		void in(istream& is){is>>t;}
 		void out(ostream& os) const{os<<t;}
 		size_t get_size() const{return t.size()>0;}
+		void erase(){t.clear();}
 	};
 	template<> struct base_property<uri>{
+		typedef persistent_store STORE;
 		enum{TYPE=STRING|LITERAL};
 	};
 	/*
@@ -571,43 +595,31 @@ namespace objrdf{
  	* can use default value, also will cause problem when parsing (but its value
  	* should be set programmatically anyway, ... not sure)
  	*/
-	template<typename RANGE> struct base_property<const RANGE>/*:base*/{
+	template<typename RANGE> struct base_property<const RANGE>{
+		typedef persistent_store STORE;
 		enum{TYPE=CONST|LITERAL};
 		const RANGE t;
 		base_property(const RANGE t=0):t(t){}
 		size_t get_size() const{return 1;}
 		void out(ostream& os){os<<t;}
+		void erase(){}
 	};
-	template<int N> struct base_property<char[N]>/*:base*/{
+	template<int N> struct base_property<char[N]>{
+		typedef persistent_store STORE;
+		enum{TYPE=STRING|LITERAL};
 		char t[N];
-		base_property(){strcpy(t,"ola");}
-		base_property(const char[N]){strcpy(t,"ola");}
-		size_t get_size() const{return 1;}
+		base_property(){t[0]=0;}
+		base_property(const char s[N]){strcpy(t,s);}
+		void set_string(string s){strncpy(t,s.c_str(),N-1);}
+		void in(istream& is){
+			string tmp;
+			is>>tmp;
+			set_string(tmp);
+		}
 		void out(ostream& os) const{os<<t;}
+		size_t get_size() const{return strlen(t)>0;}
+		void erase(){t[0]=0;}
 	};
-	/*
- 	*	specialization for pointer
- 	*/ 
-	/*
-	template<
-		typename RANGE
-	>
-	class base_property<RANGE*>:public shared_ptr<RANGE>,public base{
-	public:
-		typedef shared_ptr<RANGE> PTR;
-		//should it be constant?
-		void set(const base_property& pr){*this=pr;}
-		base_property(){}
-		base_property(const PTR& s):PTR(s){}
-		size_t get_size() const{return PTR::get()!=0;}
-		shared_ptr<base_resource> get_object(){return shared_ptr<base_resource>(this->get());}
-		CONST_RESOURCE_PTR get_const_object() const{return this->get();}
-		void set_object(shared_ptr<base_resource> object){
-			//verify type?, depending implementation it could already be done
-			*this=static_pointer_cast<RANGE>(object);
-		};
-	};
-	*/
 	template<
 		typename T,
 		typename STORE,
@@ -624,6 +636,7 @@ namespace objrdf{
 		RESOURCE_PTR get_object() const{return *this;}
 		CONST_RESOURCE_PTR get_const_object() const{return *this;}
 		void set_object(RESOURCE_PTR object){this->PTR::operator=(object);}
+		void erase(){set_object(RESOURCE_PTR());}
 	};
 
 	template<
@@ -641,24 +654,8 @@ namespace objrdf{
 		size_t get_size() const{return (bool)PTR(*this);}
 		CONST_RESOURCE_PTR get_const_object() const{return (PTR)*this;}
 		void set_object(RESOURCE_PTR object){this->PTR::operator=(object);}
+		void erase(){set_object(RESOURCE_PTR());}
 	};
-	/*
- 	*	full control of implementation
- 	*/ 
-	/*
-	template<
-		typename RANGE,
-		typename _PTR_
-	> class non_literal_property:public _PTR_,public base{
-	public:
-		typedef _PTR_ PTR;
-		non_literal_property(){}
-		non_literal_property(const PTR& s):PTR(s){}
-		size_t get_size() const{return (bool)PTR(*this);}
-		CONST_RESOURCE_PTR get_const_object() const{return *this;}
-		//what about get_object()?
-	};
-	*/
 	template<
 		typename NAMESPACE,
 		const char* NAME,
@@ -671,13 +668,13 @@ namespace objrdf{
 		typedef property SELF;
 		//template<typename S> property(S s):base_property<RANGE>(s){}
 		property(IMPLEMENTATION r):IMPLEMENTATION(r){
-			LOG<<"create property `"<<NAME<<"' "<<this<<endl;
+			//LOG<<"create property `"<<NAME<<"' "<<this<<endl;
 		}
 		property()/*:p(0)*/{
-			LOG<<"create property `"<<NAME<<"' "<<this<<endl;
+			//LOG<<"create property `"<<NAME<<"' "<<this<<endl;
 		}
 		~property(){
-			LOG<<"delete property `"<<NAME<<"' "<<this<<endl;
+			//LOG<<"delete property `"<<NAME<<"' "<<this<<endl;
 		}
 		static PROPERTY_PTR get_property();
 	};
@@ -685,7 +682,7 @@ namespace objrdf{
  	*	property to keep track of versions, a pointer to the previous version
  	*	it can only be modified by the application
  	*/ 
-	_PROPERTY(prev,RESOURCE_PTR);
+	OBJRDF_PROPERTY(prev,RESOURCE_PTR);
 
 
 	RESOURCE_PTR create_by_type(CLASS_PTR c,uri id);
@@ -705,11 +702,11 @@ namespace objrdf{
 		typename SUBJECT,
 		typename PROPERTY
 	> struct base_f{
-		static inline PROPERTY& get(base_resource* subject,size_t){return static_cast<SUBJECT*>(subject)->template get<PROPERTY>();}
-		static inline const PROPERTY& get_const(const base_resource* subject,size_t){return static_cast<const SUBJECT*>(subject)->template get_const<PROPERTY>();}
-		static size_t get_size(const base_resource* subject){return get_const(subject,0).get_size();}
-		static void add_property(base_resource* subject,PROVENANCE p){}//does not have to do anything
-		static void add_property_t(base_resource* subject,PROVENANCE p){
+		static inline PROPERTY& get(ITERATOR_RESOURCE_PTR subject,size_t){return static_cast<SUBJECT*>(subject)->template get<PROPERTY>();}
+		static inline const PROPERTY& get_const(ITERATOR_CONST_RESOURCE_PTR subject,size_t){return static_cast<const SUBJECT*>(subject)->template get_const<PROPERTY>();}
+		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return get_const(subject,0).get_size();}
+		static void add_property(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
+		static void add_property_t(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){
 			/*
  			* could be the good place to implement a transaction
 			* we will have patch the function table or there could be a flag in PROPERTY to indicate we want transaction
@@ -732,8 +729,9 @@ namespace objrdf{
 			}
 		}
 		//more work
-		static void erase(base_resource* subject,size_t first,size_t last){/*set_object(subject,RESOURCE_PTR(0),0);*/}	
-		static PROVENANCE get_provenance(const base_resource* subject,size_t){return 0;/*get_const(subject).p;*/}
+		//static void erase(base_resource* subject,size_t first,size_t last){/*set_object(subject,RESOURCE_PTR(0),0);*/}	
+		static void erase(ITERATOR_RESOURCE_PTR subject,size_t first,size_t last){get(subject,0).erase();}	
+		static PROVENANCE get_provenance(ITERATOR_CONST_RESOURCE_PTR subject,size_t){return 0;/*get_const(subject).p;*/}
 		static function_table get_table(){
 			function_table t;
 			std::get<6>(t)=get_size;
@@ -745,16 +743,17 @@ namespace objrdf{
 	};
 	template<
 		typename SUBJECT,
-		typename PROPERTY
-	> struct base_f<SUBJECT,array<PROPERTY>>{
-		static inline array<PROPERTY>& get(base_resource* subject){return static_cast<SUBJECT*>(subject)->template get<array<PROPERTY>>();}
-		static inline const array<PROPERTY>& get_const(const base_resource* subject){return static_cast<const SUBJECT*>(subject)->template get_const<array<PROPERTY>>();}
-		static inline PROPERTY& get(base_resource* subject,size_t index){return static_cast<SUBJECT*>(subject)->template get<array<PROPERTY>>()[index];}
-		static inline const PROPERTY& get_const(const base_resource* subject,size_t index){return static_cast<const SUBJECT*>(subject)->template get_const<array<PROPERTY>>()[index];}
-		static size_t get_size(const base_resource* subject){return get_const(subject).size();}
-		static void add_property(base_resource* subject,PROVENANCE p){typedef PROPERTY P;get(subject).push_back(P());}
-		static void erase(base_resource* subject,size_t first,size_t last){get(subject).erase(get(subject).begin()+first,get(subject).begin()+last);}
-		static PROVENANCE get_provenance(const base_resource* subject,size_t index){return 0;}
+		typename PROPERTY,
+		typename STORE
+	> struct base_f<SUBJECT,array<PROPERTY,STORE>>{
+		static inline array<PROPERTY,STORE>& get(ITERATOR_RESOURCE_PTR subject){return static_cast<SUBJECT*>(subject)->template get<array<PROPERTY,STORE>>();}
+		static inline const array<PROPERTY,STORE>& get_const(ITERATOR_CONST_RESOURCE_PTR subject){return static_cast<const SUBJECT*>(subject)->template get_const<array<PROPERTY,STORE>>();}
+		static inline PROPERTY& get(ITERATOR_RESOURCE_PTR subject,size_t index){return static_cast<SUBJECT*>(subject)->template get<array<PROPERTY,STORE>>()[index];}
+		static inline const PROPERTY& get_const(ITERATOR_CONST_RESOURCE_PTR subject,size_t index){return static_cast<const SUBJECT*>(subject)->template get_const<array<PROPERTY,STORE>>()[index];}
+		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return get_const(subject).size();}
+		static void add_property(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){typedef PROPERTY P;get(subject).push_back(P());}
+		static void erase(ITERATOR_RESOURCE_PTR subject,size_t first,size_t last){get(subject).erase(get(subject).begin()+first,get(subject).begin()+last);}
+		static PROVENANCE get_provenance(ITERATOR_CONST_RESOURCE_PTR subject,size_t index){return 0;}
 		static function_table get_table(){
 			function_table t;
 			std::get<6>(t)=get_size;
@@ -769,7 +768,7 @@ namespace objrdf{
 
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONST|LITERAL>:base_f<SUBJECT,PROPERTY>{
 		typedef base_f<SUBJECT,PROPERTY> BASE;
-		static void out(const base_resource* subject,ostream& os,size_t index){BASE::get_const(subject,index).out(os);}	
+		static void out(ITERATOR_CONST_RESOURCE_PTR subject,ostream& os,size_t index){BASE::get_const(subject,index).out(os);}	
 		static function_table get_table(){
 			auto t=BASE::get_table();
 			std::get<2>(t)=out;
@@ -780,7 +779,7 @@ namespace objrdf{
 	};
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,LITERAL>:functions<SUBJECT,PROPERTY,CONST|LITERAL>{
 		typedef functions<SUBJECT,PROPERTY,CONST|LITERAL> BASE;
-		static void in(base_resource* subject,istream& is,size_t index){BASE::get(subject,index).in(is);}
+		static void in(ITERATOR_RESOURCE_PTR subject,istream& is,size_t index){BASE::get(subject,index).in(is);}
 		static function_table get_table(){
 			auto t=BASE::get_table();
 			std::get<1>(t)=in;
@@ -789,7 +788,7 @@ namespace objrdf{
 	};
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,STRING|LITERAL>:functions<SUBJECT,PROPERTY,LITERAL>{
 		typedef functions<SUBJECT,PROPERTY,LITERAL> BASE;
-		static void set_string(base_resource* subject,string s,size_t index){BASE::get(subject,index).set_string(s);}
+		static void set_string(ITERATOR_RESOURCE_PTR subject,string s,size_t index){BASE::get(subject,index).set_string(s);}
 		static function_table get_table(){
 			auto t=BASE::get_table();
 			std::get<0>(t)=set_string;
@@ -798,10 +797,14 @@ namespace objrdf{
 	};
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONST>:base_f<SUBJECT,PROPERTY>{
 		typedef base_f<SUBJECT,PROPERTY> BASE;
-		static CONST_RESOURCE_PTR get_const_object(const base_resource* subject,size_t index){return BASE::get_const(subject,index).get_const_object();}
-		static void set_object(base_resource* subject,RESOURCE_PTR object,size_t index){BASE::get(subject,index).set_object(object);}
+		//static CONST_RESOURCE_PTR get_const_object(ITERATOR_CONST_RESOURCE_PTR subject,size_t index){return BASE::get_const(subject,index).get_const_object();}
+		static CONST_RESOURCE_PTR get_const_object(ITERATOR_CONST_RESOURCE_PTR subject,CONST_RESOURCE_PTR alt_subject,size_t index){
+			return BASE::get_const(subject,index).get_const_object();
+		}
+		//why do we have set_object if it is a const resource?
+		static void set_object(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){BASE::get(subject,index).set_object(object);}
 		//override
-		static void erase(base_resource* subject,size_t first,size_t last){set_object(subject,RESOURCE_PTR(0),0);}	
+		static void erase(ITERATOR_RESOURCE_PTR subject,size_t first,size_t last){set_object(subject,RESOURCE_PTR(0),0);}	
 		static function_table get_table(){
 			auto t=BASE::get_table();
 			std::get<4>(t)=get_const_object;
@@ -812,69 +815,19 @@ namespace objrdf{
 	};	
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,0>:functions<SUBJECT,PROPERTY,CONST>{
 		typedef functions<SUBJECT,PROPERTY,CONST> BASE;
-		static RESOURCE_PTR get_object(base_resource* subject,size_t index){return BASE::get(subject,index).get_object();}
+		static RESOURCE_PTR get_object(ITERATOR_RESOURCE_PTR subject,size_t index){return BASE::get(subject,index).get_object();}
 		static function_table get_table(){
 			auto t=BASE::get_table();
 			std::get<3>(t)=get_object;
 			return t;	
 		}
 	};
-	/*
-	template<
-		typename SUBJECT,
-		typename PROPERTY
-	> struct functions{
-		static inline PROPERTY& get(base_resource* subject){return static_cast<SUBJECT*>(subject)->template get<PROPERTY>();}
-		static inline const PROPERTY& get_const(const base_resource* subject){return static_cast<const SUBJECT*>(subject)->template get_const<PROPERTY>();}
-		//literal
-		static void set_string(base_resource* subject,string s,size_t){get(subject).set_string(s);}
-		static void in(base_resource* subject,istream& is,size_t){get(subject).in(is);}
-		static void out(const base_resource* subject,ostream& os,size_t){get_const(subject).out(os);}	
-		//non-literal
-		static RESOURCE_PTR get_object(base_resource* subject,size_t){return get(subject).get_object();}
-		static CONST_RESOURCE_PTR get_const_object(const base_resource* subject,size_t){return get_const(subject).get_const_object();}
-		static void set_object(base_resource* subject,RESOURCE_PTR object,size_t){get(subject).set_object(object);}
-		//common
-		static size_t get_size(const base_resource* subject){return get_const(subject).get_size();}
-		static void add_property(base_resource* subject,PROVENANCE p){}//does not have to do anything
-		static void erase(base_resource* subject,size_t first,size_t last){set_object(subject,RESOURCE_PTR(0),0);}	
-		static PROVENANCE get_provenance(const base_resource* subject,size_t){return 0;}
-		static function_table get_table(){
-			//some functions could be made null if literal  
-			return function_table(set_string,in,out,get_object,get_const_object,set_object,get_size,add_property,erase,get_provenance);
-		}
-	};
-	*/
-
-	/*
-	template<
-		typename SUBJECT,
-		typename PROPERTY,
-		size_t TYPE
-	> struct functions<SUBJECT,array<PROPERTY>,TYPE>{
-		static inline array<PROPERTY>& get(base_resource* subject){return static_cast<SUBJECT*>(subject)->template get<array<PROPERTY>>();}
-		static inline const array<PROPERTY>& get_const(const base_resource* subject){return static_cast<const SUBJECT*>(subject)->template get_const<array<PROPERTY>>();}
-		static void set_string(base_resource* subject,string s,size_t index){get(subject)[index].set_string(s);}
-		static void in(base_resource* subject,istream& is,size_t index){get(subject)[index].in(is);}
-		static void out(const base_resource* subject,ostream& os,size_t index){get_const(subject)[index].out(os);}	
-		static RESOURCE_PTR get_object(base_resource* subject,size_t index){return get(subject)[index].get_object();}
-		static CONST_RESOURCE_PTR get_const_object(const base_resource* subject,size_t index){return get_const(subject)[index].get_const_object();}
-		static void set_object(base_resource* subject,RESOURCE_PTR object,size_t index){get(subject)[index].set_object(object);}
-		static size_t get_size(const base_resource* subject){return get_const(subject).size();}
-		static void add_property(base_resource* subject,PROVENANCE p){typedef PROPERTY P;get(subject).push_back(P());}
-		static void erase(base_resource* subject,size_t first,size_t last){get(subject).erase(get(subject).begin()+first,get(subject).begin()+last);}
-		static PROVENANCE get_provenance(const base_resource* subject,size_t index){return 0;}
-		static function_table get_table(){
-			return function_table(set_string,in,out,get_object,get_const_object,set_object,get_size,add_property,erase,get_provenance);
-		}
-	};
-	*/
 	//schema
 	typedef base_resource* (*fpt)(uri);
 	namespace f_ptr{
 		template<typename T> void constructor(void* p,uri u){new(p)T(u);}//a lot simpler
-		template<> void constructor<rdfs::Class>(void* p,uri u){assert(0);}
-		template<> void constructor<rdf::Property>(void* p,uri u){assert(0);}
+		template<> void constructor<rdfs::Class>(void* p,uri u);//{assert(0);}
+		template<> void constructor<rdf::Property>(void* p,uri u);//{assert(0);}
 	}
 	struct type_p{
 		CLASS_PTR t;
@@ -907,19 +860,19 @@ namespace rdf{
 namespace objrdf{
 	//make it possible to modify a resource's id after it has been created, it is possible because the db
 	//relies on pointers, not on id
-	_PROPERTY(id,uri);
+	OBJRDF_PROPERTY(id,uri);
 	//we can specialize for objrdf::id
 	template<typename SUBJECT> struct functions<SUBJECT,objrdf::id,STRING|LITERAL>{
-		static void set_string(base_resource* subject,string s,size_t){subject->id=uri(s);}
-		static void in(base_resource* subject,istream& is,size_t){
+		static void set_string(ITERATOR_RESOURCE_PTR subject,string s,size_t){subject->id=uri(s);}
+		static void in(ITERATOR_RESOURCE_PTR subject,istream& is,size_t){
 			string tmp;
 			is>>tmp;
 			set_string(subject,tmp,0);
 		}	
-		static void out(const base_resource* subject,ostream& os,size_t){os<<subject->id;}	
-		static size_t get_size(const base_resource* subject){return 1;}
-		static void add_property(base_resource* subject,PROVENANCE p){}//does not have to do anything
-		static void erase(base_resource* subject,size_t first,size_t last){}	
+		static void out(ITERATOR_CONST_RESOURCE_PTR subject,ostream& os,size_t){os<<subject->id;}	
+		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return 1;}
+		static void add_property(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
+		static void erase(ITERATOR_RESOURCE_PTR subject,size_t first,size_t last){}	
 		static function_table get_table(){
 			function_table t;
 			std::get<0>(t)=set_string;
@@ -931,7 +884,29 @@ namespace objrdf{
 			return t;
 		}
 	};
-	//PROPERTY(self,CONST_RESOURCE_PTR);
+
+	/*
+ 	*	very useful property that returns a pointer to the subject, it is used by the sparql engine and will also be used
+ 	*	later for fast resource retrieval, a pseudo_ptr can be encoded in hex very easily
+ 	*/ 
+	OBJRDF_PROPERTY(self,CONST_RESOURCE_PTR);
+	template<typename SUBJECT> struct functions<SUBJECT,objrdf::self,objrdf::self::TYPE>{
+		static CONST_RESOURCE_PTR get_const_object(ITERATOR_CONST_RESOURCE_PTR subject,CONST_RESOURCE_PTR alt_subject,size_t index){return alt_subject;}
+		static void set_object(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){}
+		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return 1;}
+		static void add_property(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
+		static void erase(ITERATOR_RESOURCE_PTR subject,size_t first,size_t last){}	
+		static function_table get_table(){
+			function_table t;
+			std::get<4>(t)=get_const_object;
+			std::get<5>(t)=set_object;//why do we need this????
+			std::get<6>(t)=get_size;
+			std::get<7>(t)=add_property;
+			std::get<8>(t)=erase;
+			return t;
+		}
+
+	};
 }
 namespace objrdf{
 	/*
@@ -950,18 +925,6 @@ namespace objrdf{
 			return t;
 		}
 	};
-	/*
-	template<
-		typename SUBJECT,
-		size_t INDEX
-	> struct helper<SUBJECT,objrdf::self,INDEX,false>{
-		static self get(SUBJECT& s){
-			//tricky because we have to do pointer arithmetic
-			//return self(CONST_RESOURCE_PTR());
-		}
-	};
-	*/
-
 }
 namespace rdfs{
 	PROPERTY(domain,objrdf::CLASS_PTR);
@@ -975,11 +938,13 @@ namespace rdfs{
 	PROPERTY(isDefinedBy,objrdf::RESOURCE_PTR);
 	PROPERTY(label,string);
 	PROPERTY(subPropertyOf,objrdf::PROPERTY_PTR);
+	PROPERTY(member,objrdf::RESOURCE_PTR);
 }
 namespace rdf{
 	char _Literal[]="Literal";
 	struct Literal:objrdf::resource<rdfs_namespace,_Literal,std::tuple<>,Literal>{
 		Literal(objrdf::uri u):SELF(u){}
+		typedef empty_store STORE;
 		COMMENT("The class of literal values, eg. textual strings an integers")
 	};
 }
@@ -1012,6 +977,7 @@ namespace objrdf{
 	template<> struct get_Literal<unsigned short>:xsd::Unsigned_short{};
 	template<> struct get_Literal<char>:Char{};
 	template<> struct get_Literal<string>:xsd::String{};
+	template<size_t N> struct get_Literal<char[N]>:xsd::String{};
 	template<> struct get_Literal<uri>:xsd::anyURI{};
 	//extra types
 	template<> struct get_Literal<size_t>:xsd::Unsigned_int{};//not accurate	
@@ -1039,7 +1005,7 @@ namespace objrdf{
 	template<> struct get_Literal<rdfs::XMLLiteral>:rdfs::XML_Literal{};
 }
 namespace objrdf{
-	_PROPERTY(superClassOf,objrdf::CLASS_PTR);
+	OBJRDF_PROPERTY(superClassOf,objrdf::CLASS_PTR);
 }
 namespace rdfs{
 	char _Class[]="Class";
@@ -1091,9 +1057,7 @@ namespace rdfs{
 	};
 }//end namespace rdfs
 namespace objrdf{
-	_PROPERTY(p_index,short);//each property has a unique index useful for fast serialization/parsing
-	//could be made more generic by defining a circular property
-	_PROPERTY(p_self,objrdf::PROPERTY_PTR);
+	OBJRDF_PROPERTY(p_index,short);//each property has a unique index useful for fast serialization/parsing
 	/*
  	* a unique id for each resource that can be turn into a pointer for fast access (no look-up involved)
 	* we need to encode the type too, should be serialized to hex:
@@ -1102,7 +1066,7 @@ namespace objrdf{
 	*  it can be safely resolved by checking range and using the TEST function, client should store that
 	*  unique id for very fast look-up
 	*/
-	//_PROPERTY(_id,size_t);
+	//OBJRDF_PROPERTY(_id,size_t);
 }
 namespace rdf{
 	char _Property[]="Property";
@@ -1112,8 +1076,7 @@ namespace rdf{
 		std::tuple<
 			rdfs::domain,
 			rdfs::range,
-			//rdfs::subPropertyOf,
-			objrdf::p_self
+			rdfs::subPropertyOf
 		>,Property>{
 		typedef free_store STORE;
 		Property(objrdf::uri u);
@@ -1121,9 +1084,8 @@ namespace rdf{
 		const bool literalp;
 		//nil property?
 		static objrdf::PROPERTY_PTR nil;
+		static objrdf::PROPERTY_PTR rdfs_member;
 		COMMENT("The class of RDF properties.");
-		objrdf::base_resource::instance_iterator get_self_iterator();
-		objrdf::base_resource::const_instance_iterator get_const_self_iterator() const;
 	};
 }//end namespace rdf
 namespace objrdf{
@@ -1136,15 +1098,17 @@ namespace objrdf{
 	>
 	CLASS_PTR resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS>::get_class(){
 		typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,resource,SUBCLASS>::ResultT TMP;
-		//can be simplified because we already know the pointer value
-		//check if resource is derived from Literal
 		/*
-		typedef typename IfThenElse<
-			is_derived<TMP,rdf::Literal>::value,
-			pseudo_ptr<TMP,empty_store,false>,//it MUST be false otherwise template ambiguity
-			pseudo_ptr<TMP,free_store,false>
-		>::ResultT PTR;
-		*/
+ 		*	this function is called twice when resource is XML_Literal, why??? bad compilation maybe
+ 		*/ 
+		/*
+ 		*	new idea: before we create any class we load the schema, which should contain all the classes
+ 		*	currently known (order matters!), any new class will be appended, the goal is to match the classes
+ 		*	defined in the code with the external schema, there could be race conditions
+ 		*	the simplest would be files with a number
+ 		*	rdfs_Class 0
+ 		*
+ 		*/ 
 		//we can chain a function to add superClassOf
 		static CLASS_PTR p=rdfs::Class::super(CLASS_PTR::construct_at(
 			//in case of persistent storage we will override old version and refresh pointers and function pointers
@@ -1180,6 +1144,10 @@ namespace objrdf{
 		typedef T ResultT;
 		enum{IS_LITERAL=0};
 	};
+	/*
+ 	*	we need to be able to tell if the property is an array
+ 	*
+ 	*/
 	template<
 		typename NAMESPACE,
 		const char* NAME,
@@ -1192,6 +1160,7 @@ namespace objrdf{
 				objrdf::get_uri<NAMESPACE>(NAME),
 				rdfs::range(selector<RANGE>::ResultT::get_class()),
 				//(bool)selector<RANGE>::IS_LITERAL
+				//maybe we can get rid of selector<> altogether
 				property<NAMESPACE,NAME,RANGE,IMPLEMENTATION>::TYPE&LITERAL
 			)
 		);
@@ -1218,7 +1187,6 @@ namespace objrdf{
 		//p.p->get<rdfs::domain>()=rdfs::domain(SUBJECT::get_class());
 		pseudo_ptr<rdf::Property,PROPERTY_PTR::STORE,false,PROPERTY_PTR::INDEX> tmp(p.p);
 		tmp->get<rdfs::domain>()=rdfs::domain(SUBJECT::get_class());
-		tmp->get<objrdf::p_self>()=objrdf::p_self(p.p);
 		return p;
 	};
 	template<typename SUBJECT> struct _meta_{
@@ -1233,8 +1201,8 @@ namespace objrdf{
 			V v;
 			v.push_back(get_property_info<base_resource,rdf::type>());
 			v.push_back(get_property_info<base_resource,objrdf::id>());
+			v.push_back(get_property_info<base_resource,objrdf::self>());
 			return v;
-			//return V(1,get_property_info<base_resource,rdf::type>());
 		}
 	};
 	template<
@@ -1248,8 +1216,6 @@ namespace objrdf{
 		//can we get rid of that? no!
 		typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,RESOURCE,SUBCLASS>::ResultT TMP;
 		static V go(){
-			//let's make sure Classes are ready
-			//RESOURCE::get_class();
 			LOG<<"get_generic_property:`"<<NAME<<"'"<<endl;
 			V v=get_generic_property<typename SUPERCLASS::SELF>::go();
 			/*
@@ -1257,7 +1223,6 @@ namespace objrdf{
  			* actually not that simple because it is a pseudo property
  			* for now the best is a single property
  			*/
-			//v.push_back(get_property_info<RESOURCE,rdf::type>());
 			v.front()=get_property_info<RESOURCE,rdf::type>();//will override SUPERCLASS's rdf::type
 			return concat(v,std::static_for_each<PROPERTIES>(_meta_<TMP>()).v);
 		}
@@ -1278,66 +1243,20 @@ namespace objrdf{
 		//must be a pseudo_ptr<>
 		template<typename T> bool operator()(T t) const{return t->id==u;}
 	};
-	pool_iterator begin(){return pool_iterator(::begin<POOL_PTR>());}
-	pool_iterator end(){return pool_iterator(::end<POOL_PTR>());}
-	void to_rdf_xml(ostream& os){
-		os<<"<"<<rdf::_RDF<<"\n";
-		uri::ns_declaration(os);
-		os<<">";
-		for(auto i=objrdf::begin();i<objrdf::end();++i){
-			for(auto j=i.begin();j<i.end();++j){
-				to_rdf_xml(*j,os);
-			}
-			os<<endl;
-		}
-		os<<"\n</"<<rdf::_RDF<<">\n";
-	}
+	pool_iterator begin();
+	pool_iterator end();
+	void to_rdf_xml(ostream& os);
 	//dumb scanner
-	CONST_RESOURCE_PTR find(uri u){
-		cerr<<"looking up uri `"<<u<<"'...";
-		for(auto i=objrdf::begin();i<objrdf::end();++i){
-			for(auto j=i.begin();j<i.end();++j){
-				if((*j)->id==u){
-					cerr<<"found"<<endl;	
-					return *j;
-				}
-			}
-		}	
-		cerr<<"not found"<<endl;	
-		return CONST_RESOURCE_PTR();
-	}
+	CONST_RESOURCE_PTR find(uri u);
 	//not as dumb because uses a single pool
+	//could be specialized for rdfs::Class and rdf::Property and use map<> index
 	template<typename PTR> PTR find_t(uri u){
 		cerr<<"looking up uri `"<<u<<"' in pool `"<<PTR::value_type::get_class()->id<<"'"<<endl;
 		auto r=find_if(::begin<PTR>(),::end<PTR>(),test_by_uri(u));
 		return r!=::end<PTR>() ? *r : PTR(0);
 	}
-	RESOURCE_PTR create_by_type(CLASS_PTR c,uri id){
-		POOL_PTR p(c.index);
-		/*
- 		* we have to make sure it points to a valid pool
- 		* is there anyway we could construct the pool on the fly?
- 		* 	we only need to know the store:
-		*	template<
-		*		typename T,
-		*		typename STORE=free_store,	//free store or persistent, could also have no store
-		*		bool POLYMORPHISM=false,	//does not support derived types
-		*		typename _INDEX_=uint16_t	//can address 2^16 objects
-		*	> struct pseudo_ptr
-		* currently the Class only contains reference to the constructor, no information about allocator
- 		*/
-		//can get rid of that now
-		assert(p->type_id);
-		//get a generic pointer
-		RESOURCE_PTR rp(p->allocate(),p);
-		//invoke constructor
-		std::get<0>(c->t)(rp,id);
-		return rp;
-	}
-	RESOURCE_PTR create_by_type(uri type,uri id){
-		CLASS_PTR c=find_t<CLASS_PTR>(type);
-		return c ? create_by_type(c,id) : RESOURCE_PTR();
-	}
+	RESOURCE_PTR create_by_type(CLASS_PTR c,uri id);
+	RESOURCE_PTR create_by_type(uri type,uri id);
 }
 template<
 	const char* NAMESPACE,
