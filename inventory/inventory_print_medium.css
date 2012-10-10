@@ -1,0 +1,28 @@
+@media print{
+@page{
+	margin:0mm 0mm 0mm 0mm;
+}
+#top,.jm{
+	display:none;
+}
+.qr_code {
+	//-moz-transform:scale(0.7); does not quite work
+	page-break-inside:avoid;
+	margin:1px;
+	float:left;
+	border-style:solid;
+	border-width:1mm;
+}
+.qr_code div{
+	text-align:center;
+	font-weight:bold;
+	font-family:arial;
+	font-size:9px;
+	padding-bottom:2px;
+	border-style:none;
+}
+.qr_code img{
+	width:50mm;
+	height:auto;
+}
+}
