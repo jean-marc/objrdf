@@ -18,23 +18,19 @@
 #include "rdf_xml_parser.h"
 using namespace objrdf;
 
-RDFS_NAMESPACE("http://www.example.org/inventory#","inv")
+RDFS_NAMESPACE("http://inventory.unicefuganda.org/#","inv")
 
 typedef persistent_store STORE;
 
 CLASS(Organization,std::tuple<>);
-PROPERTY(organization,pseudo_ptr<Organization,STORE>);
-//CLASS(Site,std::tuple<organization>);
+PROPERTY(organization,pseudo_ptr<Organization>);
 DERIVED_CLASS(Site,geo::Point,std::tuple<organization>);
-PROPERTY(located,pseudo_ptr<Site,STORE>);
+PROPERTY(located,pseudo_ptr<Site>);
 //maybe should use friend of a friend ontology for people
 //people
 PROPERTY(phone,long);
-//typedef located site;//alias does not work!
-PROPERTY(site,pseudo_ptr<Site,STORE>);
-//not quite ready yet
-//CLASS(Person,std::tuple<array<phone,STORE>,site>);// template array<> is broken with literal properties
-CLASS(Person,std::tuple<phone,site>);
+PROPERTY(site,pseudo_ptr<Site>);
+CLASS(Person,std::tuple<array<phone,STORE>,array<site>>);//same person can be responsible for more than one site
 PROPERTY(status,int);//needs to be developed: working/not working,...history
 PROPERTY(_mac_,long);//MAC address 48 bytes
 struct mac:_mac_{
@@ -49,16 +45,26 @@ struct mac:_mac_{
 //would be nice to know where a piece of equipment has been, also to know if it has been serviced
 //history is a linked-list (how does git work?)
 CLASS(Manufacturer,std::tuple<>);
-PROPERTY(manufacturer,pseudo_ptr<Manufacturer,STORE,false>);
+PROPERTY(manufacturer,pseudo_ptr<Manufacturer>);
 CLASS(Model,std::tuple<manufacturer>);
-PROPERTY(model,pseudo_ptr<Model,STORE,false>);
-CLASS(Set,std::tuple<located/*,array<part>*/>);
-PROPERTY(partOf,pseudo_ptr<Set,STORE,true>);
+PROPERTY(model,pseudo_ptr<Model>);
+/*
+ *	add properties and functions to track usage: how many hours it has been up, the VPN server
+ *	will run a query when a client connects or disconnects, it will trigger a counter on the object.
+ *	shall we store all the information in the db or use files?
+ *
+ */
+//CLASS(Set,std::tuple<located>);
+char _Set[]="Set";
+class Set:public resource<rdfs_namespace,_Set,std::tuple<located>>{
+	public:
+	Set(uri id):SELF(id){}
+};
+PROPERTY(partOf,pseudo_ptr<Set,Set::STORE,true>);
 /*
  *	we could have manufacturer & model but it could become inconsistent, so only model is used
  */
 CLASS(Equipment,std::tuple<partOf,model,status>);
-//PROPERTY(part,pseudo_ptr<Equipment,STORE>);
 //a digital doorway or a drum could be considered a Set
 //could also see a set as a Bag of equipment, using RDF semantic
 //would be nice to have URI for those
@@ -84,12 +90,12 @@ DERIVED_CLASS(Kiosk,Set,std::tuple<>);
 * serial number? useful when dealing with manufacturer
 */
 CLASS(Version,std::tuple<>);
-//PROPERTY(version,pseudo_ptr<base_resource>);//most general
-PROPERTY(version,pseudo_ptr<Version>);//most general
+//PROPERTY(version,pseudo_ptr<base_resource>);//most general but problem with persistence
+PROPERTY(version,pseudo_ptr<Version>);
 DERIVED_CLASS(Drive,Equipment,std::tuple<version>);//information about OS/software version
 //could define versions with some explanations and link to them
 //eg ubuntu-desktop-11.10-amd64
-DERIVED_CLASS(Laptop,Equipment,std::tuple<mac>);
+DERIVED_CLASS(Laptop,Equipment,std::tuple<mac>);//problem: won't show up in schema, we can work-around in stylesheet
 DERIVED_CLASS(Server,Equipment,std::tuple<mac>);
 DERIVED_CLASS(UPS,Equipment,std::tuple<>);
 PROPERTY(sim,char[20]);
@@ -97,10 +103,10 @@ DERIVED_CLASS(Modem,Equipment,std::tuple<sim>);
 PROPERTY(power,int);
 PROPERTY(voltage,int);
 DERIVED_CLASS(PV_panel,Equipment,std::tuple<power,voltage>);
-//need to keep track of batteries, also used to give unique ID because they don't come with s/n
 DERIVED_CLASS(Battery,Equipment,std::tuple<>);
 DERIVED_CLASS(Charge_Controller,Equipment,std::tuple<>);
 DERIVED_CLASS(Relay_Driver,Equipment,std::tuple<>);
+DERIVED_CLASS(Inverter,Equipment,std::tuple<>);
 int main(int argc,char* argv[]){
 	Site::get_class();
 	Person::get_class();
@@ -119,6 +125,7 @@ int main(int argc,char* argv[]){
 	Battery::get_class();
 	Charge_Controller::get_class();
 	Relay_Driver::get_class();
+	Inverter::get_class();
 	Organization::get_class();
 	Model::get_class();	
 	for(int i=1;i<argc;++i){
@@ -145,8 +152,3 @@ int main(int argc,char* argv[]){
 	}
 	*/
 };
-
-
-
-
-
