@@ -99,8 +99,11 @@ CLASS_PTR base_resource::get_class(){
 rdf::Property::Property(objrdf::uri id):SELF(id),literalp(true){
 }
 rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp):rdf::Property::SELF(id),literalp(literalp){
-	cerr<<"creating Property "<<id<<" ref count:"<<n<<" range:"<<r->id<<" range ref count:"<<r->n<<endl;
 	get<rdfs::range>()=r;
+}
+rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp,rdfs::subPropertyOf s):rdf::Property::SELF(id),literalp(literalp){
+	get<rdfs::range>()=r;
+	get<rdfs::subPropertyOf>()=s;
 }
 /*
  *	problem: no garbage collection so a new resource `nil' is created at each run, creating duplicates 
@@ -111,7 +114,7 @@ rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp):rdf::P
 CONST_RESOURCE_PTR base_resource::nil=CONST_RESOURCE_PTR::construct(uri("nil"));
 
 PROPERTY_PTR rdf::Property::nil=PROPERTY_PTR(PROPERTY_PTR::pointer::construct(uri("nil_p")));
-PROPERTY_PTR rdf::Property::rdfs_member=rdfs::member::get_property();
+//PROPERTY_PTR rdf::Property::rdfs_member=rdfs::member::get_property();
 
 V base_resource::v=get_generic_property<base_resource>::go();
 PROPERTY_PTR base_resource::instance_iterator::get_Property() const{return i->p;}

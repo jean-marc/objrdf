@@ -25,7 +25,6 @@ template<typename T> vector<T> concat(/*const*/ vector<T>& a,const vector<T>& b)
 #define PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<rdfs_namespace,_##n,__VA_ARGS__> n
 //property that exists in the objrdf namespace
 #define OBJRDF_PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
-//#define __PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
 #define CLASS(n,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__> n
 #define DERIVED_CLASS(n,BASE,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__,objrdf::NIL,BASE> n
 /*
@@ -85,7 +84,7 @@ namespace objrdf{
 	class base_resource;
 }
 //test to make sure we do not persist objrdf::base_resource, because of duplicates objrdf::base_resource::nil
-template< > struct pseudo_ptr<objrdf::base_resource,persistent_store,false,uint16_t>;
+template<> struct pseudo_ptr<objrdf::base_resource,persistent_store,false,uint16_t>;
 
 namespace objrdf{
 	/*
@@ -97,6 +96,8 @@ namespace objrdf{
 	typedef pseudo_ptr<const base_resource,free_store,true> CONST_RESOURCE_PTR;
 	typedef pseudo_ptr<const rdfs::Class,free_store,false,uint16_t> CLASS_PTR;
 	typedef pseudo_ptr<const rdf::Property,free_store,false,uint16_t> PROPERTY_PTR;
+	//does not compile:
+	//typedef pseudo_ptr<const rdf::Property,rdf::Property::STORE,false,uint16_t> PROPERTY_PTR;
 	typedef base_resource* ITERATOR_RESOURCE_PTR;
 	typedef const base_resource* ITERATOR_CONST_RESOURCE_PTR;
 	typedef char PROVENANCE;
@@ -110,8 +111,6 @@ namespace objrdf{
 		void (*)(ITERATOR_CONST_RESOURCE_PTR,ostream&,size_t),//2 out
 		/*non-literal*/
 		RESOURCE_PTR (*)(ITERATOR_RESOURCE_PTR,size_t),//3 get_object
-		//CONST_RESOURCE_PTR (*)(ITERATOR_CONST_RESOURCE_PTR,size_t),//4 get_const_object
-		//change the signature
 		CONST_RESOURCE_PTR (*)(ITERATOR_CONST_RESOURCE_PTR,CONST_RESOURCE_PTR,size_t),//4 get_const_object
 		void (*)(ITERATOR_RESOURCE_PTR,RESOURCE_PTR,size_t),//5 set_object
 		/*common*/
@@ -153,7 +152,7 @@ namespace objrdf{
 	> struct get_store<shared_ptr<T,pointer,reference>>:get_store<pointer>{
 	};
 	/*
- 	*	problem with using array: the information is lost in the schema, we could use 
+ 	*	problem with using array: the information is lost in the schema, now we use 
  	*	rdfs:member http://www.w3.org/TR/rdf-schema/#ch_member
  	*/ 	
 	template<
@@ -163,14 +162,13 @@ namespace objrdf{
 		PROPERTY,
 		custom_allocator<
 			PROPERTY,
-			//pseudo_ptr_array<PROPERTY,typename get_store<typename PROPERTY::PTR>::value,false> //wont work with literal properties
-			pseudo_ptr_array<PROPERTY,STORE,false> //wont work with literal properties
+			pseudo_ptr_array<PROPERTY,STORE,false>
 		>
 	>{
 	public:
 		enum{TYPE=PROPERTY::TYPE};
 		typedef array SELF;
-		static PROPERTY_PTR get_property(){return PROPERTY::get_property();}
+		static PROPERTY_PTR get_property();
 		~array(){cerr<<"~array()"<<this->size()<<endl;}
 	};
 	struct match_property{
@@ -340,8 +338,6 @@ namespace objrdf{
 				return *this;
 			}
 			const_type_iterator* operator->(){return this;}
-			//const_instance_iterator cbegin(){return const_instance_iterator(subject,*this,0);}
-			//const_instance_iterator cend(){return const_instance_iterator(subject,*this,get_size());}
 			const_instance_iterator cbegin(){return const_instance_iterator(subject,alt_subject,*this,0);}
 			const_instance_iterator cend(){return const_instance_iterator(subject,alt_subject,*this,get_size());}
 		};
@@ -365,13 +361,7 @@ namespace objrdf{
 		//shouldn't be const?
 		uri id;
 		static V v;
-		/*
- 		*	only virtual functions used
- 		*	what if we use a vtable stored in the pool?
- 		*	p->f(...) becomes v[p.pool_ptr].f(p.index,...)
- 		*	we could also play with member function pointers
- 		*/ 
-		/*virtual*/ ~base_resource(){
+		~base_resource(){
 			//for pool management
 			id.local[0]=0;
 			//
@@ -379,26 +369,19 @@ namespace objrdf{
 			cerr<<"delete base_resource `"<<id<<"' "<<this<<endl;
 			#endif
 		}
-		//we want to change that to rdfs::Class const* or const pseudo_ptr<const rdfs::Class> 
-		/*virtual*/ CLASS_PTR get_Class() const{return get_class();};
-		/*virtual*/ type_iterator begin();
-		/*virtual*/ type_iterator end();
-		/*virtual*/ const_type_iterator cbegin() const;
-		/*virtual*/ const_type_iterator cend() const;
-		/*virtual*/ void get_output(ostream& os) const;//local resources can have content accessible through a URL scheme 
-		/*virtual*/ void end_resource(){};//will be invoked when finished parsing the element
-		/*
-		template<typename T> type_iterator fbegin(){return type_iterator(this,T::v.begin());}
-		template<typename T> type_iterator fend(){return type_iterator(this,T::v.end());}
-		*/
+		CLASS_PTR get_Class() const{return get_class();};
+		type_iterator begin();
+		type_iterator end();
+		const_type_iterator cbegin() const;
+		const_type_iterator cend() const;
+		void get_output(ostream& os) const;//local resources can have content accessible through a URL scheme 
+		void end_resource(){};//will be invoked when finished parsing the element
 		typedef std::tuple<
 			//do we even need this when using PERSISTENT?
 			//yes when creating new resource in the parser or sparql update query
 			void (*)(void*,uri),	//in-place constructor
 			type_iterator (*)(ITERATOR_RESOURCE_PTR),	//begin
 			type_iterator (*)(ITERATOR_RESOURCE_PTR),	//end
-			//const_type_iterator (*)(ITERATOR_CONST_RESOURCE_PTR),//cbegin
-			//const_type_iterator (*)(ITERATOR_CONST_RESOURCE_PTR)	//cend
 			const_type_iterator (*)(CONST_RESOURCE_PTR),//cbegin
 			const_type_iterator (*)(CONST_RESOURCE_PTR)	//cend
 			//shall we add a clone function?
@@ -421,12 +404,11 @@ namespace objrdf{
 		void to_xml(ostream& os);
 		void to_xml_leaf(ostream& os);
 		static bool filter_provenance(PROVENANCE& p){return true;}
-		//template<typename F> void to_rdf_xml(ostream& os,F f=filter_provenance);//the document should not have loops!!!
 		void to_rdf_xml(ostream& os,const PROVENANCE& p=0) const;//the document should not have loops!!!
 		//to use in bash
 		void to_turtle_pretty(ostream& os);
 		void to_rdf_xml_pretty(ostream& os);//the document should not have loops!!!
-		static CONST_RESOURCE_PTR nil/*,cycle*/;
+		static CONST_RESOURCE_PTR nil;
 		int p_to_xml_size(const PROPERTY_PTR p);
 		bool is_a(const CLASS_PTR&) const;
 		COMMENT("The class resource, everything.");
@@ -444,8 +426,6 @@ namespace objrdf{
 	namespace f_ptr{
 		template<typename T> base_resource::type_iterator begin(ITERATOR_RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.begin());}
 		template<typename T> base_resource::type_iterator end(ITERATOR_RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.end());}
-		//template<typename T> base_resource::const_type_iterator cbegin(ITERATOR_CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,T::v.cbegin());}
-		//template<typename T> base_resource::const_type_iterator cend(ITERATOR_CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,T::v.cend());}
 		template<typename T> base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,r,T::v.cbegin());}
 		template<typename T> base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,r,T::v.cend());}
 	}
@@ -535,7 +515,6 @@ namespace objrdf{
 		base_resource::type_iterator end(){return base_resource::type_iterator(this,v.end());}  
 		base_resource::const_type_iterator cbegin() const{return base_resource::const_type_iterator(this,v.cbegin());}
 		base_resource::const_type_iterator cend() const{return base_resource::const_type_iterator(this,v.cend());}  
-		/*virtual*/ //rdfs::Class* get_Class() const{return get_class().get();};
 		static CLASS_PTR get_class();	
 		/*	
 		template<typename U,int FOUND=tuple_index<U,PROPERTIES>::value!=tuple_size<PROPERTIES>::value> struct help_set{
@@ -626,7 +605,7 @@ namespace objrdf{
 		bool POLYMORPHISM,
 		typename INDEX
 	>
-	class base_property<pseudo_ptr<T,STORE,POLYMORPHISM,INDEX>>:public pseudo_ptr<T,STORE,POLYMORPHISM,INDEX>/*,public base*/{
+	class base_property<pseudo_ptr<T,STORE,POLYMORPHISM,INDEX>>:public pseudo_ptr<T,STORE,POLYMORPHISM,INDEX>{
 	public:
 		enum{TYPE=0};
 		typedef pseudo_ptr<T,STORE,POLYMORPHISM,INDEX> PTR;
@@ -645,7 +624,7 @@ namespace objrdf{
 		bool POLYMORPHISM,
 		typename INDEX
 	>
-	class base_property<pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX>>:public pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX>/*,public base*/{
+	class base_property<pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX>>:public pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX>{
 	public:
 		enum{TYPE=CONST};
 		typedef pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX> PTR;
@@ -676,7 +655,9 @@ namespace objrdf{
 		~property(){
 			//LOG<<"delete property `"<<NAME<<"' "<<this<<endl;
 		}
+		//we could add arguments to modify the property, for instance set the rdfs::domain, the rdfs::subPropertyOf
 		static PROPERTY_PTR get_property();
+		static PROPERTY_PTR get_property_array();
 	};
 	/*
  	*	property to keep track of versions, a pointer to the previous version
@@ -686,11 +667,6 @@ namespace objrdf{
 
 
 	RESOURCE_PTR create_by_type(CLASS_PTR c,uri id);
-	/*
-	template<typename SUBJECT,typename PROPERTY,bool TRANSACTION=> struct base_0{
-
-	};
-	*/
 	template<typename P> uri get_uri(const P& p){
 		CONST_RESOURCE_PTR r(p);
 		size_t _id=r.pool_ptr.index | (r.index<<(sizeof(r.pool_ptr.index)<<3));
@@ -728,8 +704,6 @@ namespace objrdf{
 				i->add_property(0)->set_object(c);//careful with infinite recursion
 			}
 		}
-		//more work
-		//static void erase(base_resource* subject,size_t first,size_t last){/*set_object(subject,RESOURCE_PTR(0),0);*/}	
 		static void erase(ITERATOR_RESOURCE_PTR subject,size_t first,size_t last){get(subject,0).erase();}	
 		static PROVENANCE get_provenance(ITERATOR_CONST_RESOURCE_PTR subject,size_t){return 0;/*get_const(subject).p;*/}
 		static function_table get_table(){
@@ -797,7 +771,6 @@ namespace objrdf{
 	};
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONST>:base_f<SUBJECT,PROPERTY>{
 		typedef base_f<SUBJECT,PROPERTY> BASE;
-		//static CONST_RESOURCE_PTR get_const_object(ITERATOR_CONST_RESOURCE_PTR subject,size_t index){return BASE::get_const(subject,index).get_const_object();}
 		static CONST_RESOURCE_PTR get_const_object(ITERATOR_CONST_RESOURCE_PTR subject,CONST_RESOURCE_PTR alt_subject,size_t index){
 			return BASE::get_const(subject,index).get_const_object();
 		}
@@ -865,6 +838,7 @@ namespace objrdf{
 	template<typename SUBJECT> struct functions<SUBJECT,objrdf::id,STRING|LITERAL>{
 		static void set_string(ITERATOR_RESOURCE_PTR subject,string s,size_t){subject->id=uri(s);}
 		static void in(ITERATOR_RESOURCE_PTR subject,istream& is,size_t){
+			//could add code to detect duplicate id's
 			string tmp;
 			is>>tmp;
 			set_string(subject,tmp,0);
@@ -1081,10 +1055,10 @@ namespace rdf{
 		typedef free_store STORE;
 		Property(objrdf::uri u);
 		Property(objrdf::uri u,rdfs::range r,const bool literalp);
+		Property(objrdf::uri u,rdfs::range r,const bool literalp,rdfs::subPropertyOf);
 		const bool literalp;
 		//nil property?
 		static objrdf::PROPERTY_PTR nil;
-		static objrdf::PROPERTY_PTR rdfs_member;
 		COMMENT("The class of RDF properties.");
 	};
 }//end namespace rdf
@@ -1098,17 +1072,6 @@ namespace objrdf{
 	>
 	CLASS_PTR resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS>::get_class(){
 		typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,resource,SUBCLASS>::ResultT TMP;
-		/*
- 		*	this function is called twice when resource is XML_Literal, why??? bad compilation maybe
- 		*/ 
-		/*
- 		*	new idea: before we create any class we load the schema, which should contain all the classes
- 		*	currently known (order matters!), any new class will be appended, the goal is to match the classes
- 		*	defined in the code with the external schema, there could be race conditions
- 		*	the simplest would be files with a number
- 		*	rdfs_Class 0
- 		*
- 		*/ 
 		//we can chain a function to add superClassOf
 		static CLASS_PTR p=rdfs::Class::super(CLASS_PTR::construct_at(
 			//in case of persistent storage we will override old version and refresh pointers and function pointers
@@ -1154,17 +1117,36 @@ namespace objrdf{
 		typename RANGE,
 		typename IMPLEMENTATION
 	> PROPERTY_PTR property<NAMESPACE,NAME,RANGE,IMPLEMENTATION>::get_property(){
-		//cerr<<"about to construct Property `"<<NAME<<"'"<<endl;
 		static PROPERTY_PTR c(
 			PROPERTY_PTR::construct(
 				objrdf::get_uri<NAMESPACE>(NAME),
 				rdfs::range(selector<RANGE>::ResultT::get_class()),
-				//(bool)selector<RANGE>::IS_LITERAL
-				//maybe we can get rid of selector<> altogether
 				property<NAMESPACE,NAME,RANGE,IMPLEMENTATION>::TYPE&LITERAL
 			)
 		);
 		return c;
+	}
+	template<
+		typename NAMESPACE,
+		const char* NAME,
+		typename RANGE,
+		typename IMPLEMENTATION
+	> PROPERTY_PTR property<NAMESPACE,NAME,RANGE,IMPLEMENTATION>::get_property_array(){
+		static PROPERTY_PTR c(
+			PROPERTY_PTR::construct(
+				objrdf::get_uri<NAMESPACE>(NAME),
+				rdfs::range(selector<RANGE>::ResultT::get_class()),
+				property<NAMESPACE,NAME,RANGE,IMPLEMENTATION>::TYPE&LITERAL,
+				rdfs::subPropertyOf(rdfs::member::get_property())
+			)
+		);
+		return c;
+	}
+	template<
+		typename PROPERTY,
+		typename STORE
+	> PROPERTY_PTR array<PROPERTY,STORE>::get_property(){
+		return PROPERTY::get_property_array();
 	}
 	struct name_p{
 		const uri n;
@@ -1213,7 +1195,6 @@ namespace objrdf{
 		typename SUPERCLASS 
 	> struct get_generic_property<resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS> >{
 		typedef resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS> RESOURCE;
-		//can we get rid of that? no!
 		typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,RESOURCE,SUBCLASS>::ResultT TMP;
 		static V go(){
 			LOG<<"get_generic_property:`"<<NAME<<"'"<<endl;
