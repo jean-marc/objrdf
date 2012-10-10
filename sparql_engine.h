@@ -33,6 +33,8 @@
  *	        ?person foaf:firstName 'Bill'
  *	  } 
  *
+ * 	we need a garbage collection so then all the properties have been removed from a resource the
+ * 	memory should be released, we can decide to do that once the type has been removed
  */
 /*
  *	should catch cycles in graph!
@@ -41,41 +43,8 @@
 using namespace objrdf;
 typedef CONST_RESOURCE_PTR SPARQL_RESOURCE_PTR;//won't allow modification (update)
 struct subject;
-/*
- *	could it be made more generic?
- *	we could have
- * 	most of the time we use base_resource::instance_iterator ex
- * 	the problem is when we start from the whole document
- */
-//typedef std::pair<SPARQL_RESOURCE_PTR,base_resource::instance_iterator> R;
-typedef vector<vector<base_resource::const_instance_iterator> > RESULT;
-//typedef vector<vector<R> RESULT;
-ostream& operator<<(ostream& os,const RESULT& r){
-	for(auto i=r.begin();i<r.end();++i){
-		for(auto j=i->cbegin();j<i->cend();++j){
-			if((*j)!=base_resource::nil->cbegin()->cbegin()){
-				if(j->get_Property()->get_const<rdfs::range>()==rdfs::XML_Literal::get_class())
-					os<<"XML_Literal ...\t|";
-				else{
-					os<<*j<<"\t|";
-				}
-			}else{
-				os<<"nil\t|";
-			}
-		}
-	}
-	return os;
-}
-typedef vector<vector<SPARQL_RESOURCE_PTR> > RRESULT;//resources only
-ostream& operator<<(ostream& os,const RRESULT& r){
-	for(auto i=r.begin();i<r.end();++i){
-		for(auto j=i->begin();j<i->end();++j){
-			//os<<*j<<"\t|";
-		}
-	}
-	return os;
-}
-
+typedef vector<vector<base_resource::const_instance_iterator>> RESULT;
+ostream& operator<<(ostream& os,const RESULT& r);
 struct verb{
 	PROPERTY_PTR p;//0 -> not bound
 	subject* object;
@@ -86,7 +55,6 @@ struct verb{
 	verb(PROPERTY_PTR p,subject* object);
 	verb();
 	RESULT run(SPARQL_RESOURCE_PTR r);
-	RRESULT run_r(SPARQL_RESOURCE_PTR r);//
 	int size();
 	vector<string> get_variables() const;
 };
@@ -101,23 +69,20 @@ struct subject{
 	bool busy;
 	vector<verb> verbs;
 	subject(SPARQL_RESOURCE_PTR r=SPARQL_RESOURCE_PTR(0));
-	subject(string s);
+	explicit subject(string s);
+	subject(uri u);
 	RESULT run(base_resource::const_instance_iterator i,PROPERTY_PTR p);
-	//is this used?
-	RESULT run(SPARQL_RESOURCE_PTR _r,PROPERTY_PTR p);
 	RESULT run(size_t n=1000000);
 	void del();
 	void ins();
 	int size();
 	vector<string> get_variables();
-	//hack
-	static objrdf::V _v;
 };
 
 
 
 void to_xml(ostream& os,/*const*/ RESULT& r,/*const*/ subject&);
-void to_json(ostream& os,const RESULT& r,const subject&){}
+//void to_json(ostream& os,const RESULT& r,const subject&){}
 class sparql_parser:public char_iterator{
 /*
  *	see http://www.w3.org/TR/rdf-sparql-query/#sparqlGrammar
@@ -136,12 +101,16 @@ public:
 	typedef seq_c<'D','E','S','C','R','I','B','E'> DESCRIBE;
 	typedef event_1<seqw<BASE,turtle_parser::_uriref_>,__COUNTER__> base_decl;
 	typedef event_1<seqw<PREFIX,turtle_parser::pname_ns,turtle_parser::_uriref_>,__COUNTER__> prefix_decl;
+	/*
+ 	*	how do we add OPTIONAL?
+ 	*/ 
 	typedef	event_1<seqw<WHERE,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> where_statement; 
 	typedef	event_1<seqw<DELETE,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> delete_statement; 
 	typedef	event_1<seqw<INSERT,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> insert_statement; 
 	typedef event_1<seqw<or_p<delete_statement,true_p>,or_p<insert_statement,true_p>,where_statement>,__COUNTER__> update_query;
 	typedef	event_1<seqw<DELETE,DATA,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> delete_data_query; 
 	typedef	event_1<seqw<INSERT,DATA,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> insert_data_query; 
+	//typedef seqw<delete_data_query,char_p<';'>,insert_data_query> update_data_query;
 	typedef event_1<seqw<SELECT,or_p<plus_pw<turtle_parser::variable>,char_p<'*'>>,where_statement>,__COUNTER__> select_query;	
 	typedef event_1<seqw<DESCRIBE,or_p<turtle_parser::_uriref_,turtle_parser::qname>>,__COUNTER__> simple_describe_query;	
 	typedef event_1<seqw<DESCRIBE,or_p<plus_pw<turtle_parser::variable>,char_p<'*'>>,where_statement>,__COUNTER__> describe_query;	
@@ -152,14 +121,13 @@ public:
 			select_query,
 			simple_describe_query,
 			describe_query,
-			insert_data_query,//need to add support to delete insert (update) query
-			delete_data_query,
-			update_query
+			insert_data_query,
+			seqw<delete_data_query,or_p<seqw<char_p<';'>,insert_data_query>,true_p>>,//see http://www.w3.org/TR/sparql11-update/
   			//update_data_query
+			update_query
 		> 
 	> document;
 	typedef map<string,base_resource::const_instance_iterator> VARIABLES;
-	//rdf::RDF& doc;
 	SPARQL_RESOURCE_PTR d_resource;
 	subject *sbj,*current_sbj,*where_s,*delete_s,*insert_s;
 	typedef enum{no_q,select_q,simple_describe_q,describe_q,insert_data_q,delete_data_q} query_type;
