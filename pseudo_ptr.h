@@ -339,11 +339,6 @@ struct pool_array{
 	}
 
 };
-/*
-struct empty_store{//for classes with no instance
-	enum{N=0};
-};
-*/
 struct empty_store:public param{//for classes with no instance
 	enum{N=0};
 	//it needs to have a minimum size
@@ -450,7 +445,7 @@ template<typename T> struct const_test<const T>{enum{N=1};};
 
 template<
 	typename T,
-	typename STORE=free_store,	//free store or persistent, could also have no store
+	typename STORE=typename T::STORE,
 	bool POLYMORPHISM=false,	//does not support derived types
 	typename _INDEX_=uint16_t	//can address 2^16 objects
 	//,typename CONTAINER=T		//if we want to add reference counting
@@ -905,6 +900,11 @@ template<
 	template<typename A,typename B,typename C> static pseudo_ptr construct(A a,B b,C c){
 		pseudo_ptr p=allocate();
 		new(p)T(a,b,c);//in-place constructor
+		return p;
+	} 
+	template<typename A,typename B,typename C,typename D> static pseudo_ptr construct(A a,B b,C c,D d){
+		pseudo_ptr p=allocate();
+		new(p)T(a,b,c,d);//in-place constructor
 		return p;
 	} 
 	template<typename A> static pseudo_ptr construct_at(size_t i,A a){
