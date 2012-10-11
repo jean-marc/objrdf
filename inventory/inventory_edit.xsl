@@ -113,12 +113,12 @@ $("form").submit(function(){
 		}
 	});
 	$('input.delete[type=checkbox]:checked').each(function(){
-		var s='delete data {&lt;<xsl:value-of select='$id'/>&gt; &lt;'+$(this).attr('name')+'&gt; &lt;'+$(this).attr('value')+'&gt; .}';
+		var s='delete data {&lt;<xsl:value-of select='$id'/>&gt; &lt;'+$(this).attr('name')+'&gt; &lt;'+$(this).attr('value')+'&gt; .};insert data {}';//hack because of parser limitation
 		//alert(s);
 		$.post('/',s,function(){})
 	});
 	$('input.delete_literal[type=checkbox]:checked').each(function(){
-		var s='delete data {&lt;<xsl:value-of select='$id'/>&gt; &lt;'+$(this).attr('name')+'&gt; "'+$(this).attr('value')+'" .}';
+		var s='delete data {&lt;<xsl:value-of select='$id'/>&gt; &lt;'+$(this).attr('name')+'&gt; "'+$(this).attr('value')+'" .};insert data {}';//hack because of parser limitation
 		//alert(s);
 		$.post('/',s,function(){})
 	});
