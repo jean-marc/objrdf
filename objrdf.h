@@ -422,7 +422,7 @@ namespace objrdf{
 	public:
 		_tmp_ operator[](const string& key){return _tmp_(*this,key);}
 	};
-	//to get function pointers, could use less conspicuous names or wrap into namespace
+	//to get function pointers
 	namespace f_ptr{
 		template<typename T> base_resource::type_iterator begin(ITERATOR_RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.begin());}
 		template<typename T> base_resource::type_iterator end(ITERATOR_RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.end());}
@@ -799,8 +799,10 @@ namespace objrdf{
 	typedef base_resource* (*fpt)(uri);
 	namespace f_ptr{
 		template<typename T> void constructor(void* p,uri u){new(p)T(u);}//a lot simpler
-		template<> void constructor<rdfs::Class>(void* p,uri u);//{assert(0);}
-		template<> void constructor<rdf::Property>(void* p,uri u);//{assert(0);}
+		template<> void constructor<rdfs::Class>(void* p,uri u);
+		template<> base_resource::type_iterator end<rdfs::Class>(ITERATOR_RESOURCE_PTR r);
+		template<> void constructor<rdf::Property>(void* p,uri u);
+		template<> base_resource::type_iterator end<rdf::Property>(ITERATOR_RESOURCE_PTR r);
 	}
 	struct type_p{
 		CLASS_PTR t;
@@ -836,9 +838,12 @@ namespace objrdf{
 	OBJRDF_PROPERTY(id,uri);
 	//we can specialize for objrdf::id
 	template<typename SUBJECT> struct functions<SUBJECT,objrdf::id,STRING|LITERAL>{
-		static void set_string(ITERATOR_RESOURCE_PTR subject,string s,size_t){subject->id=uri(s);}
+		static void set_string(ITERATOR_RESOURCE_PTR subject,string s,size_t){
+			//only makes sense with local resources
+			if(subject->id.is_local())
+				subject->id=uri(s);//could add code to detect duplicate id's
+		}
 		static void in(ITERATOR_RESOURCE_PTR subject,istream& is,size_t){
-			//could add code to detect duplicate id's
 			string tmp;
 			is>>tmp;
 			set_string(subject,tmp,0);
@@ -1062,6 +1067,7 @@ namespace rdf{
 		COMMENT("The class of RDF properties.");
 	};
 }//end namespace rdf
+
 namespace objrdf{
 	template<
 		typename NAMESPACE,

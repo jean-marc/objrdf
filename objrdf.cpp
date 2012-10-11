@@ -11,6 +11,8 @@ using namespace objrdf;
 
 template<> void f_ptr::constructor<rdfs::Class>(void* p,uri u){assert(0);}
 template<> void f_ptr::constructor<rdf::Property>(void* p,uri u){assert(0);}
+template<> base_resource::type_iterator f_ptr::end<rdfs::Class>(ITERATOR_RESOURCE_PTR r){return base_resource::type_iterator(r,rdfs::Class::v.begin());}
+template<> base_resource::type_iterator f_ptr::end<rdf::Property>(ITERATOR_RESOURCE_PTR r){return base_resource::type_iterator(r,rdf::Property::v.begin());}
 
 name_p::name_p(uri n):n(n){}
 bool name_p::operator()(const property_info& p) const{return p.p->id==n;}
@@ -114,7 +116,6 @@ rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp,rdfs::s
 CONST_RESOURCE_PTR base_resource::nil=CONST_RESOURCE_PTR::construct(uri("nil"));
 
 PROPERTY_PTR rdf::Property::nil=PROPERTY_PTR(PROPERTY_PTR::pointer::construct(uri("nil_p")));
-//PROPERTY_PTR rdf::Property::rdfs_member=rdfs::member::get_property();
 
 V base_resource::v=get_generic_property<base_resource>::go();
 PROPERTY_PTR base_resource::instance_iterator::get_Property() const{return i->p;}
@@ -169,9 +170,10 @@ PROVENANCE base_resource::const_instance_iterator::get_provenance() const{
 }
 base_resource::instance_iterator base_resource::type_iterator::add_property(PROVENANCE p){
 	#ifdef OBJRDF_VERB
-	cerr<<"add_property with provenance "<<(int)p<<endl;
+	cerr<<"add_property with provenance "<<(int)p<<" to resource `"<<subject->id<<"'"<<endl;
 	#endif
 	//awkward
+	assert(std::get<7>(static_cast<V::iterator>(*this)->t));
 	std::get<7>(static_cast<V::iterator>(*this)->t)(subject,p);
 	return instance_iterator(subject,*this,get_size()-1);
 }
@@ -257,8 +259,7 @@ namespace objrdf{
 		os<<"\n<"<<get_class(r)->id<<" "<<(r->id.is_local() ? rdf::ID : rdf::about)<<"='";
 		r->id.to_uri(os);
 		os<<"'>";
-		//for(auto i=++cbegin(r);i!=cend(r);++i){//skip first property rdf::type
-		for(auto i=cbegin(r);i!=cend(r);++i){//skip first property rdf::type
+		for(auto i=cbegin(r);i!=cend(r);++i){
 			for(base_resource::const_instance_iterator j=i->cbegin();j!=i->cend();++j){
 				//should test if constant or not
 				if(i->literalp())
