@@ -1087,7 +1087,10 @@ namespace objrdf{
 			objrdf::base_resource::class_function_table(
 				f_ptr::constructor<TMP>,
 				f_ptr::begin<TMP>,
-				f_ptr::end<TMP>,
+				//if the pool is not writable all instances will be locked
+				POOL_PTR::help<TMP>()->p.writable ? 
+					static_cast<objrdf::base_resource::type_iterator (*)(ITERATOR_RESOURCE_PTR)>(f_ptr::end<TMP>) : 
+					static_cast<objrdf::base_resource::type_iterator (*)(ITERATOR_RESOURCE_PTR)>(f_ptr::begin<TMP>),
 				f_ptr::cbegin<TMP>,
 				f_ptr::cend<TMP>
 			),
