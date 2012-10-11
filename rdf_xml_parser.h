@@ -5,7 +5,6 @@
 #include <stack>
 #include <sstream>
 #include <algorithm>
-//using namespace std;
 /*
 	the RDF/XML syntax is fairly complicated and provides many different ways to describe the same graph
 	rdf:ID
@@ -29,19 +28,17 @@ namespace objrdf{
 	struct rdf_xml_parser:xml_parser<rdf_xml_parser>{
 		PROVENANCE p;
 		bool string_property;
-		std::stack<shared_ptr<base_resource> > st;
+		std::stack<RESOURCE_PTR> st;
 		typedef multimap<uri,base_resource::instance_iterator> MISSING_OBJECT;
 		MISSING_OBJECT missing_object;//store all the properties waiting for object
-		rdf::RDF& doc;
 		/*
  		*	placeholder when a resource can not be created for any reason (eg: the rdfs:type
  		*	is not known yet) so that the parsing can go on.
  		*/ 
-		shared_ptr<base_resource> placeholder;
+		RESOURCE_PTR placeholder;
 		base_resource::type_iterator current_property;
-		//int depth;//could use xml_parser<>::depth
-		void set_missing_object(shared_ptr<base_resource>); 
-		rdf_xml_parser(rdf::RDF& _doc,std::istream& is,PROVENANCE p=1);
+		void set_missing_object(RESOURCE_PTR); 
+		rdf_xml_parser(std::istream& is,PROVENANCE p=1);
 		bool start_resource(uri name,ATTRIBUTES att);
 		bool end_resource(uri name);
 		bool start_property(uri name,ATTRIBUTES att);

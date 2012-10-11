@@ -2,7 +2,7 @@
 #include <sstream>
 #include <algorithm>
 using namespace objrdf;
-rdf_xml_parser::rdf_xml_parser(rdf::RDF& doc,std::istream& is,PROVENANCE p):xml_parser<rdf_xml_parser>(is),doc(doc),placeholder(new base_resource(uri("??"))),current_property(placeholder->end()),p(p){
+rdf_xml_parser::rdf_xml_parser(std::istream& is,PROVENANCE p):xml_parser<rdf_xml_parser>(is),placeholder(RESOURCE_PTR::construct(uri("??"))/* base_resource(uri("??"))*/),current_property(end(placeholder)),p(p){
 	string_property=false;
 	st.push(placeholder);
 }
@@ -13,22 +13,16 @@ bool rdf_xml_parser::go(){
 	return r;
 };
 bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& to spare a map copy?
-	//cerr<<"start resource "<<name<<endl;
-	if(current_property!=st.top()->end()){
-		if(current_property->get_Property()->get<rdfs::range>().get()->id==name){
-			assert(current_property->get_Property()->get<rdfs::range>()->f);
-			shared_ptr<base_resource> r=shared_ptr<base_resource>(current_property->get_Property()->get<rdfs::range>()->f(uri(att[rdf::ID])));
+	cerr<<"start resource "<<name<<endl;
+	if(current_property!=end(st.top())){
+		if(current_property->get_Property()->get_const<rdfs::range>()->id==name){
+			//assert(current_property->get_Property()->get_const<rdfs::range>()->constructor());
+			RESOURCE_PTR r=create_by_type(current_property->get_Property()->get_const<rdfs::range>(),uri(att[rdf::ID]));
 			//LOG<<"new resource:"<<r->id<<endl;
 			current_property->add_property(p)->set_object(r);
 			set_missing_object(r);
 			st.push(r);
-			doc.insert(r);
-			//process attributes
-			/*
-				2 methods: 
-				
-			*/
-			for(base_resource::type_iterator i=r->begin();i!=r->end();++i){
+			for(base_resource::type_iterator i=begin(r);i!=end(r);++i){
 				ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
 				if(j!=att.end()){
 					istringstream is(j->second);
@@ -42,10 +36,10 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 			ATTRIBUTES::iterator i=att.find(rdf::about);
 			if(i!=att.end()){
 				//could be a local resource: starts with `#'
-				shared_ptr<base_resource> subject=doc.find(uri::hash_uri(i->second));
+				RESOURCE_PTR subject=find(uri::hash_uri(i->second));
 				if(subject){
 					st.push(subject);
-					for(base_resource::type_iterator i=subject->begin();i!=subject->end();++i){
+					for(base_resource::type_iterator i=begin(subject);i!=end(subject);++i){
 						ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
 						if(j!=att.end()){
 							istringstream is(j->second);
@@ -60,13 +54,14 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 					placeholder->id=uri::hash_uri(i->second);
 					st.push(placeholder);
 					*/
-					st.push(shared_ptr<base_resource>(new base_resource(uri::hash_uri(i->second))));
+					st.push(RESOURCE_PTR::construct(uri::hash_uri(i->second)));
+					
 				}
 				
 			}else{
 				ATTRIBUTES::iterator i=att.find(rdf::ID);
 				if(i!=att.end()){
-					st.push(shared_ptr<base_resource>(new base_resource(uri(i->second))));
+					st.push(RESOURCE_PTR::construct(uri(i->second)));
 				}else{
 					ERROR_PARSER<<"anonymous resource"<<endl;
 					st.push(placeholder);
@@ -93,19 +88,17 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 				*/
 			}
 		}else{//could be a sub-class
-			shared_ptr<base_resource> r=doc.find(name);
+			RESOURCE_PTR r=find(name);
 			//alternatively only search rdfs::Class::get_instances() will work in most cases
-			if(r&&r->get_Class()==rdfs::Class::get_class().get()){
-				rdfs::Class& c=*static_cast<rdfs::Class*>(r.get());
-				if(*current_property->get_Property()->get<rdfs::range>() < c){
-					assert(c.f);
-					shared_ptr<base_resource> r=shared_ptr<base_resource>(c.f(uri(att[rdf::ID])));
+			if(r&&r->get_Class()==rdfs::Class::get_class()){
+				CLASS_PTR c(r);
+				if(*current_property->get_Property()->get_const<rdfs::range>() < *c){
+					RESOURCE_PTR r=create_by_type(c,uri(att[rdf::ID]));
 					//LOG<<"new resource:"<<r->id<<endl;
 					//r->id=att[rdf::ID];
 					current_property->add_property(p)->set_object(r);
 					st.push(r);
-					doc.insert(r);
-					for(base_resource::type_iterator i=r->begin();i!=r->end();++i){
+					for(base_resource::type_iterator i=begin(r);i!=end(r);++i){
 						ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
 						if(j!=att.end()){
 							istringstream is(j->second);
@@ -113,7 +106,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 						}
 					}
 				}else{
-					ERROR_PARSER<<name<<" not a sub-class of "<<current_property->get_Property()->get<rdfs::range>()->id<<endl;
+					ERROR_PARSER<<name<<" not a sub-class of "<<current_property->get_Property()->get_const<rdfs::range>()->id<<endl;
 					st.push(placeholder);
 				}
 			}else{
@@ -133,10 +126,10 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 			ATTRIBUTES::iterator i=att.find(rdf::about);
 			if(i!=att.end()){
 				//could be a local resource: starts with `#'
-				shared_ptr<base_resource> subject=doc.find(uri::hash_uri(i->second));
+				RESOURCE_PTR subject=find(uri::hash_uri(i->second));
 				if(subject){
 					st.push(subject);
-					for(base_resource::type_iterator i=subject->begin();i!=subject->end();++i){
+					for(base_resource::type_iterator i=begin(subject);i!=end(subject);++i){
 						ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
 						if(j!=att.end()){
 							istringstream is(j->second);
@@ -148,14 +141,14 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 					ERROR_PARSER<<"un-typed resource"<<endl;
 					//placeholder->id=uri::hash_uri(i->second);
 					//st.push(placeholder);
-					st.push(shared_ptr<base_resource>(new base_resource(uri::hash_uri(i->second))));
+					st.push(RESOURCE_PTR::construct(uri::hash_uri(i->second)));
 				}
 				
 			}else{
 				//placeholder->id=uri();//reset
 				ATTRIBUTES::iterator i=att.find(rdf::ID);
 				if(i!=att.end()){
-					st.push(shared_ptr<base_resource>(new base_resource(uri(i->second))));
+					st.push(RESOURCE_PTR::construct(uri(i->second)));
 					//placeholder->id=uri::hash_uri(i->second);
 					//placeholder->id=uri(i->second);
 				}else{
@@ -177,10 +170,10 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
  			*/ 
 			ATTRIBUTES::iterator i=att.find(rdf::about);
 			if(i!=att.end()){
-				shared_ptr<base_resource> subject=doc.find(uri::hash_uri(i->second));
+				RESOURCE_PTR subject=find(uri::hash_uri(i->second));
 				if(subject){
 					st.push(subject);
-					for(base_resource::type_iterator i=subject->begin();i!=subject->end();++i){
+					for(base_resource::type_iterator i=begin(subject);i!=end(subject);++i){
 						ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
 						if(j!=att.end()){
 							istringstream is(j->second);
@@ -188,14 +181,12 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 						}
 					}
 				}else{
-					shared_ptr<rdfs::Class> r=doc.query_t<rdfs::Class>(name);
+					CLASS_PTR r=find_t<CLASS_PTR>(name);
 					if(r){
-						assert(r->f);
-						shared_ptr<base_resource> subject(r->f(uri::hash_uri(i->second)));
+						RESOURCE_PTR subject=create_by_type(r,uri::hash_uri(i->second));
 						set_missing_object(subject);
 						st.push(subject);
-						doc.insert(subject);
-						for(base_resource::type_iterator i=subject->begin();i!=subject->end();++i){
+						for(base_resource::type_iterator i=begin(subject);i!=end(subject);++i){
 							ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
 							if(j!=att.end()){
 								istringstream is(j->second);
@@ -204,20 +195,18 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 						}
 					}else{
 						ERROR_PARSER<<"Class `"<<name<<"' not found"<<endl;
-						st.push(shared_ptr<base_resource>(new base_resource(uri::hash_uri(i->second))));
+						st.push(RESOURCE_PTR::construct(uri::hash_uri(i->second)));
 					}
 				}
 			}else{
 				ATTRIBUTES::iterator i=att.find(rdf::ID);
 				if(i!=att.end()){
-					shared_ptr<rdfs::Class> r=doc.query_t<rdfs::Class>(name);
+					CLASS_PTR r=find_t<CLASS_PTR>(name);
 					if(r){
-						assert(r->f);
-						shared_ptr<base_resource> subject(r->f(uri::hash_uri(i->second)));
+						RESOURCE_PTR subject=create_by_type(r,uri::hash_uri(i->second));
 						set_missing_object(subject);
 						st.push(subject);
-						doc.insert(subject);
-						for(base_resource::type_iterator i=subject->begin();i!=subject->end();++i){
+						for(base_resource::type_iterator i=begin(subject);i!=end(subject);++i){
 							ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
 							if(j!=att.end()){
 								istringstream is(j->second);
@@ -226,7 +215,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 						}
 					}else{
 						ERROR_PARSER<<"Class `"<<name<<"' not found"<<endl;
-						st.push(shared_ptr<base_resource>(new base_resource(uri::hash_uri(i->second))));
+						st.push(RESOURCE_PTR::construct(uri::hash_uri(i->second)));
 					}
 
 				}else{
@@ -263,11 +252,8 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 /*
  *	
  */
-void rdf_xml_parser::set_missing_object(shared_ptr<base_resource> object){
-	//something fishy here
-	//for(MISSING_OBJECT::iterator i=missing_object.begin();i!=missing_object.end();++i)
-		//cerr<<"\tmissing objects: `"<<i->first<<"'"<<endl;
-	LOG<<"missing object:"<<object.get()<<"\t`"<<object->id<<"'"<<endl;
+void rdf_xml_parser::set_missing_object(RESOURCE_PTR object){
+	LOG<<"missing object:"<</*(void*)object.get()<<"\t`"<<*/object->id<<"'"<<endl;
 	MISSING_OBJECT::iterator first=missing_object.find(object->id),last=missing_object.upper_bound(object->id);
 	cerr<<(first==missing_object.end())<<"\t"<<(last==missing_object.end())<<"\t"<<(first==last)<<endl;
 	if(first!=missing_object.end()){//why do we need that???
@@ -280,31 +266,32 @@ void rdf_xml_parser::set_missing_object(shared_ptr<base_resource> object){
 	}
 } 
 bool rdf_xml_parser::end_resource(uri name){
-	//cerr<<"end resource "<<name<<endl;
+	cerr<<"end resource "<<name<<endl;
 	st.top()->end_resource();
 	st.pop();
-	current_property=placeholder->end();
+	current_property=end(placeholder);
 	return true;
 }
 bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
-	//cerr<<"start property "<<name<<endl;
-	current_property=std::find_if(st.top()->begin(),st.top()->end(),namep(name));
-	if(current_property!=st.top()->end()){
+	cerr<<"start property "<<name<<endl;
+	current_property=std::find_if(begin(st.top()),end(st.top()),name_p(name));
+	if(current_property!=end(st.top())){
 		if(current_property.literalp()){
-			if(current_property->get_Property()->get<rdfs::range>()!=xsd::String::get_class()){//if the RANGE is string it could consume the next `<'
+			if(current_property->get_Property()->get_const<rdfs::range>()==xsd::String::get_class()||
+			   current_property->get_Property()->get_const<rdfs::range>()==xsd::anyURI::get_class()){//if the RANGE is string it could consume the next `<'
+				string_property=true;
+			}else{
 				current_property->add_property(p)->in(is);
 				if(!is.good()){
 					ERROR_PARSER<<"wrong type"<<endl;
 					is.clear();
 				}
-			}else{
-				string_property=true;
 			}
 		}else{
 			//there could be an `http://www.w3.org/1999/02/22-rdf-syntax-ns#resource' attribute
 			ATTRIBUTES::iterator i=att.find(rdf::resource);
 			if(i!=att.end()){
-				shared_ptr<base_resource> object=doc.find(uri::hash_uri(i->second));
+				RESOURCE_PTR object=find(uri::hash_uri(i->second));
 				if(object){
 					current_property->add_property(p)->set_object(object);//NEED TO CHECK THE TYPE!!!!
 				}else{
@@ -312,28 +299,26 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 					missing_object.insert(MISSING_OBJECT::value_type(uri::hash_uri(i->second),current_property->add_property(p)));
 					//ERROR_PARSER<<"resource "<<i->second<<" not found"<<endl;
 				}
-			}	
-
+			}else{	
+				ERROR_PARSER<<"no attribute `resource' present"<<endl;
+			}
 		}
 	}else{
-		if((name==rdf::type::get_property()->id)&&(st.top()->get_Class()==base_resource::get_class().get())){
+		ERROR_PARSER<<"property `"<<name<<"' not found"<<endl;
+		if((name==rdf::type::get_property()->id)&&(st.top()->get_Class()==base_resource::get_class())){
 			/*
  			*	we have a generic resource, we can maybe swap it for a typed resource
  			*	all XML attributes have been lost
  			*/ 
 			ATTRIBUTES::iterator j=att.find(rdf::resource);
 			if(j!=att.end()){
-				shared_ptr<base_resource> r=doc.find(uri::hash_uri(j->second));
-				if(r&&r->get_Class()==rdfs::Class::get_class().get()){
-					rdfs::Class& c=*static_cast<rdfs::Class*>(r.get());
-					assert(c.f);
-					shared_ptr<base_resource> subject(c.f(st.top()->id));
+				RESOURCE_PTR r=find(uri::hash_uri(j->second));
+				if(r&&r->get_Class()==rdfs::Class::get_class()){
+					RESOURCE_PTR subject=create_by_type(CLASS_PTR(r),st.top()->id);
 					//LOG<<"new resource:"<<subject.get()<<endl;
 					set_missing_object(subject);
-					//subject->id=st.top()->id;
 					st.pop();
 					st.push(subject);
-					doc.insert(subject);
 				}else{
 					ERROR_PARSER<<"resource `"<<j->second<<"' not found"<<endl;
 				}
@@ -348,13 +333,11 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 }
 bool rdf_xml_parser::end_property(uri name){
 	string_property=false;
-	//cerr<<"end property "<<name<<endl;
+	cerr<<"end property "<<name<<endl;
 	return true;
 }
 bool rdf_xml_parser::start_element(uri name,ATTRIBUTES att){
-	//something fishy
-	if(depth==1) current_property=placeholder->end();
-
+	if(depth==1) current_property=end(placeholder);
 	if(depth) //?? what for
 		return (depth&1) ? start_resource(name,att) : start_property(name,att); 
 	return true;
@@ -366,7 +349,7 @@ bool rdf_xml_parser::end_element(uri name){
 }
 //there should ne multiple calls if the buffer fills up
 bool rdf_xml_parser::characters(string s){
-	//cerr<<"characters "<<s<<endl;
+	cerr<<"characters "<<s<<endl;
 	if(string_property){
 		current_property->add_property(p)->set_string(s);
 		/*istringstream is(s);
