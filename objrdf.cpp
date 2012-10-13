@@ -98,8 +98,7 @@ CLASS_PTR base_resource::get_class(){
 	);
 	return p;
 }
-rdf::Property::Property(objrdf::uri id):SELF(id),literalp(true){
-}
+rdf::Property::Property(objrdf::uri id):SELF(id),literalp(true){}
 rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp):rdf::Property::SELF(id),literalp(literalp){
 	get<rdfs::range>()=r;
 }
@@ -114,9 +113,6 @@ rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp,rdfs::s
  */
 
 CONST_RESOURCE_PTR base_resource::nil=CONST_RESOURCE_PTR::construct(uri("nil"));
-
-PROPERTY_PTR rdf::Property::nil=PROPERTY_PTR(PROPERTY_PTR::pointer::construct(uri("nil_p")));
-
 V base_resource::v=get_generic_property<base_resource>::go();
 PROPERTY_PTR base_resource::instance_iterator::get_Property() const{return i->p;}
 PROPERTY_PTR base_resource::const_instance_iterator::get_Property() const{return i->p;}

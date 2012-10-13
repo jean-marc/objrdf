@@ -179,6 +179,8 @@ namespace objrdf{
 	};
 	class base_resource{
 	public:
+		//could break down in TRIGGER_SET and TRIGGER_GET
+		typedef base_resource TRIGGER;
 		//to be investigated ...
 		//template<typename T> friend class special::shared_ptr<T>; 
 		//used by pool
@@ -516,14 +518,6 @@ namespace objrdf{
 		base_resource::const_type_iterator cbegin() const{return base_resource::const_type_iterator(this,v.cbegin());}
 		base_resource::const_type_iterator cend() const{return base_resource::const_type_iterator(this,v.cend());}  
 		static CLASS_PTR get_class();	
-		/*	
-		template<typename U,int FOUND=tuple_index<U,PROPERTIES>::value!=tuple_size<PROPERTIES>::value> struct help_set{
-			static void go(resource* r,U u){r->get<U>()=u;}
-		};
-		template<typename U> struct help_set<U,2>{
-			static void go(resource* r,U u){r->get<array<U> >().back()=u;}
-		};
-		*/
 		//#define DEFAULT_SET template<typename U> void set(U u){help_set<U>::go(this,u);}
 		//DEFAULT_SET;
 	};
@@ -540,6 +534,7 @@ namespace objrdf{
 	enum{LITERAL=0x1};
 	enum{STRING=0x2};
 	enum{CONST=0x4};
+	enum{TRIGGER=0x8};//the subject will be notified if property modified
 	template<typename RANGE> struct base_property{
 		typedef persistent_store STORE;
 		enum{TYPE=LITERAL};
@@ -738,7 +733,7 @@ namespace objrdf{
 		}
 	};
 
-	template<typename SUBJECT,typename PROPERTY,size_t TYPE=PROPERTY::TYPE> struct functions;
+	template<typename SUBJECT,typename PROPERTY,size_t TYPE=PROPERTY::TYPE|(equality<typename SUBJECT::TRIGGER,PROPERTY>::VALUE<<3)> struct functions;
 
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONST|LITERAL>:base_f<SUBJECT,PROPERTY>{
 		typedef base_f<SUBJECT,PROPERTY> BASE;
@@ -760,6 +755,20 @@ namespace objrdf{
 			return t;	
 		}
 	};
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,LITERAL|TRIGGER>:functions<SUBJECT,PROPERTY,CONST|LITERAL>{
+		typedef functions<SUBJECT,PROPERTY,CONST|LITERAL> BASE;
+		static void in(ITERATOR_RESOURCE_PTR subject,istream& is,size_t index){
+			PROPERTY tmp;
+			is>>tmp.t;
+			static_cast<SUBJECT*>(subject)->set_p(tmp);
+		}
+		static function_table get_table(){
+			auto t=BASE::get_table();
+			std::get<1>(t)=in;
+			return t;	
+		}
+	};
+
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,STRING|LITERAL>:functions<SUBJECT,PROPERTY,LITERAL>{
 		typedef functions<SUBJECT,PROPERTY,LITERAL> BASE;
 		static void set_string(ITERATOR_RESOURCE_PTR subject,string s,size_t index){BASE::get(subject,index).set_string(s);}
@@ -1062,8 +1071,6 @@ namespace rdf{
 		Property(objrdf::uri u,rdfs::range r,const bool literalp);
 		Property(objrdf::uri u,rdfs::range r,const bool literalp,rdfs::subPropertyOf);
 		const bool literalp;
-		//nil property?
-		static objrdf::PROPERTY_PTR nil;
 		COMMENT("The class of RDF properties.");
 	};
 }//end namespace rdf
@@ -1163,10 +1170,6 @@ namespace objrdf{
 		bool operator()(const property_info& p) const;
 	};
 	template<typename SUBJECT,typename PROPERTY> property_info get_property_info(){
-		/*
- 		*	once we have the function table we know if property literal, 
- 		*
- 		*/
 		property_info p(PROPERTY::get_property(),functions<SUBJECT,PROPERTY>::get_table());
 		/*
  		* by now we can't modify rdfs::domain, why is it broken down in the first place?
