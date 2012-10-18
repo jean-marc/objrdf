@@ -503,7 +503,6 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						//SPARQL_RESOURCE_PTR r=find(uri::hash_uri(i->v[0].t.second));
 						//SPARQL_RESOURCE_PTR r=find(u);
 						//we should bail out there if not found
-						//sbj=new subject(r ? r : base_resource::nil);
 						sbj=new subject(u);
 						index[i->v[0].t.second]=sbj;
 						current_sbj=sbj;
@@ -513,9 +512,6 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						PREFIX_NS::iterator j=prefix_ns.find(i->v[0].v[0].t.second);
 						if(j!=prefix_ns.end()){
 							uri u(j->second,i->v[0].v[1].t.second);
-							//SPARQL_RESOURCE_PTR r=find(u);
-							//sbj=new subject(r ? r : base_resource::nil);
-							//sbj->u=u;
 							sbj=new subject(u);
 							index[i->v[0].v[0].t.second]=sbj;
 							current_sbj=sbj;
@@ -541,7 +537,8 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					break;
 					case turtle_parser::uriref::id:{
 						PROPERTY_PTR r=find_t<PROPERTY_PTR>(uri::hash_uri(i->v[0].t.second));
-						current_sbj->verbs.push_back(verb(r ? r : rdf::Property::nil,0));
+						//current_sbj->verbs.push_back(verb(r ? r : rdf::Property::nil,0));
+						current_sbj->verbs.push_back(verb(r,0));
 					}
 					break;
 					case turtle_parser::qname::id:{
@@ -549,7 +546,8 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						if(j!=prefix_ns.end()){
 							uri u(j->second,i->v[0].v[1].t.second);
 							PROPERTY_PTR r=find_t<PROPERTY_PTR>(u);
-							current_sbj->verbs.push_back(verb(r ? r : rdf::Property::nil,0));
+							//current_sbj->verbs.push_back(verb(r ? r : rdf::Property::nil,0));
+							current_sbj->verbs.push_back(verb(r,0));
 						}else{
 							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
 							return false;
@@ -619,7 +617,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 	}
 	return true;
 }
-PROPERTY_PTR sparql_parser::parse_property(PARSE_RES_TREE& r){
+PROPERTY_PTR sparql_parser::parse_property(const PARSE_RES_TREE& r){
 	switch(r.t.first){
 		case turtle_parser::uriref::id:{
 			//return find_t<rdf::Property>(uri::hash_uri(r.t.second));
@@ -639,7 +637,7 @@ PROPERTY_PTR sparql_parser::parse_property(PARSE_RES_TREE& r){
 	}
 }
 //won't parse literal
-SPARQL_RESOURCE_PTR sparql_parser::parse_object(PARSE_RES_TREE& r){
+SPARQL_RESOURCE_PTR sparql_parser::parse_object(const PARSE_RES_TREE& r){
 	switch(r.t.first){
 		case turtle_parser::uriref::id:return find(uri::hash_uri(r.t.second));break;
 		case turtle_parser::qname::id:{
@@ -655,7 +653,10 @@ SPARQL_RESOURCE_PTR sparql_parser::parse_object(PARSE_RES_TREE& r){
 		default:return PROPERTY_PTR();//???	
 	}
 }
-bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete,VARIABLES v){
+bool sparql_parser::parse_update_data_statement(const PARSE_RES_TREE& r,bool do_delete,VARIABLES v,RESOURCE_PTR sub){
+	return parse_update_data_statement(r.v.cbegin(),r.v.cend(),do_delete,v,sub);	
+}
+bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterator begin,PARSE_RES_TREE::V::const_iterator end,bool do_delete,VARIABLES v,RESOURCE_PTR sub){
 /*
 *	it is actually a plain turtle parser, it might not be practical to store thr document in a PARSE_RES_TREE,
 *	we need a generic resource that can store literals and pointers, could use it for rdf_xml_parser as well
@@ -665,13 +666,15 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 *	we could break it down in triples and put on stack
 *	a lot of optimizations when using the schema
 */
-	RESOURCE_PTR sub;//subject, will be modified
+	//RESOURCE_PTR sub;//subject, could be modified
 	//needs a default value
 	base_resource::type_iterator current_property(0,objrdf::V::iterator());
-	for(auto i=r.v.begin();i<r.v.end();++i){
+	//for(auto i=r.v.begin();i<r.v.end();++i){
+	for(auto i=begin;i<end;++i){
 		cerr<<"!!!current:\n"<<*i<<endl;
 		switch(i->t.first){
 			case turtle_parser::subject::id:{
+				cerr<<"subject"<<endl;
 				/*
  				*	we should keep the map::iterator to the subject in case we
  				*	need to remove it from the document
@@ -683,7 +686,8 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 						if(!sub){//we have to create the resource but we need to know its type, we have access to the whole document
 							//we assume that the types will be given in this statement
 							auto j=i+1;
-							while(j<r.v.end()&&j->t.first!=turtle_parser::subject::id){
+							//while(j<r.v.end()&&j->t.first!=turtle_parser::subject::id){
+							while(j<end&&j->t.first!=turtle_parser::subject::id){
 								if(j->t.first==turtle_parser::verb::id){
 									cerr<<"verb:\n"<<*j<<endl;
 									if(parse_property(j->v[0])==rdf::type::get_property()){
@@ -715,7 +719,8 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 							sub=find(u);
 							if(!sub){
 								auto j=i+1;
-								while(j<r.v.end()&&j->t.first!=turtle_parser::subject::id){
+								//while(j<r.v.end()&&j->t.first!=turtle_parser::subject::id){
+								while(j<end&&j->t.first!=turtle_parser::subject::id){
 									if(j->t.first==turtle_parser::verb::id){//is there a chance we get to next statement?
 										cerr<<"verb:\n"<<*j<<endl;
 										if(parse_property(j->v[0])==rdf::type::get_property()){
@@ -744,7 +749,6 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 						}
 					}
 					break;
-					//what if variable?
 					case turtle_parser::variable::id:{
 						auto j=v.find(i->v[0].t.second.substr(1));
 						if(j!=v.end())
@@ -758,11 +762,12 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 			}
 			break;
 			case turtle_parser::verb::id:{
+				cerr<<"verb"<<endl;
 				switch(i->v[0].t.first){
 					case turtle_parser::uriref::id:{ 
 						uri u=uri::hash_uri(i->v[0].t.second);
-						current_property=std::find_if(begin(sub),end(sub),name_p(u));
-						if(current_property==end(sub)){
+						current_property=std::find_if(objrdf::begin(sub),objrdf::end(sub),name_p(u));
+						if(current_property==objrdf::end(sub)){
 							cerr<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
 							return false;
 						}
@@ -772,8 +777,8 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 						if(j!=prefix_ns.end()){
 							uri u(j->second,i->v[0].v[1].t.second);
 							//find if property belongs to subject
-							current_property=std::find_if(begin(sub),end(sub),name_p(u));
-							if(current_property==end(sub)){
+							current_property=std::find_if(objrdf::begin(sub),objrdf::end(sub),name_p(u));
+							if(current_property==objrdf::end(sub)){
 								cerr<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
 								return false;
 							}
@@ -784,14 +789,14 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 					}
 					break;
 					case turtle_parser::is_a::id:{
-						current_property=begin(sub);//first property is always rdf::type
+						current_property=objrdf::begin(sub);//first property is always rdf::type
 					}break;
 					case turtle_parser::variable::id:{
 						cerr<<"property variable: `"<<i->v[0].t.second<<"'"<<endl;
 						auto j=v.find(i->v[0].t.second.substr(1));
 						if(j!=v.end()){
-							current_property=std::find_if(begin(sub),end(sub),match_property(j->second->get_const_object()));
-							if(current_property==end(sub)){
+							current_property=std::find_if(objrdf::begin(sub),objrdf::end(sub),match_property(j->second->get_const_object()));
+							if(current_property==objrdf::end(sub)){
 								cerr<<"property `"<<j->second->get_const_object()->id<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
 								return false;
 							}
@@ -804,6 +809,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 			}
 			break;
 			case turtle_parser::object::id:{
+				cerr<<"object"<<endl;
 				switch(i->v[0].t.first){
 					case turtle_parser::literal::id:{
 						if(current_property.literalp()){
@@ -881,6 +887,13 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete
 							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
 							return false;
 						}
+					}
+					break;
+					case 9999:{
+						cerr<<"blank node!"<<endl;
+						base_resource::instance_iterator o=current_property->add_property(0);
+						o->set_object(create_by_type_blank(current_property->get_Property()->get_const<rdfs::range>()));	
+						parse_update_data_statement(i->v[0].v.cbegin(),i->v[0].v.cend(),do_delete,v,o->get_object());
 					}
 					break;
 					case turtle_parser::variable::id:{

@@ -252,7 +252,14 @@ namespace objrdf{
 		return base_resource::const_instance_iterator(r,r,base_resource::v.cbegin()+2,0);
 	}
 	void to_rdf_xml(CONST_RESOURCE_PTR r,ostream& os){
-		os<<"\n<"<<get_class(r)->id<<" "<<(r->id.is_local() ? rdf::ID : rdf::about)<<"='";
+		//os<<"\n<"<<get_class(r)->id<<" "<<(r->id.is_local() ? rdf::ID : rdf::about)<<"='";
+		os<<"\n<"<<get_class(r)->id<<" ";
+		switch (r->id.index){
+			case 0:os<<rdf::ID;break;
+			case 1:os<<rdf::nodeID;break;
+			default:os<<rdf::about;break;
+		}
+		os<<"='";
 		r->id.to_uri(os);
 		os<<"'>";
 		for(auto i=cbegin(r);i!=cend(r);++i){
@@ -261,7 +268,13 @@ namespace objrdf{
 				if(i->literalp())
 					os<<"\n\t<"<<i->get_Property()->id<<">"<<*j<<"</"<<i->get_Property()->id<<">";
 				else{
-					os<<"\n\t<"<<i->get_Property()->id<<" "<<rdf::resource<<"='"<<(j->get_const_object()->id.is_local() ? "#" : "");
+					//os<<"\n\t<"<<i->get_Property()->id<<" "<<rdf::resource<<"='"<<(j->get_const_object()->id.is_local() ? "#" : "");
+					os<<"\n\t<"<<i->get_Property()->id<<" ";//<<rdf::resource<<"='"<<(j->get_const_object()->id.is_local() ? "#" : "");
+					switch(j->get_const_object()->id.index){
+						case 0:os<<rdf::resource<<"='#";break;
+						case 1:os<<rdf::nodeID<<"='";break;
+						default:os<<rdf::resource<<"='";break;
+					}
 					j->get_const_object()->id.to_uri(os);
 					os<<"'/>";
 				}
@@ -388,6 +401,20 @@ RESOURCE_PTR objrdf::create_by_type(CLASS_PTR c,uri id){
 RESOURCE_PTR objrdf::create_by_type(uri type,uri id){
 	CLASS_PTR c=find_t<CLASS_PTR>(type);
 	return c ? objrdf::create_by_type(c,id) : RESOURCE_PTR();
+}
+RESOURCE_PTR objrdf::create_by_type_blank(CLASS_PTR c){
+	POOL_PTR p(c.index);
+	RESOURCE_PTR rp(p->allocate(),p);
+	ostringstream os;
+	rp._print(os);
+	uri u(os.str());
+	u.index=1;
+	std::get<0>(c->t)(rp,u);
+	return rp;
+}
+RESOURCE_PTR objrdf::create_by_type_blank(uri type){
+	CLASS_PTR c=find_t<CLASS_PTR>(type);
+	return c ? objrdf::create_by_type_blank(c) : RESOURCE_PTR();
 }
 pool_iterator objrdf::begin(){return pool_iterator(::begin<POOL_PTR>());}
 pool_iterator objrdf::end(){return pool_iterator(::end<POOL_PTR>());}

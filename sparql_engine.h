@@ -77,6 +77,10 @@ struct subject{
 	void ins();
 	int size();
 	vector<string> get_variables();
+	/*
+ 	*	when you run a query you list all the pools used
+ 	*/ 
+	bool is_stale() const;
 };
 
 
@@ -99,6 +103,8 @@ public:
 	typedef seq_c<'W','H','E','R','E'> WHERE;		
 	typedef seq_c<'B','A','S','E'> BASE;		
 	typedef seq_c<'D','E','S','C','R','I','B','E'> DESCRIBE;
+	typedef seq_c<'C','O','U','N','T'> COUNT;
+	typedef seq_c<'A','S'> AS;
 	typedef event_1<seqw<BASE,turtle_parser::_uriref_>,__COUNTER__> base_decl;
 	typedef event_1<seqw<PREFIX,turtle_parser::pname_ns,turtle_parser::_uriref_>,__COUNTER__> prefix_decl;
 	/*
@@ -111,7 +117,13 @@ public:
 	typedef	event_1<seqw<DELETE,DATA,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> delete_data_query; 
 	typedef	event_1<seqw<INSERT,DATA,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> insert_data_query; 
 	//typedef seqw<delete_data_query,char_p<';'>,insert_data_query> update_data_query;
-	typedef event_1<seqw<SELECT,or_p<plus_pw<turtle_parser::variable>,char_p<'*'>>,where_statement>,__COUNTER__> select_query;	
+	/*
+ 	* support for count() statement
+ 	*	COUNT(?v) AS ?n
+ 	*
+ 	*/
+	typedef event_1<seqw<COUNT,char_p<'('>,turtle_parser::variable,char_p<')'>,AS,turtle_parser::variable>,__COUNTER__> counter;
+	typedef event_1<seqw<SELECT,or_p<plus_pw<or_p<turtle_parser::variable,counter>>,char_p<'*'>>,where_statement>,__COUNTER__> select_query;	
 	typedef event_1<seqw<DESCRIBE,or_p<turtle_parser::_uriref_,turtle_parser::qname>>,__COUNTER__> simple_describe_query;	
 	typedef event_1<seqw<DESCRIBE,or_p<plus_pw<turtle_parser::variable>,char_p<'*'>>,where_statement>,__COUNTER__> describe_query;	
 	typedef seqw<
@@ -143,10 +155,11 @@ public:
 	void out(ostream& os);
 	bool callback(PARSE_RES_TREE& r);
 	bool parse_where_statement(PARSE_RES_TREE& r);
-	PROPERTY_PTR parse_property(PARSE_RES_TREE& r);
+	PROPERTY_PTR parse_property(const PARSE_RES_TREE& r);
 	//won't parse literal
-	SPARQL_RESOURCE_PTR parse_object(PARSE_RES_TREE& r);
-	bool parse_update_data_statement(PARSE_RES_TREE& r,bool do_delete=false,VARIABLES v=VARIABLES());
+	SPARQL_RESOURCE_PTR parse_object(const PARSE_RES_TREE& r);
+	bool parse_update_data_statement(PARSE_RES_TREE::V::const_iterator begin,PARSE_RES_TREE::V::const_iterator end,bool do_delete=false,VARIABLES v=VARIABLES(),RESOURCE_PTR sub=RESOURCE_PTR());
+	bool parse_update_data_statement(const PARSE_RES_TREE& r,bool do_delete=false,VARIABLES v=VARIABLES(),RESOURCE_PTR sub=RESOURCE_PTR());
 	template<typename T> void callback(T,string){}
 };
 #endif

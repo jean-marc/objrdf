@@ -61,6 +61,7 @@ namespace rdf{
 	RDFS_NAMESPACE("http://www.w3.org/1999/02/22-rdf-syntax-ns#","rdf");
 	const static objrdf::uri _RDF=objrdf::get_uri<rdfs_namespace>("RDF");
 	const static objrdf::uri ID=objrdf::get_uri<rdfs_namespace>("ID");
+	const static objrdf::uri nodeID=objrdf::get_uri<rdfs_namespace>("nodeID");//for blank nodes
 	const static objrdf::uri about=objrdf::get_uri<rdfs_namespace>("about");
 	const static objrdf::uri resource=objrdf::get_uri<rdfs_namespace>("resource");
 	const static objrdf::uri Description=objrdf::get_uri<rdfs_namespace>("Description");
@@ -662,6 +663,9 @@ namespace objrdf{
 
 
 	RESOURCE_PTR create_by_type(CLASS_PTR c,uri id);
+	RESOURCE_PTR create_by_type(uri type,uri id);
+	RESOURCE_PTR create_by_type_blank(CLASS_PTR c);
+	RESOURCE_PTR create_by_type_blank(uri type);
 	template<typename P> uri get_uri(const P& p){
 		CONST_RESOURCE_PTR r(p);
 		size_t _id=r.pool_ptr.index | (r.index<<(sizeof(r.pool_ptr.index)<<3));
@@ -963,6 +967,7 @@ namespace objrdf{
 	template<> struct get_Literal<unsigned int>:xsd::Unsigned_int{};
 	template<> struct get_Literal<short>:xsd::Short{};
 	template<> struct get_Literal<unsigned short>:xsd::Unsigned_short{};
+	template<> struct get_Literal<uint8_t>:xsd::Unsigned_short{};
 	template<> struct get_Literal<char>:Char{};
 	template<> struct get_Literal<string>:xsd::String{};
 	template<size_t N> struct get_Literal<char[N]>:xsd::String{};
@@ -1248,8 +1253,6 @@ namespace objrdf{
 		auto r=find_if(::begin<PTR>(),::end<PTR>(),test_by_uri(u));
 		return r!=::end<PTR>() ? *r : PTR(0);
 	}
-	RESOURCE_PTR create_by_type(CLASS_PTR c,uri id);
-	RESOURCE_PTR create_by_type(uri type,uri id);
 }
 template<
 	const char* NAMESPACE,
