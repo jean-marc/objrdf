@@ -22,6 +22,9 @@ template<typename T> vector<T> concat(/*const*/ vector<T>& a,const vector<T>& b)
 	a.insert(a.end(),b.begin(),b.end());
 	return a;
 }
+template <typename T> int sgn(T val){
+	return (T(0) < val) - (val < T(0));
+}
 #define PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<rdfs_namespace,_##n,__VA_ARGS__> n
 //property that exists in the objrdf namespace
 #define OBJRDF_PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
@@ -118,7 +121,9 @@ namespace objrdf{
 		size_t  (*)(ITERATOR_CONST_RESOURCE_PTR),//6 get_size
 		void (*)(ITERATOR_RESOURCE_PTR,PROVENANCE),//7 add_property	
 		void (*)(ITERATOR_RESOURCE_PTR,size_t,size_t),//8 erase
-		PROVENANCE (*)(ITERATOR_CONST_RESOURCE_PTR,size_t)//9 get_provenance
+		PROVENANCE (*)(ITERATOR_CONST_RESOURCE_PTR,size_t),//9 get_provenance
+		/*comparison*/
+		int (*)(ITERATOR_CONST_RESOURCE_PTR,size_t,ITERATOR_CONST_RESOURCE_PTR,size_t)//10 compare, should be with literal but we are still using indices 
 	> function_table;
 	struct property_info{
 		//because now stored in vector<property_info>
@@ -231,7 +236,7 @@ namespace objrdf{
 					os<<i.get_object()->id;
 				return os;
 			}
-			string str();
+			string str() const;
 			void set_string(string s);
 			static instance_iterator help();
 			PROVENANCE get_provenance() const;
@@ -271,8 +276,12 @@ namespace objrdf{
 					os<<i.get_const_object()->id;
 				return os;
 			}
-			string str();
+			string str() const;
 			static const_instance_iterator help();
+			/*
+ 			*	for sparql result serialization, can be tricky with different range
+ 			*/
+			int compare(const const_instance_iterator&) const;	
 			PROVENANCE get_provenance() const;
 		};
 		//should be moved to .cpp
@@ -546,6 +555,7 @@ namespace objrdf{
 		void in(istream& is){is>>t;}
 		void out(ostream& os) const{os<<t;}
 		size_t get_size() const{return 1;}
+		int compare(const base_property& a)const{return sgn(t-a.t);}
 		void erase(){t=0;}
 	};
 	template<> struct base_property<string>{
@@ -558,6 +568,7 @@ namespace objrdf{
 		void in(istream& is){is>>t;}
 		void out(ostream& os) const{os<<t;}
 		size_t get_size() const{return t.size()>0;}
+		int compare(const base_property<string>& a)const{return t.compare(a.t);}
 		void erase(){t.clear();}
 	};
 	template<> struct base_property<uri>{
@@ -575,8 +586,9 @@ namespace objrdf{
 		enum{TYPE=CONST|LITERAL};
 		const RANGE t;
 		base_property(const RANGE t=0):t(t){}
-		size_t get_size() const{return 1;}
 		void out(ostream& os){os<<t;}
+		size_t get_size() const{return 1;}
+		int compare(const base_property& a)const{return sgn(t-a.t);}
 		void erase(){}
 	};
 	template<int N> struct base_property<char[N]>{
@@ -742,9 +754,13 @@ namespace objrdf{
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONST|LITERAL>:base_f<SUBJECT,PROPERTY>{
 		typedef base_f<SUBJECT,PROPERTY> BASE;
 		static void out(ITERATOR_CONST_RESOURCE_PTR subject,ostream& os,size_t index){BASE::get_const(subject,index).out(os);}	
+		static int compare(ITERATOR_CONST_RESOURCE_PTR a,size_t index_a,ITERATOR_CONST_RESOURCE_PTR b,size_t index_b){
+			return BASE::get_const(a,index_a).compare(BASE::get_const(b,index_b));
+		}
 		static function_table get_table(){
 			auto t=BASE::get_table();
 			std::get<2>(t)=out;
+			std::get<10>(t)=compare;
 			return t;
 			//std::tuple does not like 0 for function pointer
 			//return function_table(0,0,out,0,0,0,BASE::get_size,BASE::add_property,BASE::erase,BASE::get_provenance);

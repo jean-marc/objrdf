@@ -128,15 +128,24 @@ void base_resource::instance_iterator::out(ostream& os) const{
 void base_resource::const_instance_iterator::out(ostream& os) const{
 	std::get<2>(i->t)(subject,os,index);
 }
-string base_resource::instance_iterator::str(){
+string base_resource::instance_iterator::str() const{
 	ostringstream os;
 	out(os);
 	return os.str();
 }
-string base_resource::const_instance_iterator::str(){
+string base_resource::const_instance_iterator::str() const{
 	ostringstream os;
 	out(os);
 	return os.str();
+}
+int base_resource::const_instance_iterator::compare(const base_resource::const_instance_iterator& j) const{
+	if(literalp()&&j.literalp()){
+		//for now only compare same literal properties, not all properties define a comparison operator
+		if((get_Property()==j.get_Property())&&std::get<10>(i->t)) return std::get<10>(i->t)(subject,index,j.subject,j.index);
+		return str().compare(j.str());//not very efficient and not always correct, eg: time formatting 
+	}
+	if(!literalp()&&!j.literalp()) return get_const_object()->id.compare(j.get_const_object()->id);	
+	return (literalp()&&!j.literalp())? -1 : 1; //some default rule
 }
 void base_resource::instance_iterator::set_string(string s){
 	std::get<0>(i->t)(subject,s,index);
@@ -152,11 +161,8 @@ CONST_RESOURCE_PTR base_resource::const_instance_iterator::get_const_object() co
 	return std::get<4>(i->t)(subject,alt_subject,index);
 }
 void base_resource::instance_iterator::set_object(RESOURCE_PTR r){
-	/*
- 	*	if r=base_resource::nil it should be converted to RESOURCE_PTR(0)
- 	*/ 
-	//std::get<5>(i->t)(subject,r,index);
-	std::get<5>(i->t)(subject,base_resource::nil==r ? RESOURCE_PTR(0) : r,index);
+	std::get<5>(i->t)(subject,r,index);
+	//std::get<5>(i->t)(subject,base_resource::nil==r ? RESOURCE_PTR(0) : r,index);
 }
 PROVENANCE base_resource::instance_iterator::get_provenance() const{
 	return std::get<9>(i->t)(subject,index);
