@@ -10,6 +10,13 @@
  *	be on-line, we could tunnel through ssh
  *	need to be able to dump to RDF anytime for back-up and schema upgrade
  *	need to have generic schema defined in a library
+ *
+ *	prefix :<http://inventory.unicefuganda.org/#>
+ *	select ?type ?model ?equipment ?set ?site ?manufacturer 
+ *	where {	?equipment a :Equipment;:partOf ?set;a ?type;:model ?model .
+ *		?set :located ?site . 
+ *		?model :manufacturer ?manufacturer .
+ *	} order by ?type
  */
 #include "objrdf.h"
 #include "sparql_engine.h"
@@ -51,15 +58,73 @@ PROPERTY(model,pseudo_ptr<Model>);
 /*
  *	add properties and functions to track usage: how many hours it has been up, the VPN server
  *	will run a query when a client connects or disconnects, it will trigger a counter on the object.
- *	shall we store all the information in the db or use files?
+ *	shall we store all the information in the db or use files? let's use the db, it will help create nice plots
  *
  */
+/*
+ *	logger: to keep track of the important data:
+ *		on,
+ *		uptime, will have to be adjusted if it is more than time since last entry
+ *		number of clients on
+ *		voltage
+ *	should use blank nodes so the monitoring module does not have to come up with new id
+ *	prefix :<http://inventory.unicefuganda.org/#> insert data {
+ *		<test> :logger [
+ *			:voltage 14.1;
+ *			:n_client 3;
+ *			:uptime 10
+ *			] .}
+ * 	
+ */
+//PROPERTY(time_stamp,time_t);
+char _time_stamp[]="time_stamp";
+class time_stamp:public property<rdfs_namespace,_time_stamp,time_t>{
+public:
+	time_stamp(){t=time(0);}
+	void out(ostream& os) const{os<<ctime(&t);}
+	void in(istream& is){}
+};
+PROPERTY(uptime,time_t);//how long has the kiosk been up
+struct _uptime_:uptime{
+	void out(ostream& os) const{
+		//breakdown in hours/minutes
+		int m=(t/60)%60;	
+		int h=(t/3600)%24;	
+		os<<h<<"h "<<m<<"m";
+	}
+};
+PROPERTY(n_client,uint16_t);
+PROPERTY(volt,float);
+//CLASS(Logger,std::tuple<time_stamp,uptime,n_client,volt>);
+char _Logger[]="Logger";
+class Logger:public resource<rdfs_namespace,_Logger,std::tuple<time_stamp,_uptime_,n_client,volt>,Logger>{
+public:
+	Logger(uri id):SELF(id){
+		//get<time_stamp>().t=time(0);
+	}
+};
+
 //CLASS(Set,std::tuple<located>);
 char _Set[]="Set";
-class Set:public resource<rdfs_namespace,_Set,std::tuple<located>>{
-	public:
-	Set(uri id):SELF(id){}
+PROPERTY(on,bool);
+PROPERTY(tot_uptime,time_t);//how long has the kiosk been up
+PROPERTY(logger,pseudo_ptr<Logger>);
+class Set:public resource<rdfs_namespace,_Set,std::tuple<located,on,/*uptime*/array<logger>>,Set/*very important!*/>{
+	time_t start;
+public:
+	typedef on TRIGGER;
+	Set(uri id):SELF(id),start(time(0)){cerr<<"new Set()"<<endl;}
+	void set_p(on& p){
+		/*if(p.t)
+			start=time(0);
+		else
+			get<uptime>().t+=time(0)-start;
+		*/
+		get<on>()=p;
+	}
 };
+
+
 PROPERTY(partOf,pseudo_ptr<Set,Set::STORE,true>);
 /*
  *	we could have manufacturer & model but it could become inconsistent, so only model is used
@@ -98,7 +163,9 @@ DERIVED_CLASS(Drive,Equipment,std::tuple<version>);//information about OS/softwa
 DERIVED_CLASS(Laptop,Equipment,std::tuple<mac>);//problem: won't show up in schema, we can work-around in stylesheet
 DERIVED_CLASS(Server,Equipment,std::tuple<mac>);
 DERIVED_CLASS(UPS,Equipment,std::tuple<>);
-PROPERTY(sim,char[20]);
+//PROPERTY(sim,char[20]);
+CLASS(Sim,std::tuple<>);
+PROPERTY(sim,pseudo_ptr<Sim>);//because we will start moving sim cards around
 DERIVED_CLASS(Modem,Equipment,std::tuple<sim>);
 PROPERTY(power,int);
 PROPERTY(voltage,int);
