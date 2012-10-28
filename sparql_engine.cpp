@@ -298,29 +298,52 @@ struct comp_r{
 	int i;//which variable to use
 	comp_r(int i):i(i){}
 	bool operator()(const vector<base_resource::const_instance_iterator>& a,const vector<base_resource::const_instance_iterator>& b){
-		return a[i].get_const_object()->id<b[i].get_const_object()->id;	
+		return a[i].compare(b[i])<0;	
 	}	
 };
 
+struct comp_r2{
+	int i,j;//which variable to use
+	comp_r2(int i,int j):i(i),j(j){}
+	bool operator()(const vector<base_resource::const_instance_iterator>& a,const vector<base_resource::const_instance_iterator>& b){
+		int tmp=a[i].compare(b[i]);
+		return tmp? tmp<0 : a[j].compare(b[j])<0;	
+	}	
+};
 /*	it would be neat to have an iterator based on a sparql query but with
  *	casting if all the types are the same, should the query be run first and 
  *	the result stored in a temporary array?
  */
-void to_xml(ostream& os,/*const*/ RESULT& r,/*const*/ subject& s){
+//void to_xml(ostream& os,/*const*/ RESULT& r,/*const*/ subject& s){
+void sparql_parser::sort(RESULT& r,vector<string> variables,vector<string> order_variables){
+	vector<unsigned int> vv;
+	for(auto i=order_variables.cbegin();i<order_variables.cend();++i){
+		auto j=find(variables.cbegin(),variables.cend(),*i);
+		if(j!=variables.cend()){
+			vv.push_back(j-variables.cbegin());
+			cerr<<"ordering by variable `"<<*i<<"'"<<endl;
+		}
+	}
+	if(vv.size()==1) std::sort(r.begin(),r.end(),comp_r(vv[0]));
+	else if(vv.size()==2) std::sort(r.begin(),r.end(),comp_r2(vv[0],vv[1]));
+}
+void sparql_parser::to_xml(ostream& os,/*const*/ RESULT& r,/*const*/ subject& s){
 	/*
  	*	we should not serialize empty literal but hard to know
  	*	before serializing (could use buffer), 
  	*	could play with instance iterators...
+ 	*	how do we conserve the original variable order?
+ 	*	we need an offset array
  	*/
-	sort(r.begin(),r.end(),comp_r(0));
-	os<</*"<?xml version=\"1.0\"?>\n*/"<sparql xmlns=\"http://www.w3.org/2005/sparql-results#\">\n<head>\n";
 	vector<string> v=s.get_variables();	
-	for(vector<string>::const_iterator i=v.begin();i<v.end();++i) os<<"<variable name='"<<*i<<"'/>\n";
+	sort(r,s.get_variables(),order_by_variables);
+	os<</*"<?xml version=\"1.0\"?>\n*/"<sparql xmlns=\"http://www.w3.org/2005/sparql-results#\">\n<head>\n";
+	for(auto i=v.cbegin();i<v.cend();++i) os<<"<variable name='"<<*i<<"'/>\n";
 	os<<"</head>\n<results>\n";
 	for(auto i=r.begin();i<r.end();++i){
 		os<<"<result>\n";
 		int v_i=0;
-		for(vector<base_resource::const_instance_iterator>::const_iterator j=i->cbegin();j<i->cend();++j){
+		for(auto j=i->cbegin();j<i->cend();++j){
 			os<<"<binding name='"<<v[v_i++]<<"'>";
 			if(j->literalp())
 				os<<"<literal>"<<*j<<"</literal>";
@@ -369,8 +392,7 @@ void sparql_parser::out(ostream& os){//sparql XML serialization
 				uri::ns_declaration(os);
 				os<<"xml:base='http://inventory.unicefuganda.org/'"<<endl;
 				os<<">";
-				//we can sort by URI
-				sort(r.begin(),r.end(),comp_r(0));
+				sort(r,sbj->get_variables(),order_by_variables);
 				for(auto i=r.begin();i<r.end();++i){
 					//only if resource
 					for(auto j=i->cbegin();j<i->cend();++j){
@@ -407,7 +429,11 @@ bool sparql_parser::callback(PARSE_RES_TREE& r){
 				variable_set.insert(i->t.second);
 				++i;
 			}
-			return parse_where_statement(*i);
+			//return parse_where_statement(*i);
+			bool b=parse_where_statement(*i);
+			++i;
+			for(;i<r.v.end();++i) parse_extra_statement(*i);	
+			return b;
 		}break;
 		case simple_describe_query::id:{
 			q=simple_describe_q;
@@ -426,7 +452,11 @@ bool sparql_parser::callback(PARSE_RES_TREE& r){
 				variable_set.insert(i->t.second);
 				++i;
 			}
-			return parse_where_statement(*i);
+			//return parse_where_statement(*i);
+			bool b=parse_where_statement(*i);
+			++i;
+			for(;i<r.v.end();++i) parse_extra_statement(*i);	
+			return b;
 		}break;
 		case insert_data_query::id:{
 			q=insert_data_q;	
@@ -478,9 +508,17 @@ bool sparql_parser::callback(PARSE_RES_TREE& r){
 	}
 	return true;
 }
+bool sparql_parser::parse_extra_statement(PARSE_RES_TREE& r){
+	if(r.t.first==order_by::id){
+		cerr<<"order by!"<<endl;
+		for(auto i=r.v.cbegin();i!=r.v.cend();++i)
+			order_by_variables.push_back(i->t.second.substr(1));
+	}
+	return true;
+}
 bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 	for(auto i=r.v.begin();i<r.v.end();++i){
-		//cerr<<"current:\n"<<*i<<endl;
+		cerr<<"current:\n"<<*i<<endl;
 		switch(i->t.first){
 			case turtle_parser::subject::id:{
 				switch(i->v[0].t.first){
@@ -537,7 +575,6 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					break;
 					case turtle_parser::uriref::id:{
 						PROPERTY_PTR r=find_t<PROPERTY_PTR>(uri::hash_uri(i->v[0].t.second));
-						//current_sbj->verbs.push_back(verb(r ? r : rdf::Property::nil,0));
 						current_sbj->verbs.push_back(verb(r,0));
 					}
 					break;
@@ -546,7 +583,6 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						if(j!=prefix_ns.end()){
 							uri u(j->second,i->v[0].v[1].t.second);
 							PROPERTY_PTR r=find_t<PROPERTY_PTR>(u);
-							//current_sbj->verbs.push_back(verb(r ? r : rdf::Property::nil,0));
 							current_sbj->verbs.push_back(verb(r,0));
 						}else{
 							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
@@ -580,12 +616,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					case turtle_parser::uriref::id:{
 						SPARQL_RESOURCE_PTR r;
 						uri u=uri::hash_uri(i->v[0].t.second);
-						//r=find(uri::hash_uri(i->v[0].t.second));
-						//r=find(u);
-						//subject* object=new subject(r ? r : base_resource::nil );//should get rid of that
-						//object->u=u;
 						subject* object=new subject(u);
-						//cerr<<"####"<<r<<"\t"<<i->v[0].t.second<<endl;
 						index[i->v[0].t.second]=object;
 						current_sbj->verbs.back().object=object;
 					}
@@ -594,9 +625,6 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						PREFIX_NS::iterator j=prefix_ns.find(i->v[0].v[0].t.second);
 						if(j!=prefix_ns.end()){
 							uri u(j->second,i->v[0].v[1].t.second);
-							//SPARQL_RESOURCE_PTR r=find(u);
-							//subject* object=new subject(r ? r : base_resource::nil);
-							//object->u=u;
 							subject* object=new subject(u);
 							index[i->v[0].v[0].t.second]=object;
 							current_sbj->verbs.back().object=object;
@@ -686,7 +714,6 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 						if(!sub){//we have to create the resource but we need to know its type, we have access to the whole document
 							//we assume that the types will be given in this statement
 							auto j=i+1;
-							//while(j<r.v.end()&&j->t.first!=turtle_parser::subject::id){
 							while(j<end&&j->t.first!=turtle_parser::subject::id){
 								if(j->t.first==turtle_parser::verb::id){
 									cerr<<"verb:\n"<<*j<<endl;
@@ -719,7 +746,6 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 							sub=find(u);
 							if(!sub){
 								auto j=i+1;
-								//while(j<r.v.end()&&j->t.first!=turtle_parser::subject::id){
 								while(j<end&&j->t.first!=turtle_parser::subject::id){
 									if(j->t.first==turtle_parser::verb::id){//is there a chance we get to next statement?
 										cerr<<"verb:\n"<<*j<<endl;

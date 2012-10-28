@@ -85,13 +85,15 @@ struct subject{
 
 
 
-void to_xml(ostream& os,/*const*/ RESULT& r,/*const*/ subject&);
+//void to_xml(ostream& os,/*const*/ RESULT& r,/*const*/ subject&);
 //void to_json(ostream& os,const RESULT& r,const subject&){}
 class sparql_parser:public char_iterator{
 /*
  *	see http://www.w3.org/TR/rdf-sparql-query/#sparqlGrammar
  */
 public:
+	static void sort(RESULT& r,vector<string> variables,vector<string> order_variables);
+	void to_xml(ostream& os,/*const*/ RESULT& r,/*const*/ subject&);
 	enum{CASE_INSENSITIVE=true};
 	typedef map<string,subject*> INDEX;
 	INDEX index;
@@ -105,6 +107,8 @@ public:
 	typedef seq_c<'D','E','S','C','R','I','B','E'> DESCRIBE;
 	typedef seq_c<'C','O','U','N','T'> COUNT;
 	typedef seq_c<'A','S'> AS;
+	typedef seq_c<'O','R','D','E','R'> ORDER;
+	typedef seq_c<'B','Y'> BY;
 	typedef event_1<seqw<BASE,turtle_parser::_uriref_>,__COUNTER__> base_decl;
 	typedef event_1<seqw<PREFIX,turtle_parser::pname_ns,turtle_parser::_uriref_>,__COUNTER__> prefix_decl;
 	/*
@@ -122,10 +126,11 @@ public:
  	*	COUNT(?v) AS ?n
  	*
  	*/
+	typedef event_1<seqw<ORDER,BY,plus_pw<turtle_parser::variable>>,__COUNTER__> order_by;
 	typedef event_1<seqw<COUNT,char_p<'('>,turtle_parser::variable,char_p<')'>,AS,turtle_parser::variable>,__COUNTER__> counter;
-	typedef event_1<seqw<SELECT,or_p<plus_pw<or_p<turtle_parser::variable,counter>>,char_p<'*'>>,where_statement>,__COUNTER__> select_query;	
+	typedef event_1<seqw<SELECT,or_p<plus_pw<or_p<turtle_parser::variable,counter>>,char_p<'*'>>,where_statement,or_p<order_by,true_p>>,__COUNTER__> select_query;	
 	typedef event_1<seqw<DESCRIBE,or_p<turtle_parser::_uriref_,turtle_parser::qname>>,__COUNTER__> simple_describe_query;	
-	typedef event_1<seqw<DESCRIBE,or_p<plus_pw<turtle_parser::variable>,char_p<'*'>>,where_statement>,__COUNTER__> describe_query;	
+	typedef event_1<seqw<DESCRIBE,or_p<plus_pw<turtle_parser::variable>,char_p<'*'>>,where_statement,or_p<order_by,true_p>>,__COUNTER__> describe_query;	
 	typedef seqw<
 		or_p<base_decl,true_p>,
 		kleene_pw<prefix_decl>,
@@ -137,7 +142,9 @@ public:
 			seqw<delete_data_query,or_p<seqw<char_p<';'>,insert_data_query>,true_p>>,//see http://www.w3.org/TR/sparql11-update/
   			//update_data_query
 			update_query
-		> 
+		>/*,
+		char_p<EOF> //to indicate the end
+		*/
 	> document;
 	typedef map<string,base_resource::const_instance_iterator> VARIABLES;
 	SPARQL_RESOURCE_PTR d_resource;
@@ -147,14 +154,22 @@ public:
 	typedef map<string,string> PREFIX_NS;
 	typedef set<string> VARIABLE_SET;
 	VARIABLE_SET variable_set;
+	vector<string> order_by_variables;
 	PREFIX_NS prefix_ns;
 	//generic_property::PROVENANCE p;
 	PROVENANCE p;
 	sparql_parser(istream& is,PROVENANCE p=2);
 	bool go();
+	//we can specialize the document
+	template<typename T> bool _go(){
+		if(!T::go(*this)) return false;
+		if(q==select_q||q==describe_q) return sbj;
+		return true;
+	}
 	void out(ostream& os);
 	bool callback(PARSE_RES_TREE& r);
 	bool parse_where_statement(PARSE_RES_TREE& r);
+	bool parse_extra_statement(PARSE_RES_TREE& r);
 	PROPERTY_PTR parse_property(const PARSE_RES_TREE& r);
 	//won't parse literal
 	SPARQL_RESOURCE_PTR parse_object(const PARSE_RES_TREE& r);
