@@ -82,6 +82,7 @@ class time_stamp:public property<rdfs_namespace,_time_stamp,time_t>{
 public:
 	time_stamp(){t=time(0);}
 	void out(ostream& os) const{os<<ctime(&t);}
+	//it should also be able to read but we have to agree on a format
 	void in(istream& is){}
 };
 PROPERTY(uptime,time_t);//how long has the kiosk been up
@@ -90,7 +91,8 @@ struct _uptime_:uptime{
 		//breakdown in hours/minutes
 		int m=(t/60)%60;	
 		int h=(t/3600)%24;	
-		os<<h<<"h "<<m<<"m";
+		int d=t/(3600*24);	
+		os<<d<<"d "<<h<<"h "<<m<<"m";
 	}
 };
 PROPERTY(n_client,uint16_t);
@@ -166,7 +168,12 @@ DERIVED_CLASS(UPS,Equipment,std::tuple<>);
 //PROPERTY(sim,char[20]);
 CLASS(Sim,std::tuple<>);
 PROPERTY(sim,pseudo_ptr<Sim>);//because we will start moving sim cards around
-DERIVED_CLASS(Modem,Equipment,std::tuple<sim>);
+/*
+ *	is the modem attached to a service provider, if not it means it is unlocked
+ */
+CLASS(Telco,std::tuple<>); //Orange, MTN, Airtel, Warid
+PROPERTY(telco,pseudo_ptr<Telco>);
+DERIVED_CLASS(Modem,Equipment,std::tuple<sim/*,telco*/>);
 PROPERTY(power,int);
 PROPERTY(voltage,int);
 DERIVED_CLASS(PV_panel,Equipment,std::tuple<power,voltage>);
@@ -195,6 +202,28 @@ int main(int argc,char* argv[]){
 	Inverter::get_class();
 	Organization::get_class();
 	Model::get_class();	
+	/*
+	//how do I get access to the pool?
+	//auto i=POOL_PTR::help<Set>();
+	//pseudo_ptr<Set> p(i->allocate());
+	//p.construct(Set(uri("jm")));	
+	auto p=pseudo_ptr<Set>::construct(uri("jm"));
+	cerr<<"start test..."<<endl;
+	cerr<<sizeof(Logger)<<" bytes"<<endl;
+	for(;;){
+		//auto i=POOL_PTR::help<Logger>();
+		pseudo_ptr<Logger> l(pseudo_ptr<Logger>::get_pool()->allocate());//broken!!!!
+		//auto l=pseudo_ptr<Logger>::allocate();
+		ostringstream os;
+		l._print(os);
+		uri u(os.str());
+		u.index=1;
+		new(l) Logger(u);
+		//l.construct(u);	
+		p->get<array<logger>>().push_back(logger(l));
+	}
+	//RESOURCE_PTR p=create_by_type(Set::get_class(),uri("test"));
+	*/
 	for(int i=1;i<argc;++i){
 		ifstream in(argv[i]);
 		rdf_xml_parser r(in);
