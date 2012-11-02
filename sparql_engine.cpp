@@ -788,6 +788,10 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 			}
 			break;
 			case turtle_parser::verb::id:{
+				/*
+ 				*	the parser should be more forgiving: if a property does not belong to the resource
+ 				*	it should just be ignored
+ 				*/ 
 				cerr<<"verb"<<endl;
 				switch(i->v[0].t.first){
 					case turtle_parser::uriref::id:{ 
@@ -795,7 +799,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 						current_property=std::find_if(objrdf::begin(sub),objrdf::end(sub),name_p(u));
 						if(current_property==objrdf::end(sub)){
 							cerr<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
-							return false;
+							current_property=objrdf::begin(base_resource::nil);
 						}
 					}break;
 					case turtle_parser::qname::id:{
@@ -806,7 +810,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 							current_property=std::find_if(objrdf::begin(sub),objrdf::end(sub),name_p(u));
 							if(current_property==objrdf::end(sub)){
 								cerr<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
-								return false;
+								current_property=objrdf::begin(base_resource::nil);
 							}
 						}else{
 							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
@@ -854,16 +858,16 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 							}
 						}else{
 							cerr<<"current property `"<<current_property->get_Property()->id<<"' is not literal"<<endl;
-							return false;
 						}
 					}
 					break;
 					case turtle_parser::uriref::id:{
 						if(current_property.literalp()){
 							cerr<<"current property `"<<current_property->get_Property()->id<<"' is literal"<<endl;
-							return false;
 						}
-						uri u=uri::hash_uri(i->v[0].t.second);
+						uri u=uri::hash_uri(i->v[0].t.second);//creates a uri if empty!
+						//hack to remove bad data
+						//uri u;
 						if(do_delete){
 							auto j=current_property->begin();
 							while(j!=current_property->end()){
@@ -873,13 +877,16 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 								}	
 								++j;
 							}
+							if(j==current_property->end()){
+								cerr<<"resource `"<<u<<"' not found"<<endl;
+								return false;
+							}
 						}else{
 							SPARQL_RESOURCE_PTR r=find(u);
 							if(r){
 								current_property->add_property(0)->set_object(r);
 							}else{
 								cerr<<"resource `"<<u<<"' not found"<<endl;
-								return false;
 							}
 						}
 					}
@@ -887,7 +894,6 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 					case turtle_parser::qname::id:{
 						if(current_property.literalp()){
 							cerr<<"current property `"<<current_property->get_Property()->id<<"' is literal"<<endl;
-							return false;
 						}
 						PREFIX_NS::iterator j=prefix_ns.find(i->v[0].v[0].t.second);
 						if(j!=prefix_ns.end()){
@@ -906,7 +912,6 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 									current_property->add_property(0)->set_object(r);
 								}else{
 									cerr<<"resource `"<<u<<"' not found"<<endl;
-									return false;
 								}
 							}
 						}else{
@@ -917,9 +922,14 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 					break;
 					case 9999:{
 						cerr<<"blank node!"<<endl;
+						//we might have a problem here: if set_object() fails we end up with non-initialized memory, also happens
+						//if the connection is lost,
 						base_resource::instance_iterator o=current_property->add_property(0);
 						o->set_object(create_by_type_blank(current_property->get_Property()->get_const<rdfs::range>()));	
 						parse_update_data_statement(i->v[0].v.cbegin(),i->v[0].v.cend(),do_delete,v,o->get_object());
+						//SPARQL_RESOURCE_PTR tmp=create_by_type_blank(current_property->get_Property()->get_const<rdfs::range>());	
+						//parse_update_data_statement(i->v[0].v.cbegin(),i->v[0].v.cend(),do_delete,v,tmp);
+						//current_property->add_property(0)->set_object(tmp);
 					}
 					break;
 					case turtle_parser::variable::id:{
