@@ -870,17 +870,15 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 						//uri u;
 						if(do_delete){
 							auto j=current_property->begin();
-							while(j!=current_property->end()){
-								if(j->get_const_object()->id==u){
-									sub->erase(j);
-									break;
-								}	
-								++j;
+							for(;j!=current_property->end();++j){
+								if(j->get_const_object()->id==u) break;
 							}
 							if(j==current_property->end()){
 								cerr<<"resource `"<<u<<"' not found"<<endl;
 								return false;
-							}
+							}else{
+								sub->erase(j);
+							}	
 						}else{
 							SPARQL_RESOURCE_PTR r=find(u);
 							if(r){
