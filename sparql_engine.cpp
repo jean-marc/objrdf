@@ -864,46 +864,21 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 					case turtle_parser::uriref::id:{
 						if(current_property.literalp()){
 							cerr<<"current property `"<<current_property->get_Property()->id<<"' is literal"<<endl;
-						}
-						uri u=uri::hash_uri(i->v[0].t.second);//creates a uri if empty!
-						//hack to remove bad data
-						//uri u;
-						if(do_delete){
-							auto j=current_property->begin();
-							for(;j!=current_property->end();++j){
-								if(j->get_const_object()->id==u) break;
-							}
-							if(j==current_property->end()){
-								cerr<<"resource `"<<u<<"' not found"<<endl;
-								return false;
-							}else{
-								sub->erase(j);
-							}	
 						}else{
-							SPARQL_RESOURCE_PTR r=find(u);
-							if(r){
-								current_property->add_property(0)->set_object(r);
-							}else{
-								cerr<<"resource `"<<u<<"' not found"<<endl;
-							}
-						}
-					}
-					break;
-					case turtle_parser::qname::id:{
-						if(current_property.literalp()){
-							cerr<<"current property `"<<current_property->get_Property()->id<<"' is literal"<<endl;
-						}
-						PREFIX_NS::iterator j=prefix_ns.find(i->v[0].v[0].t.second);
-						if(j!=prefix_ns.end()){
-							uri u(j->second,i->v[0].v[1].t.second);
+							uri u=uri::hash_uri(i->v[0].t.second);//creates a uri if empty!
+							//hack to remove bad data
+							//uri u;
 							if(do_delete){
 								auto j=current_property->begin();
-								while(j!=current_property->end()){
-									if(j->get_const_object()->id==u){
-										sub->erase(j);
-										break;
-									}	
+								for(;j!=current_property->end();++j){
+									if(j->get_const_object()->id==u) break;
 								}
+								if(j==current_property->end()){
+									cerr<<"resource `"<<u<<"' not found"<<endl;
+									return false;
+								}else{
+									sub->erase(j);
+								}	
 							}else{
 								SPARQL_RESOURCE_PTR r=find(u);
 								if(r){
@@ -912,9 +887,36 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 									cerr<<"resource `"<<u<<"' not found"<<endl;
 								}
 							}
+						}
+					}
+					break;
+					case turtle_parser::qname::id:{
+						if(current_property.literalp()){
+							cerr<<"current property `"<<current_property->get_Property()->id<<"' is literal"<<endl;
 						}else{
-							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
-							return false;
+							PREFIX_NS::iterator j=prefix_ns.find(i->v[0].v[0].t.second);
+							if(j!=prefix_ns.end()){
+								uri u(j->second,i->v[0].v[1].t.second);
+								if(do_delete){
+									auto j=current_property->begin();
+									while(j!=current_property->end()){
+										if(j->get_const_object()->id==u){
+											sub->erase(j);
+											break;
+										}	
+									}
+								}else{
+									SPARQL_RESOURCE_PTR r=find(u);
+									if(r){
+										current_property->add_property(0)->set_object(r);
+									}else{
+										cerr<<"resource `"<<u<<"' not found"<<endl;
+									}
+								}
+							}else{
+								cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
+								return false;
+							}
 						}
 					}
 					break;
