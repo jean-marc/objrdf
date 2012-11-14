@@ -75,34 +75,48 @@ PROPERTY(model,pseudo_ptr<Model>);
  *			:uptime 10
  *			] .}
  * 	
+ * 	there are 2 ways to store the information:
+ * 	1: Set -->-- Logger
+ * 	<Set id='a'>
+ * 	 <logger><Logger/></logger>
+ * 	 <logger><Logger/></logger>
+ * 	 ...
+ * 	</Set>
+ * 	instances have a list of predicate logger stored in a vector, the vector plays 2 roles: indicate which Logger belongs
+ * 	to the Set and the sequence order, this can be accomplished in the second method by using indexes on `time' and `prop'
+ * 	the problem with this method is that the object grows over time and becomes cumbersome to serialize
+ * 	For instance if we want to track version it get expensive to stow away the object
+ * 	2: Logger -->-- Set
+ * 	<Set id='a'/>
+ * 	<Logger time='0'><prop resource='#a'/></Logger>
+ * 	<Logger time='1'><prop resource='#a'/></Logger>
+ * 	...
+ * 	we could use a special pool with no de-allocate so order matches time of instantiation
+ *
  */
-//PROPERTY(time_stamp,time_t);
-char _time_stamp[]="time_stamp";
-class time_stamp:public property<rdfs_namespace,_time_stamp,time_t>{
-public:
-	time_stamp(){t=time(0);}
-	void out(ostream& os) const{os<<ctime(&t);}
-	//it should also be able to read but we have to agree on a format
-	void in(istream& is){}
-};
+PROPERTY(time_stamp,time_t);
+PROPERTY(time_stamp_v,objrdf::NIL);
 PROPERTY(uptime,time_t);//how long has the kiosk been up
-struct _uptime_:uptime{
-	void out(ostream& os) const{
-		//breakdown in hours/minutes
-		int m=(t/60)%60;	
-		int h=(t/3600)%24;	
-		int d=t/(3600*24);	
-		os<<d<<"d "<<h<<"h "<<m<<"m";
-	}
-};
+PROPERTY(uptime_v,objrdf::NIL);
 PROPERTY(n_client,uint16_t);
 PROPERTY(volt,float);
 //CLASS(Logger,std::tuple<time_stamp,uptime,n_client,volt>);
 char _Logger[]="Logger";
-class Logger:public resource<rdfs_namespace,_Logger,std::tuple<time_stamp,_uptime_,n_client,volt>,Logger>{
+class Logger:public resource<rdfs_namespace,_Logger,std::tuple<time_stamp,uptime,n_client,volt>,Logger>{
 public:
+	typedef std::tuple<time_stamp_v,uptime_v> PSEUDO_PROPERTIES;
 	Logger(uri id):SELF(id){
-		//get<time_stamp>().t=time(0);
+		get<time_stamp>().t=time(0);	
+	}
+	void out_p(time_stamp_v,ostream& os) const{
+		os<<ctime(&get_const<time_stamp>().t);
+	}
+	void out_p(uptime_v,ostream& os) const{
+		time_t t=get_const<uptime>().t;
+		int m=(t/60)%60;	
+		int h=(t/3600)%24;	
+		int d=t/(3600*24);	
+		os<<d<<"d "<<h<<"h "<<m<<"m";
 	}
 };
 
@@ -111,18 +125,112 @@ char _Set[]="Set";
 PROPERTY(on,bool);
 PROPERTY(tot_uptime,time_t);//how long has the kiosk been up
 PROPERTY(logger,pseudo_ptr<Logger>);
-class Set:public resource<rdfs_namespace,_Set,std::tuple<located,on,/*uptime*/array<logger>>,Set/*very important!*/>{
+PROPERTY(plot,objrdf::NIL);
+/*
+ *	how do we track changes: eg new location
+ *
+ */
+class Set:public resource<rdfs_namespace,_Set,std::tuple<located,on,/*uptime*/array<logger>/*,objrdf::prev*/>,Set/*very important!*/>{
 	time_t start;
 public:
-	typedef on TRIGGER;
+	typedef std::tuple<plot> PSEUDO_PROPERTIES;
+	//typedef on TRIGGER;
+	//typedef located TRIGGER;
+	//typedef located VERSION;
 	Set(uri id):SELF(id),start(time(0)){cerr<<"new Set()"<<endl;}
+	static bool comp(const logger& a,time_t b){return a->get_const<time_stamp>().t<b;}
+	void out_p(plot,ostream& os) const{
+	/*
+ 	*	display of uptime, power, bandwidth,....
+ 	*	get the time at midnight or display the last 24 hours, or the last 24 hours recorded
+ 	*	it might make sense to cache it, but the function is declared const
+ 	*/ 
+		if(get_const<array<logger>>().size()==0) return;
+		int width=200,height=100;	
+		//should be made a parameter
+		time_t duration=10*24*3600;//1 day
+		float scale_x=static_cast<float>(width)/duration;
+		//need to distinguish 12V/24V
+		//we could query db or guess from voltage
+		float min_v=0,max_v=0,dscn_v=0;
+		if(get_const<array<logger>>().back()->get_const<volt>().t>20){
+			min_v=20;
+			max_v=30;
+			dscn_v=24.5;
+		}else{
+			min_v=10;
+			max_v=20;
+			dscn_v=12.25;
+		}
+		float range_v=max_v-min_v;
+		float scale_y=static_cast<float>(height)/range_v;
+		//careful : could be empty!
+		//time_t stop=get_const<array<logger>>().back()->get_const<time_stamp>().t;	
+		time_t stop=time(0);//now
+		time_t start=stop-duration; 
+		//find the index in get<array>
+		auto j=lower_bound(get_const<array<logger>>().cbegin(),get_const<array<logger>>().cend(),start,Set::comp);
+		os<<"<svg width='"<<width<<"' height='"<<height<<"' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' style='fill:none;stroke:black;stroke-width:1;'>";
+		//how to draw a line at midnight?
+		time_t rawtime;
+		time ( &rawtime );
+		struct tm * timeinfo;
+		timeinfo = localtime ( &rawtime );
+		timeinfo->tm_sec=0;
+		timeinfo->tm_min=0;
+		timeinfo->tm_hour=0;
+		time_t mn=mktime(timeinfo);
+		{
+			auto i=j;
+			os<<"<g transform='scale(1,-1) translate(0,"<<-height<<")'>"<<endl;;
+			for(;mn>start;mn-=24*3600){
+				int wday=localtime(&mn)->tm_wday;
+				if(wday==0||wday==6) 
+					os<<"<rect class='we' x='"<<((mn-start)*scale_x)<<"' y='0' width='"<<(24*3600*scale_x)<<"' height='"<<height<<"'/>"<<endl;
+				os<<"<path class='vgrid' d='M"<<((mn-start)*scale_x)<<" 0v"<<height<<"'/>"<<endl;
+			}
+			for(float v=min_v+1.0;v<max_v;v+=1.0)
+				os<<"<path class='hgrid' d='M0 "<<((v-min_v)*scale_y)<<"h"<<width<<"'/>"<<endl;
+			os<<"<path class='dscn' d='M0 "<<((dscn_v-min_v)*scale_y)<<"h"<<width<<"'/>"<<endl;
+			int x=((*i)->get_const<time_stamp>().t-start)*scale_x;
+			int y=((*i)->get_const<volt>().t-min_v)*scale_y;
+			os<<"<path class='trace' d='M"<<x<<" "<<y<<"L";
+			++i;
+			for(;i<get_const<array<logger>>().cend();++i){
+				int x=((*i)->get_const<time_stamp>().t-start)*scale_x;
+				int y=((*i)->get_const<volt>().t-min_v)*scale_y;
+				os<<x<<" "<<y<<" ";
+			}	
+			os<<"'/></g>"<<endl;
+		}
+		//is the machine on? how many clients connected?, let's draw rectangles
+		{
+			os<<"<g transform='scale(1,-1) translate(0,"<<-height<<")'>"<<endl;;
+			time_t prev=start;
+			for(auto i=j;i<get_const<array<logger>>().cend();++i){
+				time_t current=(*i)->get_const<time_stamp>().t;
+				float x=(current-start)*scale_x;
+				float w=min(current-prev,(*i)->get_const<uptime>().t)*scale_x;
+				int h=0.1*height*(1+(*i)->get_const<n_client>().t);
+				//room for optimization: 1 big rectangle instead of many (assuming same number of clients)
+				os<<"<rect class='uptime' x='"<<x-w<<"' y='0' width='"<<w<<"' height='"<<h<<"'/>"<<endl;		
+				prev=current;
+			}	
+			os<<"</g>";
+		}
+		os<<"<rect class='frame' x='0' y='0' width='"<<width<<"' height='"<<height<<"'/>";
+		os<<"</svg>";
+	}
 	void set_p(on& p){
 		/*if(p.t)
 			start=time(0);
 		else
 			get<uptime>().t+=time(0)-start;
 		*/
-		get<on>()=p;
+	//	get<on>()=p;
+	}
+	void set_p(const located& p){
+		//get<located>()=p;
 	}
 };
 
