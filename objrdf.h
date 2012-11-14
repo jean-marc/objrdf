@@ -26,6 +26,7 @@ template <typename T> int sgn(T val){
 	return (T(0) < val) - (val < T(0));
 }
 #define PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<rdfs_namespace,_##n,__VA_ARGS__> n
+#define PSEUDO_PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<rdfs_namespace,_##n,__VA_ARGS__> n
 //property that exists in the objrdf namespace
 #define OBJRDF_PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
 #define CLASS(n,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__> n
@@ -84,6 +85,7 @@ namespace objrdf{
 	OBJRDF_RDFS_NAMESPACE("http://www.example.org/objrdf#","obj");
 	struct NIL{
 		typedef NIL SELF;
+		typedef std::tuple<> PSEUDO_PROPERTIES;
 	};
 	class base_resource;
 }
@@ -187,6 +189,8 @@ namespace objrdf{
 	public:
 		//could break down in TRIGGER_SET and TRIGGER_GET
 		typedef base_resource TRIGGER;
+		typedef base_resource VERSION;
+		typedef std::tuple<> PSEUDO_PROPERTIES;
 		//to be investigated ...
 		//template<typename T> friend class special::shared_ptr<T>; 
 		//used by pool
@@ -504,9 +508,13 @@ namespace objrdf{
 			cerr<<"delete resource `"<<this->id<<"' "<<this<<endl;
 			#endif
 		}
+		/*
 		void operator=(const resource& r){
+			cerr<<"operator="<<endl;
 			p=r.p;
+			
 		}
+		*/
 		template<typename U> U& get(){return helper<resource,U>::get(*this);}
 		template<typename U> const U& get_const() const{return helper<resource,U>::get_const(*this);}
 		/*
@@ -544,7 +552,6 @@ namespace objrdf{
 	enum{LITERAL=0x1};
 	enum{STRING=0x2};
 	enum{CONST=0x4};
-	enum{TRIGGER=0x8};//the subject will be notified if property modified
 	template<typename RANGE> struct base_property{
 		typedef persistent_store STORE;
 		enum{TYPE=LITERAL};
@@ -643,6 +650,14 @@ namespace objrdf{
 		void set_object(RESOURCE_PTR object){this->PTR::operator=(object);}
 		void erase(){set_object(RESOURCE_PTR());}
 	};
+	/*
+ 	*	pseudo-property used for views only, always literal, always size 1 and constant
+ 	*/ 
+	template<> class base_property<NIL>{
+	public:
+		enum{TYPE=LITERAL};
+
+	};
 	template<
 		typename NAMESPACE,
 		const char* NAME,
@@ -669,7 +684,8 @@ namespace objrdf{
 	};
 	/*
  	*	property to keep track of versions, a pointer to the previous version
- 	*	it can only be modified by the application
+ 	*	it can only be modified by the application, it would be nice to store the sequence outside of the object so as
+ 	*	to not modify the class when deciding to use versioning
  	*/ 
 	OBJRDF_PROPERTY(prev,RESOURCE_PTR);
 
@@ -693,35 +709,34 @@ namespace objrdf{
 		static inline const PROPERTY& get_const(ITERATOR_CONST_RESOURCE_PTR subject,size_t){return static_cast<const SUBJECT*>(subject)->template get_const<PROPERTY>();}
 		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return get_const(subject,0).get_size();}
 		static void add_property(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
-		static void add_property_t(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){
-			/*
- 			* could be the good place to implement a transaction
-			* we will have patch the function table or there could be a flag in PROPERTY to indicate we want transaction
-			* would be nice to hide a pointer to old version, could be a pseudo attribute based on id
-			* should only be recorded if property value is modified
-			* the pointer could also easily fit inside the base_resource::id
-			* ideally it should be a double-linked list so we could remove old history
-			* 	<obj:prev rdf:resource='...'/>
-			* 	<obj:next rdf:resource='...'/>
-			* What happens when a resource is deleted?
-			* we have to make sure that a copy can not be modified
-			* would be better done at compile time static_cast<SUBJECT*>(subject)->get<objrdf::prev>()=c;
-			*/
-			/*static*/auto i=find_if(static_cast<SUBJECT*>(subject)->begin(),static_cast<SUBJECT*>(subject)->end(),match_property(objrdf::prev::get_property()));
-			if(i!=static_cast<SUBJECT*>(subject)->end()){
-				RESOURCE_PTR c=create_by_type(SUBJECT::get_class(),uri(""));
-				c->id=get_uri(c);	
-				static_cast<SUBJECT&>(*c)=static_cast<SUBJECT&>(*subject);//deep copy
-				i->add_property(0)->set_object(c);//careful with infinite recursion
-			}
-		}
-		static void erase(ITERATOR_RESOURCE_PTR subject,size_t first,size_t last){get(subject,0).erase();}	
+		struct normal{
+			static void erase(ITERATOR_RESOURCE_PTR subject,size_t first,size_t last){
+				get(subject,0).erase();
+			}	
+		};
+		struct version{
+			static void erase(ITERATOR_RESOURCE_PTR subject,size_t first,size_t last){
+				//stow away a copy of the object, actually the new version should be the new object
+				//problem: does not work with subclasses!
+				RESOURCE_PTR c=create_by_type_blank(SUBJECT::get_class());
+				uri tmp=c->id;
+				//deep copy will fail if a member is constant
+				//id get overriden
+				static_cast<SUBJECT&>(*c)=static_cast<SUBJECT&>(*subject);
+				c->id=tmp;
+				static_cast<SUBJECT*>(subject)->template get<objrdf::prev>().set_object(c);
+				//we can also swap objects so the new object is the modified version of the old one
+				//maybe the new object has a time stamp when created
+				get(subject,0).erase();
+			}	
+		};
+		typedef typename IfThenElse<equality<typename SUBJECT::VERSION,PROPERTY>::VALUE,version,normal>::ResultT ERASE;
 		static PROVENANCE get_provenance(ITERATOR_CONST_RESOURCE_PTR subject,size_t){return 0;/*get_const(subject).p;*/}
 		static function_table get_table(){
 			function_table t;
 			std::get<6>(t)=get_size;
 			std::get<7>(t)=add_property;
-			std::get<8>(t)=erase;
+			std::get<8>(t)=ERASE::erase;
 			std::get<9>(t)=get_provenance;
 			return t;	
 		}
@@ -749,11 +764,16 @@ namespace objrdf{
 		}
 	};
 
-	template<typename SUBJECT,typename PROPERTY,size_t TYPE=PROPERTY::TYPE|(equality<typename SUBJECT::TRIGGER,PROPERTY>::VALUE<<3)> struct functions;
+	template<typename SUBJECT,typename PROPERTY,size_t TYPE=PROPERTY::TYPE> struct functions;
 
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONST|LITERAL>:base_f<SUBJECT,PROPERTY>{
 		typedef base_f<SUBJECT,PROPERTY> BASE;
-		static void out(ITERATOR_CONST_RESOURCE_PTR subject,ostream& os,size_t index){BASE::get_const(subject,index).out(os);}	
+		static void out(ITERATOR_CONST_RESOURCE_PTR subject,ostream& os,size_t index){
+			/*
+ 			*	at this stage we can detect if out has been overriden in a base class
+ 			*/ 
+			BASE::get_const(subject,index).out(os);
+		}	
 		static int compare(ITERATOR_CONST_RESOURCE_PTR a,size_t index_a,ITERATOR_CONST_RESOURCE_PTR b,size_t index_b){
 			return BASE::get_const(a,index_a).compare(BASE::get_const(b,index_b));
 		}
@@ -768,27 +788,25 @@ namespace objrdf{
 	};
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,LITERAL>:functions<SUBJECT,PROPERTY,CONST|LITERAL>{
 		typedef functions<SUBJECT,PROPERTY,CONST|LITERAL> BASE;
-		static void in(ITERATOR_RESOURCE_PTR subject,istream& is,size_t index){BASE::get(subject,index).in(is);}
+		struct normal{
+			static void in(ITERATOR_RESOURCE_PTR subject,istream& is,size_t index){
+				BASE::get(subject,index).in(is);
+			}
+		};
+		struct trigger{
+			static void in(ITERATOR_RESOURCE_PTR subject,istream& is,size_t index){
+				PROPERTY tmp;
+				is>>tmp.t;
+				static_cast<SUBJECT*>(subject)->set_p(tmp);
+			}
+		};
+		typedef typename IfThenElse<equality<typename SUBJECT::TRIGGER,PROPERTY>::VALUE,trigger,normal>::ResultT TRIGGER;
 		static function_table get_table(){
 			auto t=BASE::get_table();
-			std::get<1>(t)=in;
+			std::get<1>(t)=TRIGGER::in;
 			return t;	
 		}
 	};
-	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,LITERAL|TRIGGER>:functions<SUBJECT,PROPERTY,CONST|LITERAL>{
-		typedef functions<SUBJECT,PROPERTY,CONST|LITERAL> BASE;
-		static void in(ITERATOR_RESOURCE_PTR subject,istream& is,size_t index){
-			PROPERTY tmp;
-			is>>tmp.t;
-			static_cast<SUBJECT*>(subject)->set_p(tmp);
-		}
-		static function_table get_table(){
-			auto t=BASE::get_table();
-			std::get<1>(t)=in;
-			return t;	
-		}
-	};
-
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,STRING|LITERAL>:functions<SUBJECT,PROPERTY,LITERAL>{
 		typedef functions<SUBJECT,PROPERTY,LITERAL> BASE;
 		static void set_string(ITERATOR_RESOURCE_PTR subject,string s,size_t index){BASE::get(subject,index).set_string(s);}
@@ -798,30 +816,60 @@ namespace objrdf{
 			return t;	
 		}
 	};
+	//what if set_object is invoked on const property?
+	static void set_const_object(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){cerr<<"error: const property"<<endl;}
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONST>:base_f<SUBJECT,PROPERTY>{
 		typedef base_f<SUBJECT,PROPERTY> BASE;
 		static CONST_RESOURCE_PTR get_const_object(ITERATOR_CONST_RESOURCE_PTR subject,CONST_RESOURCE_PTR alt_subject,size_t index){
 			return BASE::get_const(subject,index).get_const_object();
 		}
-		//why do we have set_object if it is a const resource?
-		static void set_object(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){BASE::get(subject,index).set_object(object);}
-		//override
-		static void erase(ITERATOR_RESOURCE_PTR subject,size_t first,size_t last){set_object(subject,RESOURCE_PTR(0),0);}	
 		static function_table get_table(){
 			auto t=BASE::get_table();
 			std::get<4>(t)=get_const_object;
-			std::get<5>(t)=set_object;
-			//std::get<8>(t)=erase;
+			std::get<5>(t)=set_const_object;
 			return t;	
 		}
 	};	
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,0>:functions<SUBJECT,PROPERTY,CONST>{
 		typedef functions<SUBJECT,PROPERTY,CONST> BASE;
 		static RESOURCE_PTR get_object(ITERATOR_RESOURCE_PTR subject,size_t index){return BASE::get(subject,index).get_object();}
+		struct normal{
+			static void set_object(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
+				BASE::get(subject,index).set_object(object);
+			}
+		};
+		struct trigger{
+			static void set_object(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
+				PROPERTY tmp;
+				tmp.set_object(object);
+				static_cast<SUBJECT*>(subject)->set_p(tmp);
+			}
+		};
+		typedef typename IfThenElse<equality<typename SUBJECT::TRIGGER,PROPERTY>::VALUE,trigger,normal>::ResultT TRIGGER;
 		static function_table get_table(){
 			auto t=BASE::get_table();
 			std::get<3>(t)=get_object;
+			std::get<5>(t)=TRIGGER::set_object;
 			return t;	
+		}
+	};
+	template<
+		typename SUBJECT,
+		typename NAMESPACE,
+		const char* NAME,
+		typename IMPLEMENTATION
+	> struct functions<SUBJECT,property<NAMESPACE,NAME,NIL,IMPLEMENTATION>,LITERAL>{
+		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return 1;}
+		static void out(ITERATOR_CONST_RESOURCE_PTR subject,ostream& os,size_t index){
+			property<NAMESPACE,NAME,NIL,IMPLEMENTATION> tmp;
+			static_cast<const SUBJECT*>(subject)->out_p(tmp,os);
+		}
+		static function_table get_table(){
+			function_table t;
+			std::get<2>(t)=out;
+			std::get<5>(t)=set_const_object;
+			std::get<6>(t)=get_size;
+			return t;
 		}
 	};
 	//schema
@@ -1131,6 +1179,7 @@ namespace objrdf{
 		typedef get_Literal<RANGE> ResultT;
 		enum{IS_LITERAL=1};
 	};
+	//what is this???
 	template<typename RANGE> struct selector<RANGE*>{
 		typedef RANGE ResultT;
 		enum{IS_LITERAL=0};
@@ -1213,10 +1262,7 @@ namespace objrdf{
 	template<> struct get_generic_property<base_resource>{
 		static V go(){
 			LOG<<"get_generic_property:`base_resource'"<<endl;
-			V v;
-			v.push_back(get_property_info<base_resource,rdf::type>());
-			v.push_back(get_property_info<base_resource,objrdf::id>());
-			v.push_back(get_property_info<base_resource,objrdf::self>());
+			V v={get_property_info<base_resource,rdf::type>(),get_property_info<base_resource,objrdf::self>(),get_property_info<base_resource,objrdf::id>()};
 			return v;
 		}
 	};
@@ -1226,7 +1272,7 @@ namespace objrdf{
 		typename PROPERTIES,
 		typename SUBCLASS,
 		typename SUPERCLASS 
-	> struct get_generic_property<resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS> >{
+	> struct get_generic_property<resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS>>{
 		typedef resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS> RESOURCE;
 		typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,RESOURCE,SUBCLASS>::ResultT TMP;
 		static V go(){
@@ -1238,6 +1284,16 @@ namespace objrdf{
  			* for now the best is a single property
  			*/
 			v.front()=get_property_info<RESOURCE,rdf::type>();//will override SUPERCLASS's rdf::type
+			//problem with derived classes
+			typedef typename IfThenElse<
+				equality<
+					typename TMP::PSEUDO_PROPERTIES,
+					typename SUPERCLASS::PSEUDO_PROPERTIES
+				>::VALUE,
+				NIL,
+				typename TMP::PSEUDO_PROPERTIES
+			>::ResultT PP;
+			v=concat(v,std::static_for_each<PP>(_meta_<TMP>()).v);
 			return concat(v,std::static_for_each<PROPERTIES>(_meta_<TMP>()).v);
 		}
 	};
