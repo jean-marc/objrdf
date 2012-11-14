@@ -162,7 +162,6 @@ CONST_RESOURCE_PTR base_resource::const_instance_iterator::get_const_object() co
 }
 void base_resource::instance_iterator::set_object(RESOURCE_PTR r){
 	std::get<5>(i->t)(subject,r,index);
-	//std::get<5>(i->t)(subject,base_resource::nil==r ? RESOURCE_PTR(0) : r,index);
 }
 PROVENANCE base_resource::instance_iterator::get_provenance() const{
 	return std::get<9>(i->t)(subject,index);
@@ -172,7 +171,7 @@ PROVENANCE base_resource::const_instance_iterator::get_provenance() const{
 }
 base_resource::instance_iterator base_resource::type_iterator::add_property(PROVENANCE p){
 	#ifdef OBJRDF_VERB
-	cerr<<"add_property with provenance "<<(int)p<<" to resource `"<<subject->id<<"'"<<endl;
+	cerr<<"add_property `"<<get_Property()->id<<"' to resource `"<<subject->id<<"'"<<endl;
 	#endif
 	//awkward
 	assert(std::get<7>(static_cast<V::iterator>(*this)->t));
@@ -250,15 +249,15 @@ void base_resource::to_rdf_xml(ostream& os,const PROVENANCE& p) const{
 }
 namespace objrdf{
 	CLASS_PTR get_class(CONST_RESOURCE_PTR r){return CLASS_PTR(r.pool_ptr.index);}
+	//shall we start with an offset since the first 2 properties are read-only (rdfs::type and objrdf::self)
 	base_resource::type_iterator begin(RESOURCE_PTR r){return std::get<1>(get_class(r)->t)(r);}
 	base_resource::type_iterator end(RESOURCE_PTR r){return std::get<2>(get_class(r)->t)(r);}
 	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return std::get<3>(get_class(r)->t)(r);}
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r){return std::get<4>(get_class(r)->t)(r);}
 	base_resource::const_instance_iterator get_const_self_iterator(CONST_RESOURCE_PTR r){
-		return base_resource::const_instance_iterator(r,r,base_resource::v.cbegin()+2,0);
+		return base_resource::const_instance_iterator(r,r,base_resource::v.cbegin()+1,0);//hard-coded index, careful!
 	}
 	void to_rdf_xml(CONST_RESOURCE_PTR r,ostream& os){
-		//os<<"\n<"<<get_class(r)->id<<" "<<(r->id.is_local() ? rdf::ID : rdf::about)<<"='";
 		os<<"\n<"<<get_class(r)->id<<" ";
 		switch (r->id.index){
 			case 0:os<<rdf::ID;break;
@@ -269,20 +268,21 @@ namespace objrdf{
 		r->id.to_uri(os);
 		os<<"'>";
 		for(auto i=cbegin(r);i!=cend(r);++i){
-			for(base_resource::const_instance_iterator j=i->cbegin();j!=i->cend();++j){
-				//should test if constant or not
-				if(i->literalp())
-					os<<"\n\t<"<<i->get_Property()->id<<">"<<*j<<"</"<<i->get_Property()->id<<">";
-				else{
-					//os<<"\n\t<"<<i->get_Property()->id<<" "<<rdf::resource<<"='"<<(j->get_const_object()->id.is_local() ? "#" : "");
-					os<<"\n\t<"<<i->get_Property()->id<<" ";//<<rdf::resource<<"='"<<(j->get_const_object()->id.is_local() ? "#" : "");
-					switch(j->get_const_object()->id.index){
-						case 0:os<<rdf::resource<<"='#";break;
-						case 1:os<<rdf::nodeID<<"='";break;
-						default:os<<rdf::resource<<"='";break;
+			if(i->get_Property()!=objrdf::self::get_property()){//let's skip objrdf::self
+				for(base_resource::const_instance_iterator j=i->cbegin();j!=i->cend();++j){
+					//should test if constant or not
+					if(i->literalp())
+						os<<"\n\t<"<<i->get_Property()->id<<">"<<*j<<"</"<<i->get_Property()->id<<">";
+					else{
+						os<<"\n\t<"<<i->get_Property()->id<<" ";
+						switch(j->get_const_object()->id.index){
+							case 0:os<<rdf::resource<<"='#";break;
+							case 1:os<<rdf::nodeID<<"='";break;
+							default:os<<rdf::resource<<"='";break;
+						}
+						j->get_const_object()->id.to_uri(os);
+						os<<"'/>";
 					}
-					j->get_const_object()->id.to_uri(os);
-					os<<"'/>";
 				}
 			}
 		}
