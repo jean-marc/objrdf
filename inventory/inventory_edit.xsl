@@ -26,7 +26,7 @@
 -->
 <!-- is it always the first result ? -->
 <xsl:variable name='type' select="s:sparql/s:results/s:result[1]/s:binding[@name='v']/s:uri"/>
-<xsl:variable name='id' select="s:sparql/s:results/s:result[2]/s:binding[@name='v']/s:literal"/>
+<xsl:variable name='id' select="s:sparql/s:results/s:result[3]/s:binding[@name='v']/s:literal"/>
 <xsl:variable name='esc_type' select="concat(substring-before($type,'#'),'%23',substring-after($type,'#'))"/>
 <!-- 
 	could be more specific, we don't need all the literal properties, only the ones relevant to
