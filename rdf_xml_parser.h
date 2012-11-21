@@ -31,6 +31,8 @@ namespace objrdf{
 		std::stack<RESOURCE_PTR> st;
 		typedef multimap<uri,base_resource::instance_iterator> MISSING_OBJECT;
 		MISSING_OBJECT missing_object;//store all the properties waiting for object
+		typedef map<string,RESOURCE_PTR> BLANK_NODE;
+		BLANK_NODE blank_node;
 		/*
  		*	placeholder when a resource can not be created for any reason (eg: the rdfs:type
  		*	is not known yet) so that the parsing can go on.
