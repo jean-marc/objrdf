@@ -23,20 +23,54 @@
 #include "httpd.h"
 #include "geo.h"
 #include "rdf_xml_parser.h"
+#include <memory>
 using namespace objrdf;
 
 RDFS_NAMESPACE("http://inventory.unicefuganda.org/#","inv")
 
 typedef persistent_store STORE;
 
+/*
+ *	new class Report: everytime we have a conversation with a site or a visit we should log a small report,
+ *	properties would be author, time, content: plain text or html if we want to include references (to person, equipment,...)
+ *	should it be attached to a Site or a Set?, Site makes more sense to allow reporting about a prospective site (no Set installed yet) 
+ *
+ */
+typedef basic_string<
+		char,
+		std::char_traits<char>,
+		custom_allocator<
+			char,
+			pseudo_ptr_array<char,STORE>/*,
+			pseudo_ptr_array<const char,STORE>*/
+		>
+	> my_string;	
+PROPERTY(text,my_string);
+PROPERTY(time_stamp,time_t);
+PROPERTY(time_stamp_v,objrdf::NIL);
+//CLASS(Report,std::tuple<text>);
+char _Report[]="Report";
+class Report:public resource<rdfs_namespace,_Report,std::tuple<time_stamp,text>,Report>{
+public:
+	typedef std::tuple<time_stamp_v> PSEUDO_PROPERTIES;
+	Report(uri id):SELF(id){
+		get<time_stamp>().t=time(0);	
+	}
+	void out_p(time_stamp_v,ostream& os) const{
+		os<<ctime(&get_const<time_stamp>().t);
+	}
+
+};
+PROPERTY(report,Report::allocator::pointer);//what about const_pointer?
+
 CLASS(Organization,std::tuple<>);
-PROPERTY(organization,pseudo_ptr<Organization>);
-DERIVED_CLASS(Site,geo::Point,std::tuple<organization>);
-PROPERTY(located,pseudo_ptr<Site>);
+PROPERTY(organization,Organization::allocator::pointer);
+DERIVED_CLASS(Site,geo::Point,std::tuple<organization,array<report>>);
+PROPERTY(located,Site::allocator::pointer);
 //maybe should use friend of a friend ontology for people
 //people
 PROPERTY(phone,long);
-PROPERTY(site,pseudo_ptr<Site>);
+PROPERTY(site,Site::allocator::pointer);
 CLASS(Person,std::tuple<array<phone,STORE>,array<site>>);//same person can be responsible for more than one site
 PROPERTY(status,int);//needs to be developed: working/not working,...history
 PROPERTY(_mac_,long);//MAC address 48 bytes
@@ -52,9 +86,9 @@ struct mac:_mac_{
 //would be nice to know where a piece of equipment has been, also to know if it has been serviced
 //history is a linked-list (how does git work?)
 CLASS(Manufacturer,std::tuple<>);
-PROPERTY(manufacturer,pseudo_ptr<Manufacturer>);
+PROPERTY(manufacturer,Manufacturer::allocator::pointer);
 CLASS(Model,std::tuple<manufacturer>);
-PROPERTY(model,pseudo_ptr<Model>);
+PROPERTY(model,Model::allocator::pointer);
 /*
  *	add properties and functions to track usage: how many hours it has been up, the VPN server
  *	will run a query when a client connects or disconnects, it will trigger a counter on the object.
@@ -94,13 +128,10 @@ PROPERTY(model,pseudo_ptr<Model>);
  * 	we could use a special pool with no de-allocate so order matches time of instantiation
  *
  */
-PROPERTY(time_stamp,time_t);
-PROPERTY(time_stamp_v,objrdf::NIL);
 PROPERTY(uptime,time_t);//how long has the kiosk been up
 PROPERTY(uptime_v,objrdf::NIL);
 PROPERTY(n_client,uint16_t);
 PROPERTY(volt,float);
-//CLASS(Logger,std::tuple<time_stamp,uptime,n_client,volt>);
 char _Logger[]="Logger";
 class Logger:public resource<rdfs_namespace,_Logger,std::tuple<time_stamp,uptime,n_client,volt>,Logger>{
 public:
@@ -119,13 +150,12 @@ public:
 		os<<d<<"d "<<h<<"h "<<m<<"m";
 	}
 };
-
-//CLASS(Set,std::tuple<located>);
 char _Set[]="Set";
 PROPERTY(on,bool);
 PROPERTY(tot_uptime,time_t);//how long has the kiosk been up
-PROPERTY(logger,pseudo_ptr<Logger>);
+PROPERTY(logger,Logger::allocator::pointer);
 PROPERTY(plot,objrdf::NIL);
+PROPERTY(svg_plot,rdfs::XMLLiteral);//we can choose to make it real property or pseudo
 /*
  *	how do we track changes: eg new location
  *
@@ -133,9 +163,11 @@ PROPERTY(plot,objrdf::NIL);
 class Set:public resource<rdfs_namespace,_Set,std::tuple<located,on,/*uptime*/array<logger>/*,objrdf::prev*/>,Set/*very important!*/>{
 	time_t start;
 public:
-	typedef std::tuple<plot> PSEUDO_PROPERTIES;
+	typedef array<logger> loggers;
+	typedef std::tuple<plot/*,svg_plot*/> PSEUDO_PROPERTIES;
 	//typedef on TRIGGER;
 	//typedef located TRIGGER;
+	typedef array<logger> TRIGGER;
 	//typedef located VERSION;
 	Set(uri id):SELF(id),start(time(0)){cerr<<"new Set()"<<endl;}
 	static bool comp(const logger& a,time_t b){return a->get_const<time_stamp>().t<b;}
@@ -220,6 +252,30 @@ public:
 		}
 		os<<"<rect class='frame' x='0' y='0' width='"<<width<<"' height='"<<height<<"'/>";
 		os<<"</svg>";
+	}
+	/*
+ 	* we can add some form of compression, if the new Logger is not very different from previous one it simply overrides is
+ 	* we have to be careful, by now the property has already been appended, 
+ 	* space has been allocated for the objects wether they are used or not
+ 	*/
+	void set_p(logger& p){
+		cerr<<"trigger!"<<endl;
+		get<loggers>().pop_back(); //ugly
+		if(get_const<array<logger>>().size()==1){
+			get<array<logger>>().push_back(p);
+		}else{
+			if(((p->get<time_stamp>().t-get<loggers>().back()->get<time_stamp>().t)<p->get<uptime>().t)&&(p->get<n_client>().t==get<loggers>().back()->get<n_client>().t)&&(fabs(p->get<volt>().t-get<loggers>().back()->get<volt>().t)<0.1)){
+				cerr<<"discarding old result!"<<endl;
+				//should free memory here
+				//not supported yet in g++ 4.4.4
+				//allocator_traits<Logger::allocator>::deallocate(p,1);
+				Logger::allocator a;
+				a.destroy(p);
+				a.deallocate(p,1);
+				get<loggers>().back()=p;
+			}else
+				get<array<logger>>().push_back(p);
+		} 
 	}
 	void set_p(on& p){
 		/*if(p.t)
@@ -310,6 +366,7 @@ int main(int argc,char* argv[]){
 	Inverter::get_class();
 	Organization::get_class();
 	Model::get_class();	
+	Report::get_class();
 	/*
 	//how do I get access to the pool?
 	//auto i=POOL_PTR::help<Set>();
