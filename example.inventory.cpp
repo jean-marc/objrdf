@@ -329,15 +329,15 @@ DERIVED_CLASS(Drive,Equipment,std::tuple<version>);//information about OS/softwa
 DERIVED_CLASS(Laptop,Equipment,std::tuple<mac>);//problem: won't show up in schema, we can work-around in stylesheet
 DERIVED_CLASS(Server,Equipment,std::tuple<mac>);
 DERIVED_CLASS(UPS,Equipment,std::tuple<>);
-//PROPERTY(sim,char[20]);
-CLASS(Sim,std::tuple<>);
-PROPERTY(sim,pseudo_ptr<Sim>);//because we will start moving sim cards around
 /*
  *	is the modem attached to a service provider, if not it means it is unlocked
  */
 CLASS(Telco,std::tuple<>); //Orange, MTN, Airtel, Warid
-PROPERTY(telco,pseudo_ptr<Telco>);
-DERIVED_CLASS(Modem,Equipment,std::tuple<sim/*,telco*/>);
+PROPERTY(telco,Telco::allocator::pointer);
+PROPERTY(number,long);//otherwise conflict with phone
+CLASS(Sim,std::tuple<number,telco>);
+PROPERTY(sim,pseudo_ptr<Sim>);//because we will start moving sim cards around
+DERIVED_CLASS(Modem,Equipment,std::tuple<sim,telco>);
 PROPERTY(power,int);
 PROPERTY(voltage,int);
 DERIVED_CLASS(PV_panel,Equipment,std::tuple<power,voltage>);
