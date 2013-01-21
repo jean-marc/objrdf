@@ -17,6 +17,19 @@
  *		?set :located ?site . 
  *		?model :manufacturer ?manufacturer .
  *	} order by ?type
+ *
+ * 	query to get all information about modems at the Warchild sites
+ *
+  	prefix :<http://inventory.unicefuganda.org/#> 
+  	select * 
+  	where{	?modem a :Modem;:sim ?sim . 
+  		?sim :number ?number .
+  		?modem :partOf ?kiosk . 
+  		?kiosk :located ?site . 
+  		?site :organization <Warchild> .
+  	}
+ *	to send HTML formated email use:
+ *	mutt -e "set content_type=text/html" address -s "subject" < test.html
  */
 #include "objrdf.h"
 #include "sparql_engine.h"
@@ -133,6 +146,14 @@ PROPERTY(uptime_v,objrdf::NIL);
 PROPERTY(n_client,uint16_t);
 PROPERTY(volt,float);
 char _Logger[]="Logger";
+/*
+ *	this class will use the bulk of the storage space and will increase linearly with time 
+ *	a new log is generated at constant 10 min interval, the size is 80 bytes (per obj:sizeOf) so 
+ *	an operating site will add ~ 8*6*80=~3K of data per day
+ *	there is a simple compression scheme implemented in Set::set_p(logger& p) that discards repeated
+ *	entries.
+ *
+ */
 class Logger:public resource<rdfs_namespace,_Logger,std::tuple<time_stamp,uptime,n_client,volt>,Logger>{
 public:
 	typedef std::tuple<time_stamp_v,uptime_v> PSEUDO_PROPERTIES;
@@ -261,7 +282,7 @@ public:
 	void set_p(logger& p){
 		cerr<<"trigger!"<<endl;
 		get<loggers>().pop_back(); //ugly
-		if(get_const<array<logger>>().size()==1){
+		if(get_const<array<logger>>().size()==0){
 			get<array<logger>>().push_back(p);
 		}else{
 			if(((p->get<time_stamp>().t-get<loggers>().back()->get<time_stamp>().t)<p->get<uptime>().t)&&(p->get<n_client>().t==get<loggers>().back()->get<n_client>().t)&&(fabs(p->get<volt>().t-get<loggers>().back()->get<volt>().t)<0.1)){
@@ -269,9 +290,10 @@ public:
 				//should free memory here
 				//not supported yet in g++ 4.4.4
 				//allocator_traits<Logger::allocator>::deallocate(p,1);
-				Logger::allocator a;
-				a.destroy(p);
-				a.deallocate(p,1);
+				//something buggy here!!!
+				//Logger::allocator a;
+				//a.destroy(get<loggers>().back());
+				//a.deallocate(get<loggers>().back(),1);
 				get<loggers>().back()=p;
 			}else
 				get<array<logger>>().push_back(p);
