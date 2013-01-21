@@ -18,6 +18,7 @@
 #include <set>
 #include <assert.h>
 #include <fstream>
+#include <algorithm>
 #include "ifthenelse.hpp"
 
 using namespace std;
@@ -72,6 +73,7 @@ using namespace std;
  *	|---| 
  *
  *
+ * 	all of this implements a http://en.cppreference.com/w/cpp/memory/allocator 
  */
 
 /*
@@ -83,7 +85,7 @@ class param{
 public:
 	void* v;
 	size_t n;
-	const size_t cell_size;
+	/*const*/ size_t cell_size;
 	const size_t max_size;//based on pointer size
 	const bool writable;
 	/*
@@ -250,6 +252,10 @@ struct pool_array{
 			FIELD cell_size;
 		};
 	};
+	/*
+ 	*	it should be possible to inflate the size of the payload and then request less memory
+ 	*
+ 	*/ 
 	template<typename T> struct helper{
 		static_assert(sizeof(T)>=sizeof(info),"T smaller than struct info{}");
 		char t[sizeof(T)];
@@ -271,35 +277,47 @@ struct pool_array{
 	//never called
 	virtual ~pool_array();
 	template<typename T> size_t allocate_t(size_t n){
-		auto v=static_cast<helper<T>*>(p.v);
-		size_t i=help_allocate_t<T>(v[0].next(),n);
+		//T might be smaller than info
+		enum{TEST=sizeof(T)<sizeof(info)};
+		typedef typename IfThenElse<TEST,info,T>::ResultT TMP;
+		n=ceil(float(n*sizeof(T))/sizeof(TMP));
+		auto v=static_cast<helper<TMP>*>(p.v);
+		size_t i=help_allocate_t<TMP>(v[0].next(),n);
 		if(i==0){
 			cerr<<"pool_array increasing pool size from "<<p.n<<" to "<<2*p.n<<" cells "<<this<<endl;
 			p.resize(2*p.n);
 			//to be verified!!!!
-			auto v=static_cast<helper<T>*>(p.v);
+			auto v=static_cast<helper<TMP>*>(p.v);
 			v[p.n/2].cell_size()=p.n/2;
 			v[p.n/2].next()=v[0].next();
 			v[0].next()=p.n/2;
-			return allocate_t<T>(n);//careful with infinite loop!
+			return allocate_t<TMP>(n);//careful with infinite loop!
 		}
-		return i;
+		return i*sizeof(TMP)/sizeof(T);
 	}
 
 	template<typename T> size_t help_allocate_t(info::FIELD& current,size_t n){
 		//we need to go through linked list until we find enough contiguous free cells
 		auto v=static_cast<helper<T>*>(p.v);
-		cerr<<"attempting to allocate "<<n<<" cells in pool "<<this<<" "<<current<<" size:"<<v[current].cell_size()<<" next:"<<v[current].next()<<" "<<v[0].next()<<endl;
+		cerr<<"helper size:"<<sizeof(helper<T>)<<endl;
+		cerr<<"attempting to allocate "<<n<<" cells in pool "<<this<<" address:"<<current<<" size:"<<v[current].cell_size()<<" next cell:"<<v[current].next()<<" "<<v[0].next()<<endl;
 		if(current==0){
 			//no more memory
 			cerr<<"allocate "<<n<<" cells at index failed in pool "<<this<<endl;
 			//throw std::runtime_error("pool full");
 			return 0;
 		}else{
-			if(v[current].cell_size()<n)
-				return help_allocate_t<T>(v[current].next(),n);
-			else if(v[current].cell_size()==n){
+			if(v[current].cell_size()<n){
+				//infinite loop if v[current].next=current
+				//return help_allocate_t<T>(v[current].next(),n);
+				if(v[current].next()==current) {
+					cerr<<"should not be here..."<<endl;
+					//exit(1);
+				}
+				return v[current].next()==current ? 0 : help_allocate_t<T>(v[current].next(),n);
+			}else if(v[current].cell_size()==n){
 				size_t tmp=current;
+				//something fishy here
 				current=v[current].next();//cell is destroyed
 				v[0].n_cells()+=n;
 				cerr<<"allocate "<<n<<" cells at index "<<tmp<<"{"<<&v[tmp]<<"} in pool "<<this<<endl;
@@ -319,7 +337,11 @@ struct pool_array{
 	}
 	//it is expected that n is the original allocated size
 	template<typename T> void deallocate_t(size_t index,size_t n){
-		auto v=static_cast<helper<T>*>(p.v);
+		enum{TEST=sizeof(T)<sizeof(info)};
+		typedef typename IfThenElse<TEST,info,T>::ResultT TMP;
+		n=ceil(float(n*sizeof(T))/sizeof(TMP));
+		auto v=static_cast<helper<TMP>*>(p.v);
+		index=index*sizeof(T)/sizeof(TMP);//what about padding!!!!
 		cerr<<"deallocate "<<n<<" cells at index "<<index<<" in pool "<<this<<endl;
 		//easy way
 		//create cell
@@ -327,6 +349,7 @@ struct pool_array{
 		v[index].cell_size()=n;
 		v[0].next()=index;
 		v[0].n_cells()-=n;
+		//v[0].n_cells()-=v[index].cell_size();
 	}
 	void* get(size_t i);
 	//could use function pointer:allocate, deallocate,...
@@ -360,15 +383,16 @@ public:
 	//_n new number of cells
 	virtual void resize_impl(size_t _n);
 };
-template<typename T> struct name;//{static const string get(){return "none";}};
+template<typename T> struct name:name<typename T::SELF>{};
+template<> struct name<char>{static const string get(){return "string";}};
 template<> struct name<pool>{static const string get(){return "pool";}};
 template<> struct name<pool_array>{static const string get(){return "pool_array";}};
 
 class persistent_store:public param{
 public:
 	enum{N=2};
-	//enum{SIZE=64};	
-	enum{SIZE=256};	
+	enum{SIZE=32};	
+	//enum{SIZE=256};	
 	enum{PAGE_SIZE=4096};
 	//use memory map
 	//how to add support for read-only file?
@@ -384,7 +408,7 @@ public:
 		bool writable=true;
 		char* db=getenv("OBJRDF_DB");
 		string db_path=db? db : "db";
-		string filename=db_path+"/"+name<typename P::value_type::SELF>::get();//prevents from using with other type!
+		string filename=db_path+"/"+name<typename P::value_type>::get();//prevents from using with other type!
 		cerr<<"opening file `"<<filename<<"' O_RDWR"<<endl;
 		int fd = open(filename.c_str(), O_RDWR | O_CREAT/* | O_TRUNC*/, (mode_t)0600);
 		if(fd ==-1){
@@ -481,7 +505,9 @@ struct pseudo_ptr_pool{
 		return p;
 	}
 	*/
-	template<typename T> static void destructor(void* s){static_cast<T*>(s)->~T();}
+	template<typename T> static void destructor(void* s){
+		static_cast<T*>(s)->~T();
+	}
 	typedef set<INDEX> SET;
 	static SET& get_s(){
 		static SET s;
@@ -489,86 +515,31 @@ struct pseudo_ptr_pool{
 	}
 	/*
  	*  it would be nice the class's name because it will be hard to rename later, ...
+ 	*  problem: can't use that with POD (char,...)
  	*/ 
 	template<typename T> static size_t get_type_id(){
-		string n=name<typename T::SELF>::get();
+		string n=name<T>::get();
 		uint32_t h=jenkins_one_at_a_time_hash(n.c_str(),n.size());
 		cerr<<"type_id hash:`"<<n<<"' ->"<<h<<endl;
-		//cerr<<"type_id hash:`"<<n<<"' ->"<<(h&0xff)<<endl;
-		//return h&0xff;//hopefully no collision
-		return h;//hopefully no collision
-	}
-	//should also take constness into account
-	template<typename T,typename OTHER_STORE> static INDEX get_pool_id(){
-		string n=name<typename T::SELF>::get();
-		uint32_t h=jenkins_one_at_a_time_hash(n.c_str(),n.size()-OTHER_STORE::N*const_test<T>::N);
-		cerr<<"pool_id hash:`"<<n<<"' ->"<<(h&0xff)<<endl;
-		//detect collisions
-		//auto i=get_s().insert(h&0xff);
-		//assert(i.second);
-		return h&0xff;//hopefully no collision
-	}
-	template<typename P> static pseudo_ptr_pool _get(){
-		/*
-		*	we need a hash based on T and OTHER_STORE so that it does not depend on the order in
-		*	which pools are created, one way it to persist this pool, why couldn't it work: because
-		*	we need fixed addresses
-		*	this is always the first pool created so there is no ambiguity, it could also solve the problems
-		*	of missing pools
-		*	the best way would be to look-up list and if not present append
-		*/ 
-		typedef typename P::value_type T;
-		typedef typename P::STORE OTHER_STORE;
-		static pseudo_ptr_pool p=construct_at(get_pool_id<T,OTHER_STORE>(),*OTHER_STORE::template go<P>(),destructor<T>,get_type_id<T>()&0xff);
-		return p;
+		return h;
 	}
 	/*
- 	*	it should only depends on P::value_type and P::STORE nothing else
- 	*	now we get STORE from the type not from POINTER
- 	*/ 
-	/*
-	template<typename T,typename OTHER_STORE> static pseudo_ptr_pool help(){
-		static pseudo_ptr_pool p=construct_at(get_pool_id<T,OTHER_STORE>(),*OTHER_STORE::template go<pseudo_ptr<T,OTHER_STORE>>(),destructor<T>,get_type_id<T>());
-		return p;
-	}
-	*/
-	/*
-	template<
-		typename VALUE_TYPE,
-		typename OTHER_STORE=typename VALUE_TYPE::STORE
-	> struct find_impl{
-		static pseudo_ptr_pool go(){
-			auto i=find_if(get_pool()->template begin<pseudo_ptr_pool>(),get_pool()->template end<pseudo_ptr_pool>(),pool::match_type_id(get_type_id<VALUE_TYPE>()));
-			pseudo_ptr_pool p=(i==get_pool()->template end<pseudo_ptr_pool>()) ? allocate() : *i;
-			//problem here could also be pseudo_ptr_array, need to investigate
-			//even if we find it we need to override it because of stale pointers
-			new(p)POOL(*OTHER_STORE::template go<pseudo_ptr<VALUE_TYPE,OTHER_STORE,false,uint16_t>>(),destructor<VALUE_TYPE>,get_type_id<VALUE_TYPE>());
-			return p;
-		}
-	};
-	template<
-		typename VALUE_TYPE
-	>struct find_impl<VALUE_TYPE,empty_store>{
-		static pseudo_ptr_pool go(){
-			auto i=find_if(get_pool()->template begin<pseudo_ptr_pool>(),get_pool()->template end<pseudo_ptr_pool>(),pool::match_type_id(get_type_id<VALUE_TYPE>()));
-			return (i==get_pool()->template end<pseudo_ptr_pool>()) ? allocate() : *i;
-		}
-	};
-	template<typename VALUE_TYPE> static pseudo_ptr_pool find(){return find_impl<VALUE_TYPE>::go();}
-	*/
 	template<typename VALUE_TYPE> static pseudo_ptr_pool find(){
 		typedef typename VALUE_TYPE::STORE OTHER_STORE;
 		auto i=find_if(get_pool()->template begin<pseudo_ptr_pool>(),get_pool()->template end<pseudo_ptr_pool>(),pool::match_type_id(get_type_id<VALUE_TYPE>()));
 		pseudo_ptr_pool p=(i==get_pool()->template end<pseudo_ptr_pool>()) ? allocate() : *i;
+		cerr<<"query pool index for type `"<<name<VALUE_TYPE>::get()<<"' "<<(int)p.index<<endl;
 		//problem here could also be pseudo_ptr_array, need to investigate
 		//what if OTHER_STORE=empty_store, we should just skip
 		//even if we find it we need to override it because of stale pointers
 		new(p)POOL(*OTHER_STORE::template go<pseudo_ptr<VALUE_TYPE,OTHER_STORE,false,uint16_t>>(),destructor<VALUE_TYPE>,get_type_id<VALUE_TYPE>());
 		return p;
 	}
+ 	//	this is used when creating a new class to find out what the index should be,
+ 	//	awkward because the only information is the VALUE_TYPE, is there instances where it is called before the pool
+ 	//	is created????
 	template<typename VALUE_TYPE> static pseudo_ptr_pool help(){
-		typedef typename VALUE_TYPE::STORE OTHER_STORE;
-		//static pseudo_ptr_pool p=construct_at(get_pool_id<T,OTHER_STORE>(),*OTHER_STORE::template go<pseudo_ptr<T,OTHER_STORE,false,uint16_t>>(),destructor<T>,get_type_id<T>());
+		cerr<<"query pool index for type `"<<name<VALUE_TYPE>::get()<<"'"<<endl;
 		static pseudo_ptr_pool p=find<VALUE_TYPE>();
 		return p;
 	}
@@ -579,6 +550,23 @@ struct pseudo_ptr_pool{
 		typedef typename P::STORE OTHER_STORE;
 		//static pseudo_ptr_pool p=help<T,OTHER_STORE>();
 		static pseudo_ptr_pool p=help<VALUE_TYPE>();
+		//static pseudo_ptr_pool p=find<VALUE_TYPE>();
+		return p;
+	}
+	*/
+	template<typename POINTER> static pseudo_ptr_pool find(){
+		typedef typename POINTER::STORE OTHER_STORE;
+		auto i=find_if(get_pool()->template begin<pseudo_ptr_pool>(),get_pool()->template end<pseudo_ptr_pool>(),pool::match_type_id(get_type_id<typename POINTER::value_type>()));
+		pseudo_ptr_pool p=(i==get_pool()->template end<pseudo_ptr_pool>()) ? allocate() : *i;
+		new(p)POOL(*OTHER_STORE::template go<POINTER>(),destructor<typename POINTER::value_type>,get_type_id<typename POINTER::value_type>());
+		return p;
+	}
+	template<typename P> static pseudo_ptr_pool help(){
+		static pseudo_ptr_pool p=find<P>();
+		return p;
+	}
+	template<typename P> static pseudo_ptr_pool get(){
+		static pseudo_ptr_pool p=help<P>();
 		return p;
 	}
 	static value_type* get_typed_v(){return static_cast<value_type*>(get_pool()->p.v);} 
@@ -661,6 +649,9 @@ template<
 	INDEX index;
 	//explicit pseudo_ptr(INDEX index):index(index){}
 	pseudo_ptr(INDEX index=0):index(index){}
+	void _print(ostream& os) const{
+		os<<'a'<<hex<<(unsigned int)index;
+	}
 	/*
 	* dangerous, be very careful with this
 	* 	should be used like this:
@@ -720,6 +711,10 @@ template<
 	static value_type* get_typed_v(){return static_cast<value_type*>(get_pool()->p.v);} 
 	value_type* operator->()const{return get_typed_v()+index;}
 	reference operator*()const{return *(get_typed_v()+index);}
+	pseudo_ptr& operator+(size_t s){
+		index+=s;
+		return *this;
+	}
 	bool operator!=(const pseudo_ptr& p)const{return index!=p.index;}
 	bool operator<(const pseudo_ptr& p)const{return index<p.index;}
 	bool operator==(const pseudo_ptr& p)const{return index==p.index;}
@@ -727,7 +722,7 @@ template<
 	bool operator==(const void* p)const{return (get_typed_v())+index==p;}
 	//
 	//never called!
-	operator bool() const{return index;}
+	//operator bool() const{return index;}
 	//problem: not equal to zero even when index=0
 	operator value_type*() {return index ? get_typed_v()+index:0;}
 	bool operator!()const{return !index;}
@@ -756,6 +751,9 @@ struct pseudo_ptr<T,_STORE_,true,_INDEX_>{
 	explicit pseudo_ptr(INDEX index=0,POOL_PTR pool_ptr=get_pool()):index(index),pool_ptr(pool_ptr){}
 	void print(ostream& os){
 		os<<"{"<<(unsigned int)pool_ptr.index<<","<<(unsigned short)index<<"}"<<endl;
+	}
+	void _print(ostream& os) const{
+		os<<'a'<<hex<<(unsigned int)pool_ptr.index<<(unsigned int)index;
 	}
 	/*
 	* dangerous, be very careful with this
@@ -868,7 +866,7 @@ template<
 	typedef _INDEX_ INDEX;
 	//should it use its own pool?, that is the safest 
 	//static POOL_PTR get_pool(){return POOL_PTR::get<pseudo_ptr>();}//will create new pool
-	static POOL_PTR get_pool(){return POOL_PTR::get<pseudo_ptr<T,_STORE_,false,_INDEX_>>();}//will create new pool
+	static POOL_PTR get_pool(){return POOL_PTR::get<pseudo_ptr<T,_STORE_,false,_INDEX_>>();}
 	INDEX index;
 	pseudo_ptr(INDEX index=0):index(index){}
 	template<
@@ -926,6 +924,12 @@ template<
 	template<typename A,typename B,typename C,typename D> static pseudo_ptr construct_at(size_t i,A a,B b,C c,D d){
 		pseudo_ptr p=allocate_at(i);
 		new(p)T(a,b,c,d);//in-place constructor
+		return p;
+	}
+	//need to use c++0x
+	template<typename A,typename B,typename C,typename D,typename E> static pseudo_ptr construct_at(size_t i,A a,B b,C c,D d,E e){
+		pseudo_ptr p=allocate_at(i);
+		new(p)T(a,b,c,d,e);//in-place constructor
 		return p;
 	}
 	static T* get_typed_v(){return static_cast<T*>(get_pool()->p.v);} 
@@ -1021,7 +1025,6 @@ template<
 	typedef T& reference;
 	static POOL_PTR_ARRAY get_pool(){return POOL_PTR_ARRAY::get<pseudo_ptr_array>();}
 	INDEX index;
-	//explicit pseudo_ptr(INDEX index):index(index){}
 	pseudo_ptr_array(INDEX index=0):index(index){}
 	/*
 	* dangerous, be very careful with this
@@ -1047,7 +1050,10 @@ template<
 		return *this;
 	}
 	static pseudo_ptr_array allocate(){return pseudo_ptr_array(get_pool()->template allocate_t<T>());}
+	static pseudo_ptr_array allocate(size_t n){return pseudo_ptr_array(get_pool()->template allocate_t<T>(n));}
 	//equivalent to return new T(s), could use variadic template
+	//is this ever used?
+	/*
 	template<typename A> static pseudo_ptr_array construct(A a){
 		pseudo_ptr_array p=allocate();
 		new(p)T(a);//in-place constructor
@@ -1063,7 +1069,9 @@ template<
 		new(p)T(a,b,c);//in-place constructor
 		return p;
 	} 
+	*/
 	void deallocate(){get_pool()->template deallocate_t<T>(index);}
+	void deallocate(size_t n){get_pool()->template deallocate_t<T>(index,n);}
 	void destroy(){
 		(*this)->~T();//in-place destructor
 		deallocate();		
@@ -1113,6 +1121,100 @@ template<
 ptrdiff_t operator-(const pseudo_ptr_array<T,STORE,POLYMORPHISM,INDEX>& a,const pseudo_ptr_array<T,STORE,POLYMORPHISM,INDEX>& b){
 	return a.index-b.index;
 }
+template<
+	typename _STORE_,
+	typename _INDEX_
+> struct pseudo_ptr_array<char,_STORE_,false,_INDEX_>{
+	typedef _STORE_ STORE;
+	typedef _INDEX_ INDEX;
+	typedef random_access_iterator_tag iterator_category;
+	typedef char value_type;
+	typedef size_t difference_type;
+	typedef pseudo_ptr_array pointer;
+	typedef char& reference;
+	static POOL_PTR_ARRAY get_pool(){return POOL_PTR_ARRAY::get<pseudo_ptr_array>();}
+	INDEX index;
+	pseudo_ptr_array(INDEX index=0):index(index){}
+	//dangerous!!!
+	//pseudo_ptr_array(char* p):index(p-(char*)get_pool()->p.v){}
+	//cast away constness, should be used with care
+	pseudo_ptr_array(const pseudo_ptr_array<const char,STORE,false,INDEX>& p):index(p.index){}
+	pseudo_ptr_array& operator=(const pseudo_ptr_array& p){
+		index=p.index;
+		return *this;
+	}
+	static pseudo_ptr_array allocate(size_t n){
+		return pseudo_ptr_array(get_pool()->template allocate_t<char>(n));
+	}
+	void deallocate(size_t n){
+		get_pool()->template deallocate_t<char>(index,n);
+	}
+	void destroy(){
+		deallocate();		
+	}
+	static value_type* get_typed_v(){return static_cast<value_type*>(get_pool()->p.v);} 
+	value_type* operator->()const{return get_typed_v()+index;}
+	reference operator*()const{return *(get_typed_v()+index);}
+	pseudo_ptr_array& operator+=(const size_t s){index+=s;return *this;}
+	pseudo_ptr_array& operator-=(const size_t s){index-=s;return *this;}
+	pseudo_ptr_array& operator++(){++index;return *this;}
+	pseudo_ptr_array& operator--(){--index;return *this;}
+	bool operator!=(const pseudo_ptr_array& p)const{return index!=p.index;}
+	bool operator<(const pseudo_ptr_array& p)const{return index<p.index;}
+	bool operator==(const pseudo_ptr_array& p)const{return index==p.index;}
+	//
+	bool operator==(const void* p)const{return (get_typed_v())+index==p;}
+	operator value_type*() {return index ? get_typed_v()+index:0;}
+	bool operator!()const{return !index;}
+};
+template<
+	typename _STORE_,
+	typename _INDEX_
+> struct pseudo_ptr_array<const char,_STORE_,false,_INDEX_>{
+	typedef _STORE_ STORE;
+	typedef _INDEX_ INDEX;
+	typedef random_access_iterator_tag iterator_category;
+	typedef char value_type;
+	typedef size_t difference_type;
+	typedef pseudo_ptr_array pointer;
+	typedef char& reference;
+	//static POOL_PTR_ARRAY get_pool(){return POOL_PTR_ARRAY::get<pseudo_ptr_array>();}
+	static POOL_PTR_ARRAY get_pool(){return POOL_PTR_ARRAY::get<pseudo_ptr_array<char,_STORE_,false,_INDEX_>>();}
+	INDEX index;
+	pseudo_ptr_array(INDEX index=0):index(index){}
+	//dangerous!!!
+	pseudo_ptr_array(char* p):index(p-(char*)get_pool()->p.v){}
+	//cast away constness, should be used with care
+	pseudo_ptr_array(const pseudo_ptr_array<const char,STORE,false,INDEX>& p):index(p.index){}
+	pseudo_ptr_array& operator=(const pseudo_ptr_array& p){
+		index=p.index;
+		return *this;
+	}
+	static pseudo_ptr_array allocate(size_t n){
+		//allocate more than needed
+		return pseudo_ptr_array(get_pool()->template allocate_t<char[4]>(n));
+	}
+	void deallocate(size_t n){
+		get_pool()->template deallocate_t<char[4]>(index,n);
+	}
+	void destroy(){
+		deallocate();		
+	}
+	static value_type* get_typed_v(){return static_cast<value_type*>(get_pool()->p.v);} 
+	value_type* operator->()const{return get_typed_v()+index;}
+	reference operator*()const{return *(get_typed_v()+index);}
+	pseudo_ptr_array& operator+=(const size_t s){index+=s;return *this;}
+	pseudo_ptr_array& operator-=(const size_t s){index-=s;return *this;}
+	pseudo_ptr_array& operator++(){++index;return *this;}
+	pseudo_ptr_array& operator--(){--index;return *this;}
+	bool operator!=(const pseudo_ptr_array& p)const{return index!=p.index;}
+	bool operator<(const pseudo_ptr_array& p)const{return index<p.index;}
+	bool operator==(const pseudo_ptr_array& p)const{return index==p.index;}
+	//
+	bool operator==(const void* p)const{return (get_typed_v())+index==p;}
+	operator value_type*() {return index ? get_typed_v()+index:0;}
+	bool operator!()const{return !index;}
+};
 
 //iterators to examine a pool
 template<typename T> pool::iterator<T> begin(){return T::get_pool()->begin<T>();}
