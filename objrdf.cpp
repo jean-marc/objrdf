@@ -19,16 +19,17 @@ bool name_p::operator()(const property_info& p) const{return p.p->id==n;}
 bool type_p::operator()(RESOURCE_PTR r) const{return *t<=*r->get_Class();}
 
 base_resource::type_iterator base_resource::begin(){return base_resource::type_iterator(this,v.begin());}
-base_resource::type_iterator base_resource::end(){return base_resource::type_iterator(this,v.end());}
-PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::iterator>(*this)->p;}
-size_t base_resource::type_iterator::get_size() const{return std::get<6>(static_cast<V::iterator>(*this)->t)(subject);}//very confusing notation
-bool base_resource::type_iterator::literalp() const{return static_cast<V::iterator>(*this)->literalp;}
-
 base_resource::const_type_iterator base_resource::cbegin() const{return base_resource::const_type_iterator(this,v.cbegin());}
+base_resource::type_iterator base_resource::end(){return base_resource::type_iterator(this,v.end());}
 base_resource::const_type_iterator base_resource::cend() const{return base_resource::const_type_iterator(this,v.cend());}
+PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::iterator>(*this)->p;}
 PROPERTY_PTR base_resource::const_type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}
+size_t base_resource::type_iterator::get_size() const{return std::get<6>(static_cast<V::iterator>(*this)->t)(subject);}//very confusing notation
 size_t base_resource::const_type_iterator::get_size() const{return std::get<6>(static_cast<V::const_iterator>(*this)->t)(subject);}//very confusing notation
+bool base_resource::type_iterator::literalp() const{return static_cast<V::iterator>(*this)->literalp;}
 bool base_resource::const_type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
+bool base_resource::type_iterator::constp() const{return !std::get<7>(static_cast<V::iterator>(*this)->t);}
+bool base_resource::const_type_iterator::constp() const{return !std::get<7>(static_cast<V::const_iterator>(*this)->t);}
 
 property_info::property_info(PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}
 void base_resource::erase(instance_iterator first,instance_iterator last){
@@ -50,11 +51,12 @@ struct cmp_uri{
 	cmp_uri(uri u):u(u){}
 	bool operator()(CLASS_PTR s)const{return s->id==u;}
 };
-rdfs::Class::Class(objrdf::uri id,rdfs::subClassOf s,objrdf::base_resource::class_function_table t,string comment_str):SELF(id),t(t){
+rdfs::Class::Class(objrdf::uri id,rdfs::subClassOf s,objrdf::base_resource::class_function_table t,string comment_str,objrdf::sizeOf size):SELF(id),t(t){
 	#ifdef OBJRDF_VERB
 	cerr<<"create rdfs::Class `"<<id<<"'\t"<<this<</*"\t"<<t<<*/endl;
 	#endif
-	get<comment>().t=comment_str;
+	get<comment>().set_string(comment_str);
+	get<objrdf::sizeOf>()=size;
 	if(s){
 		get<array<subClassOf>>().push_back(s);
 		get<array<subClassOf>>().insert(
@@ -84,7 +86,8 @@ bool rdfs::Class::literalp() const{
 void rdfs::Class::analyze(){};
 CLASS_PTR base_resource::get_class(){
 	static CLASS_PTR p=CLASS_PTR::construct_at(
-		POOL_PTR::help<base_resource>().index,
+		//POOL_PTR::help<base_resource>().index,
+		allocator::get_index().index,
 		objrdf::get_uri<rdfs::rdfs_namespace>("Resource"),
 		rdfs::subClassOf(),
 		objrdf::base_resource::class_function_table(
@@ -95,6 +98,7 @@ CLASS_PTR base_resource::get_class(){
 			f_ptr::cend<base_resource>
 		)			
 		,get_comment()
+		,objrdf::sizeOf(sizeof(base_resource))
 	);
 	return p;
 }
@@ -170,11 +174,15 @@ PROVENANCE base_resource::const_instance_iterator::get_provenance() const{
 	return std::get<9>(i->t)(subject,index);
 }
 base_resource::instance_iterator base_resource::type_iterator::add_property(PROVENANCE p){
+	/*
+ 	*	if the add_property is not defined we can just return an iterator to a constant property
+ 	*/
 	#ifdef OBJRDF_VERB
 	cerr<<"add_property `"<<get_Property()->id<<"' to resource `"<<subject->id<<"'"<<endl;
 	#endif
 	//awkward
 	assert(std::get<7>(static_cast<V::iterator>(*this)->t));
+	//if(!std::get<7>(static_cast<V::iterator>(*this)->t)) return begin(base_resource::nil)->begin();
 	std::get<7>(static_cast<V::iterator>(*this)->t)(subject,p);
 	return instance_iterator(subject,*this,get_size()-1);
 }

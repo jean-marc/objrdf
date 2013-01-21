@@ -109,6 +109,7 @@ namespace objrdf{
 	typedef char PROVENANCE;
 	/*
  	*	can we define default functions that will give a helpful error message when called?
+ 	*	this function table can be used to modify privileges
  	*/ 
 	typedef std::tuple<
 		/*literal*/
@@ -170,7 +171,8 @@ namespace objrdf{
 		PROPERTY,
 		custom_allocator<
 			PROPERTY,
-			pseudo_ptr_array<PROPERTY,STORE,false>
+			pseudo_ptr_array<PROPERTY,STORE,false>/*,
+			pseudo_ptr_array<const PROPERTY,STORE,false>*/
 		>
 	>{
 	public:
@@ -203,8 +205,16 @@ namespace objrdf{
 		typedef base_resource SELF;
 		/*
  		*	default storage is the free store, to override your class must define STORE
+ 		*	instead of store we should use allocator, because it gives us full control
+ 		*	it would also make properties easier to declare:
+ 		*	PROPERTY(to_resource,base_resource::allocator::pointer) or
+ 		*	PROPERTY(to_resource,base_resource::allocator::const_pointer) or
+ 		*	PROPERTY(to_resource,base_resource::allocator::pointer_derived) or
+ 		*	PROPERTY(to_resource,base_resource::allocator::const_pointer_derived)
+ 		*	what about arrays?
  		*/ 
 		typedef free_store STORE;
+		typedef pool_allocator<base_resource,STORE> allocator;
 		//typedef persistent_store STORE;
 		typedef std::tuple<> PROPERTIES; //base_resource does not have properties
 		struct instance_iterator{
@@ -309,6 +319,7 @@ namespace objrdf{
 			V::iterator& get_base(){return *this;}
 			size_t get_size() const;
 			bool literalp() const;
+			bool constp() const;
 			PROPERTY_PTR get_Property() const;
 			/*
  			* very confusing syntactic sugar
@@ -344,6 +355,7 @@ namespace objrdf{
 			V::const_iterator& get_base(){return *this;}
 			size_t get_size() const;
 			bool literalp() const;
+			bool constp() const;
 			PROPERTY_PTR get_Property() const;
 			/*
  			* very confusing syntactic sugar
@@ -480,6 +492,8 @@ namespace objrdf{
 		typedef _SUPERCLASS_ SUPERCLASS;
 		typedef resource SELF;
 		typedef persistent_store STORE;
+		typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,resource,SUBCLASS>::ResultT TMP;
+		typedef pool_allocator<TMP,/*typename TMP::*/STORE> allocator;
 		/*
  		*	not optimal when no properties (std::tuple<>)
  		*/ 
@@ -565,17 +579,41 @@ namespace objrdf{
 		int compare(const base_property& a)const{return sgn(t-a.t);}
 		void erase(){t=0;}
 	};
-	template<> struct base_property<string>{
-		//no STORE defined because string is not supported yet, need to define special allocator
-		//typedef persistent_store STORE;
+	/*
+	*	this does not work: basic_string<> does not use Allocator::pointer
+	*	for its own storage, so the pool is never loaded and it gives segfault
+	*	alternative: store in vector<char>
+ 	*
+ 	*/
+	template< 
+		class CharT,
+		class Traits,
+		class Allocator
+	> struct base_property<basic_string<CharT,Traits,Allocator>>{
+		//typedef basic_string<CharT,Traits,Allocator> string;
 		enum{TYPE=STRING|LITERAL};
-		string t;
-		base_property(string t=string()):t(t){}
-		void set_string(string s){t=s;}
-		void in(istream& is){is>>t;}
-		void out(ostream& os) const{os<<t;}
+		//string t;
+		typedef vector<char,Allocator> pseudo_string;
+		pseudo_string t;
+		base_property(string t=string()):t(t.begin(),t.end()){}
+		void set_string(std::string s){t=pseudo_string(s.begin(),s.end());}
+		//not efficient and should not be used!
+		void in(istream& is){
+			string tmp;
+			is>>tmp;
+			set_string(tmp);
+		}
+		void out(ostream& os) const{
+			string tmp(t.cbegin(),t.cend());
+			os<<tmp;
+		}
 		size_t get_size() const{return t.size()>0;}
-		int compare(const base_property<string>& a)const{return t.compare(a.t);}
+		int compare(const base_property<basic_string<CharT,Traits,Allocator>>& a)const{
+			//string tmp(t.cbegin(),t.cend());
+			//return tmp.compare(a.t);
+			//must not be used
+			return 0;
+		}
 		void erase(){t.clear();}
 	};
 	template<> struct base_property<uri>{
@@ -650,14 +688,6 @@ namespace objrdf{
 		void set_object(RESOURCE_PTR object){this->PTR::operator=(object);}
 		void erase(){set_object(RESOURCE_PTR());}
 	};
-	/*
- 	*	pseudo-property used for views only, always literal, always size 1 and constant
- 	*/ 
-	template<> class base_property<NIL>{
-	public:
-		enum{TYPE=LITERAL};
-
-	};
 	template<
 		typename NAMESPACE,
 		const char* NAME,
@@ -683,6 +713,22 @@ namespace objrdf{
 		static PROPERTY_PTR get_property_array();
 	};
 	/*
+ 	*	pseudo-property used for views only, always literal, always size 1 and constant
+ 	*/ 
+	template<> class base_property<NIL>{
+	public:
+		enum{TYPE=LITERAL};
+
+	};
+	//alternatively, so we can set the RANGE
+	template<
+		typename NAMESPACE,
+		const char* NAME,
+		typename RANGE
+	> class property<NAMESPACE,NAME,RANGE,NIL>{
+	public:
+	};
+	/*
  	*	property to keep track of versions, a pointer to the previous version
  	*	it can only be modified by the application, it would be nice to store the sequence outside of the object so as
  	*	to not modify the class when deciding to use versioning
@@ -705,6 +751,7 @@ namespace objrdf{
 		typename SUBJECT,
 		typename PROPERTY
 	> struct base_f{
+		typedef PROPERTY PP;
 		static inline PROPERTY& get(ITERATOR_RESOURCE_PTR subject,size_t){return static_cast<SUBJECT*>(subject)->template get<PROPERTY>();}
 		static inline const PROPERTY& get_const(ITERATOR_CONST_RESOURCE_PTR subject,size_t){return static_cast<const SUBJECT*>(subject)->template get_const<PROPERTY>();}
 		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return get_const(subject,0).get_size();}
@@ -746,6 +793,7 @@ namespace objrdf{
 		typename PROPERTY,
 		typename STORE
 	> struct base_f<SUBJECT,array<PROPERTY,STORE>>{
+		typedef PROPERTY PP;
 		static inline array<PROPERTY,STORE>& get(ITERATOR_RESOURCE_PTR subject){return static_cast<SUBJECT*>(subject)->template get<array<PROPERTY,STORE>>();}
 		static inline const array<PROPERTY,STORE>& get_const(ITERATOR_CONST_RESOURCE_PTR subject){return static_cast<const SUBJECT*>(subject)->template get_const<array<PROPERTY,STORE>>();}
 		static inline PROPERTY& get(ITERATOR_RESOURCE_PTR subject,size_t index){return static_cast<SUBJECT*>(subject)->template get<array<PROPERTY,STORE>>()[index];}
@@ -840,7 +888,7 @@ namespace objrdf{
 		};
 		struct trigger{
 			static void set_object(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
-				PROPERTY tmp;
+				typename BASE::PP tmp;
 				tmp.set_object(object);
 				static_cast<SUBJECT*>(subject)->set_p(tmp);
 			}
@@ -853,6 +901,13 @@ namespace objrdf{
 			return t;	
 		}
 	};
+	/*
+ 	*	properties are constant, how can we tell the parser?
+ 	*	one way is to group constant properties and put offset in type_iterator, but awkward with derived classes,
+ 	*	we could also return a fake property so that parsing can be carried on but will not modify the document
+ 	*	we can just sort by constness: interesting idea...
+ 	*
+ 	*/
 	template<
 		typename SUBJECT,
 		typename NAMESPACE,
@@ -1033,7 +1088,12 @@ namespace objrdf{
 	template<> struct get_Literal<unsigned short>:xsd::Unsigned_short{};
 	template<> struct get_Literal<uint8_t>:xsd::Unsigned_short{};
 	template<> struct get_Literal<char>:Char{};
-	template<> struct get_Literal<string>:xsd::String{};
+
+	template< 
+		class CharT,
+		class Traits,
+		class Allocator
+	> struct get_Literal<basic_string<CharT,Traits,Allocator>>:xsd::String{};
 	template<size_t N> struct get_Literal<char[N]>:xsd::String{};
 	template<> struct get_Literal<uri>:xsd::anyURI{};
 	//extra types
@@ -1051,18 +1111,16 @@ namespace rdfs{
 	struct XMLLiteral{}; //symbolic type
 	char _XML_Literal[]="XML_Literal";
 	typedef objrdf::resource<rdfs_namespace,_XML_Literal,std::tuple<>,objrdf::NIL,rdf::Literal> XML_Literal;
-	//DERIVED_CLASS(XML_Literal,std::tuple<>,rdf::Literal);
-	//JSON type
-	//struct JSON{};
-	//char _JSON[]="JSON";
-	//typedef objrdf::resource<rdfs_namespace,_JSON,std::tuple<>,objrdf::NIL,rdf::Literal> JSON_type;
-	//DERIVED_CLASS(JSON,std::tuple<>,rdf::Literal);
 }
 namespace objrdf{
 	template<> struct get_Literal<rdfs::XMLLiteral>:rdfs::XML_Literal{};
 }
 namespace objrdf{
 	OBJRDF_PROPERTY(superClassOf,objrdf::CLASS_PTR);
+	/*
+ 	*	in memory size
+ 	*/ 
+	OBJRDF_PROPERTY(sizeOf,size_t);
 }
 namespace rdfs{
 	char _Class[]="Class";
@@ -1073,7 +1131,8 @@ namespace rdfs{
 			objrdf::array<subClassOf>,
 			objrdf::array<objrdf::superClassOf>,
 			comment,
-			isDefinedBy
+			isDefinedBy,
+			objrdf::sizeOf
 		>,
 		Class>{
 		/*
@@ -1081,13 +1140,14 @@ namespace rdfs{
  		*	is the user might want to add his own function pointer (unless she decides to use virtual functions) and that
  		*	would mean defining (deriving) her own rdfs::Class class	
  		*	A pointer to a resource should be coupled with one to the resource's rdfs::Class but still use
- 		*	the standar pointer semantic 
+ 		*	the standard pointer semantic 
  		*	similar to instance_iterator::get_Property(), although instance_iterator never returns an actual reference/pointer 
  		*	to the underlying property.
  		*/ 
 		typedef free_store STORE;
+		typedef pool_allocator<Class,STORE> allocator;
 		const objrdf::base_resource::class_function_table t;
-		Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,string comment);
+		Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,string comment,objrdf::sizeOf);
 		~Class(){
 			//quick fix to avoid infinite recursion
 			n=1;
@@ -1136,6 +1196,7 @@ namespace rdf{
 			rdfs::subPropertyOf
 		>,Property>{
 		typedef free_store STORE;
+		typedef pool_allocator<Property,STORE> allocator;
 		Property(objrdf::uri u);
 		Property(objrdf::uri u,rdfs::range r,const bool literalp);
 		Property(objrdf::uri u,rdfs::range r,const bool literalp,rdfs::subPropertyOf);
@@ -1157,20 +1218,24 @@ namespace objrdf{
 		//we can chain a function to add superClassOf
 		static CLASS_PTR p=rdfs::Class::super(CLASS_PTR::construct_at(
 			//in case of persistent storage we will override old version and refresh pointers and function pointers
-			POOL_PTR::help<TMP>().index,
+			//we have to find the index of pool where instances are stored, this is also where the pool is initialized
+			//POOL_PTR::help<TMP>().index,
+			TMP::allocator::get_index().index,
 			objrdf::get_uri<NAMESPACE>(NAME),
 			rdfs::subClassOf(SUPERCLASS::get_class()),
 			objrdf::base_resource::class_function_table(
 				f_ptr::constructor<TMP>,
 				f_ptr::begin<TMP>,
 				//if the pool is not writable all instances will be locked
-				POOL_PTR::help<TMP>()->p.writable ? 
+				//POOL_PTR::help<TMP>()->p.writable ? 
+				TMP::allocator::get_index()->p.writable ? 
 					static_cast<objrdf::base_resource::type_iterator (*)(ITERATOR_RESOURCE_PTR)>(f_ptr::end<TMP>) : 
 					static_cast<objrdf::base_resource::type_iterator (*)(ITERATOR_RESOURCE_PTR)>(f_ptr::begin<TMP>),
 				f_ptr::cbegin<TMP>,
 				f_ptr::cend<TMP>
 			),
-			TMP::get_comment!=SUPERCLASS::get_comment ? TMP::get_comment() : ""
+			TMP::get_comment!=SUPERCLASS::get_comment ? TMP::get_comment() : "",
+			objrdf::sizeOf(sizeof(TMP))
 		));
 		return p;
 	}
@@ -1212,6 +1277,7 @@ namespace objrdf{
 		);
 		return c;
 	}
+	//creates duplicates!!!!
 	template<
 		typename NAMESPACE,
 		const char* NAME,
@@ -1294,6 +1360,7 @@ namespace objrdf{
 				typename TMP::PSEUDO_PROPERTIES
 			>::ResultT PP;
 			v=concat(v,std::static_for_each<PP>(_meta_<TMP>()).v);
+			//filter properties for convenience, we need to store index of first non-const property somewhere
 			return concat(v,std::static_for_each<PROPERTIES>(_meta_<TMP>()).v);
 		}
 	};
