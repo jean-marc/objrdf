@@ -686,6 +686,12 @@ template<
 	//static pseudo_ptr allocate(){return pseudo_ptr(get_pool()->allocate());}
 	static pseudo_ptr allocate(){return pseudo_ptr(get_pool()->template allocate_t<T>());}
 	//equivalent to return new T(s), could use variadic template
+	template<typename... Args> static pseudo_ptr construct(Args... args){
+		pseudo_ptr p=allocate();
+		new(p) T(args...);
+		return p;
+	}
+	/*
 	template<typename A> static pseudo_ptr construct(A a){
 		pseudo_ptr p=allocate();
 		new(p)T(a);//in-place constructor
@@ -701,6 +707,7 @@ template<
 		new(p)T(a,b,c);//in-place constructor
 		return p;
 	} 
+	*/
 	//void deallocate(){get_pool()->deallocate(index);}
 	void deallocate(){get_pool()->template deallocate_t<T>(index);}
 	void destroy(){
@@ -765,14 +772,17 @@ struct pseudo_ptr<T,_STORE_,true,_INDEX_>{
 	static pseudo_ptr allocate(){return pseudo_ptr(get_pool()->template allocate_t<T>());}//how come depends on T?
 	static pseudo_ptr allocate_at(size_t i){return pseudo_ptr(get_pool()->allocate_at(i));}//how come does not depend on T???
 	//would be good if it could create any type, not just T, there might be a way
+	template<typename... Args> static pseudo_ptr construct(Args... args){
+		pseudo_ptr p=allocate();
+		new(p) T(args...);
+		return p;
+	}
+	/*
 	template<typename A> static pseudo_ptr construct(A a){
 		pseudo_ptr p=allocate();
 		new(p)T(a);//in-place constructor
 		return p;
 	}
-	/*
-	*	could avoid all that by using std::tuples;
-	*/ 
 	template<typename A,typename B> static pseudo_ptr construct(A a,B b){
 		pseudo_ptr p=allocate();
 		new(p)T(a,b);//in-place constructor
@@ -783,7 +793,14 @@ struct pseudo_ptr<T,_STORE_,true,_INDEX_>{
 		new(p)T(a,b,c);//in-place constructor
 		return p;
 	}
+	*/
 	//maybe should only be for pseudo_ptr<const T>
+	template<typename... Args> static pseudo_ptr construct_at(size_t i,Args... args){
+		pseudo_ptr p=allocate_at(i);
+		new(p) T(args...);
+		return p;
+	}
+	/*
 	template<typename A,typename B,typename C> static pseudo_ptr construct_at(size_t i,A a,B b,C c){
 		pseudo_ptr p=allocate_at(i);
 		new(p)T(a,b,c);//in-place constructor
@@ -799,6 +816,7 @@ struct pseudo_ptr<T,_STORE_,true,_INDEX_>{
 		new(p)T(a,b,c,d);//in-place constructor
 		return p;
 	}
+	*/
 	//check if pool does reference counting
 	~pseudo_ptr(){
 
@@ -885,6 +903,12 @@ template<
 	}
 	static pseudo_ptr allocate(){return pseudo_ptr(get_pool()->template allocate_t<T>());}
 	static pseudo_ptr allocate_at(size_t i){return pseudo_ptr(get_pool()->template allocate_at(i));}
+	template<typename... Args> static pseudo_ptr construct(Args... args){
+		pseudo_ptr p=allocate();
+		new(p) T(args...);
+		return p;
+	}
+	/*
 	template<typename A> static pseudo_ptr construct(A a){
 		pseudo_ptr p=allocate();
 		new(p)T(a);//in-place constructor
@@ -905,6 +929,13 @@ template<
 		new(p)T(a,b,c,d);//in-place constructor
 		return p;
 	} 
+	*/
+	template<typename... Args> static pseudo_ptr construct_at(size_t i,Args... args){
+		pseudo_ptr p=allocate_at(i);
+		new(p) T(args...);
+		return p;
+	}
+	/*
 	template<typename A> static pseudo_ptr construct_at(size_t i,A a){
 		cerr<<"construct_at "<<i<<endl;
 		pseudo_ptr p=allocate_at(i);
@@ -932,6 +963,7 @@ template<
 		new(p)T(a,b,c,d,e);//in-place constructor
 		return p;
 	}
+	*/
 	static T* get_typed_v(){return static_cast<T*>(get_pool()->p.v);} 
 	value_type* operator->()const{return get_typed_v()+index;}
 	reference operator*()const{return *(get_typed_v()+index);}
