@@ -42,35 +42,38 @@ vector<string> verb::get_variables() const{
 }
 RESULT subject::run(size_t n){
 	RESULT r;
-	//optimization when subject is bound
 	/*
-	if(bound){
-		if(!this->r){
-			//is there any information we can use?
-			this->r=find(u);
-		}
-		r=run(this->r,0);
-	}else{
-	*/	/*
- 		* before going through all the resources let's look at the properties bound and un-bound
- 		*/
-		auto i=find_if(verbs.begin(),verbs.end(),match_property(rdf::type::get_property()));	
-		if(i!=verbs.end()&&i->object&&i->object->bound){
-			if(!i->object->r){
-				i->object->r=find_t<CLASS_PTR>(i->object->u);
+	* before going through all the resources let's look at the properties bound and un-bound
+	*/
+	auto i=find_if(verbs.begin(),verbs.end(),match_property(rdf::type::get_property()));	
+	if(i!=verbs.end()&&i->object&&i->object->bound){
+		if(!i->object->r){
+			i->object->r=find_t<CLASS_PTR>(i->object->u);
 
-			}	
-			//we should remove the rdf:type from the graph otherwise we are going to check the type again in run
-			//find the pool
-			//we have to make sure it is not base_resource::nil, why can't we use null??
-			cerr<<"optimization..."<<i->object->r->id<<endl;
-			if(i->object->r==CLASS_PTR(0)) return RESULT();
-			if(get_class(i->object->r)!=rdfs::Class::get_class()) return RESULT();
-			CLASS_PTR c(i->object->r);
-			//check if the pool exists
-			POOL_PTR p(c.index);
-			//not needed anymore
-			cerr<<"assert pool `"<<c->id<<"'..."<<endl;
+		}	
+		//we should remove the rdf:type from the graph otherwise we are going to check the type again in run
+		//find the pool
+		//we have to make sure it is not base_resource::nil, why can't we use null??
+		cerr<<"optimization..."<<i->object->r->id<<endl;
+		if(i->object->r==CLASS_PTR(0)) return RESULT();
+		if(get_class(i->object->r)!=rdfs::Class::get_class()) return RESULT();
+		CLASS_PTR c(i->object->r);
+		//check if the pool exists
+		POOL_PTR p(c.index);
+		//not needed anymore
+		cerr<<"assert pool `"<<c->id<<"'..."<<endl;
+		assert(p->type_id);
+		//iterate through the cells
+		for(auto j=pool_iterator::cell_iterator(p,p->get_size());j<pool_iterator::cell_iterator(p);++j){
+			RESULT tmp=run(get_const_self_iterator(*j),0);
+			if(bound&&tmp.size()) return tmp;
+			r.insert(r.end(),tmp.begin(),tmp.end());
+			if(r.size()>=n) return r;
+		}
+		//now we have to find all the subclasses: we use superClassOf
+		for(auto k=c->get_const<array<superClassOf>>().begin();k<c->get_const<array<superClassOf>>().end();++k){
+			POOL_PTR p((*k).index);
+			cerr<<"assert pool `"<<(*k)->id<<"'..."<<endl;
 			assert(p->type_id);
 			//iterate through the cells
 			for(auto j=pool_iterator::cell_iterator(p,p->get_size());j<pool_iterator::cell_iterator(p);++j){
@@ -79,57 +82,49 @@ RESULT subject::run(size_t n){
 				r.insert(r.end(),tmp.begin(),tmp.end());
 				if(r.size()>=n) return r;
 			}
-			//now we have to find all the subclasses: we use superClassOf
-			for(auto k=c->get_const<array<superClassOf>>().begin();k<c->get_const<array<superClassOf>>().end();++k){
-				POOL_PTR p((*k).index);
-				cerr<<"assert pool `"<<(*k)->id<<"'..."<<endl;
-				assert(p->type_id);
-				//iterate through the cells
-				for(auto j=pool_iterator::cell_iterator(p,p->get_size());j<pool_iterator::cell_iterator(p);++j){
-					RESULT tmp=run(get_const_self_iterator(*j),0);
-					if(bound&&tmp.size()) return tmp;
-					r.insert(r.end(),tmp.begin(),tmp.end());
-					if(r.size()>=n) return r;
-				}
-			}
-		}else{
-			/*
-			*	optimization : reason about given properties (bound or not)
-			*	if one of the property is rdfs:domain, rdfs:range, then subject must be a Property
-			*	if one of the property is rdfs:subClassOf then subject must be a Class
-			*	could be done in a generic way
-			*/		
-			bool is_Property=false,is_Class=false;
-			for(auto i=verbs.begin();i<verbs.end();++i){
-				is_Property|=(i->p==rdfs::domain::get_property())||(i->p==rdfs::range::get_property());
-				is_Class|=i->p==rdfs::subClassOf::get_property();
-			}
-			if(is_Property){
-				for(auto j=::begin<PROPERTY_PTR>();j< ::end<PROPERTY_PTR>();++j){
-					RESULT tmp=run(get_const_self_iterator(*j),0);
-					if(bound&&tmp.size()) return tmp;
-					r.insert(r.end(),tmp.begin(),tmp.end());
-					if(r.size()>=n) return r;
-				}
-			}else if(is_Class){
-				for(auto j=::begin<CLASS_PTR>();j< ::end<CLASS_PTR>();++j){
-					RESULT tmp=run(get_const_self_iterator(*j),0);
-					if(bound&&tmp.size()) return tmp;
-					r.insert(r.end(),tmp.begin(),tmp.end());
-					if(r.size()>=n) return r;
-				}
-			}else{	
-				for(auto i=objrdf::begin();i<objrdf::end();++i){
-					for(auto j=i.begin();j<i.end();++j){
-						RESULT tmp=run(get_const_self_iterator(*j),0);
-						if(bound&&tmp.size()) return tmp;
-						r.insert(r.end(),tmp.begin(),tmp.end());
-						if(r.size()>=n) return r;
-					}
-				}	
-			}
 		}
-	//}
+	}else{
+		/*
+		*	optimization : reason about given properties (bound or not)
+		*	if one of the property is rdfs:domain, rdfs:range, then subject must be a Property
+		*	if one of the property is rdfs:subClassOf then subject must be a Class
+		*	could be done in a generic way
+		*/		
+		cerr<<"optimization ..."<<endl;
+		bool is_Property=false,is_Class=false;
+		for(auto i=verbs.begin();i<verbs.end();++i){
+			cerr<<"current property: `"<<i->p->id<<"'"<<endl;
+			is_Property|=(i->p==rdfs::domain::get_property())||(i->p==rdfs::range::get_property());
+			//ugly but problem with array of properties
+			is_Class|=(i->p==objrdf::array<rdfs::subClassOf>::get_property());
+		}
+		if(is_Property){
+			cerr<<"optimization: Property only"<<endl;
+			for(auto j=::begin<PROPERTY_PTR>();j< ::end<PROPERTY_PTR>();++j){
+				RESULT tmp=run(get_const_self_iterator(*j),0);
+				if(bound&&tmp.size()) return tmp;
+				r.insert(r.end(),tmp.begin(),tmp.end());
+				if(r.size()>=n) return r;
+			}
+		}else if(is_Class){
+			cerr<<"optimization: Class only"<<endl;
+			for(auto j=::begin<CLASS_PTR>();j< ::end<CLASS_PTR>();++j){
+				RESULT tmp=run(get_const_self_iterator(*j),0);
+				if(bound&&tmp.size()) return tmp;
+				r.insert(r.end(),tmp.begin(),tmp.end());
+				if(r.size()>=n) return r;
+			}
+		}else{	
+			for(auto i=objrdf::begin();i<objrdf::end();++i){
+				for(auto j=i.begin();j<i.end();++j){
+					RESULT tmp=run(get_const_self_iterator(*j),0);
+					if(bound&&tmp.size()) return tmp;
+					r.insert(r.end(),tmp.begin(),tmp.end());
+					if(r.size()>=n) return r;
+				}
+			}	
+		}
+	}
 	return r;
 }
 RESULT subject::run(base_resource::const_instance_iterator i,PROPERTY_PTR p){
@@ -366,6 +361,12 @@ sparql_parser::sparql_parser(istream& is,PROVENANCE p):char_iterator(is),sbj(0),
 	prefix_ns["obj"]="http://www.example.org/objrdf#";
 }
 bool sparql_parser::go(){
+	/*
+ 	*	we need to control privileges, can we use function pointers?
+ 	*	would be nice but function pointers are attached to classes, not to users
+ 	*	so we could modify the vtable according to the user's privilege table run her query
+ 	*	and reset the vtable, it will only work if we have a global lock on the database
+ 	*/ 
 	if(!document::go(*this)) return false;
 	if(q==select_q||q==describe_q) return sbj;
 	return true;
@@ -665,6 +666,7 @@ PROPERTY_PTR sparql_parser::parse_property(const PARSE_RES_TREE& r){
 	}
 }
 //won't parse literal
+//waste because does not use any information from the query
 SPARQL_RESOURCE_PTR sparql_parser::parse_object(const PARSE_RES_TREE& r){
 	switch(r.t.first){
 		case turtle_parser::uriref::id:return find(uri::hash_uri(r.t.second));break;
@@ -800,6 +802,11 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 						if(current_property==objrdf::end(sub)){
 							cerr<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
 							current_property=objrdf::begin(base_resource::nil);
+						}else{//what if property constant
+							if(current_property.constp()){
+								cerr<<"property `"<<u<<"' can not be modified"<<endl;
+								current_property=objrdf::begin(base_resource::nil);
+							}
 						}
 					}break;
 					case turtle_parser::qname::id:{
@@ -811,6 +818,11 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 							if(current_property==objrdf::end(sub)){
 								cerr<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
 								current_property=objrdf::begin(base_resource::nil);
+							}else{
+								if(current_property.constp()){
+									cerr<<"property `"<<u<<"' can not be modified"<<endl;
+									current_property=objrdf::begin(base_resource::nil);
+								}
 							}
 						}else{
 							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
@@ -853,8 +865,12 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 									++j;
 								}
 							}else{
-								istringstream is(i->v[0].v[0].t.second);
-								current_property->add_property(0)->in(is);
+								if(current_property->get_Property()->get_const<rdfs::range>()==xsd::String::get_class()){
+									current_property->add_property(0)->set_string(i->v[0].v[0].t.second);
+								}else{
+									istringstream is(i->v[0].v[0].t.second);
+									current_property->add_property(0)->in(is);
+								}
 							}
 						}else{
 							cerr<<"current property `"<<current_property->get_Property()->id<<"' is not literal"<<endl;
@@ -924,12 +940,14 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 						cerr<<"blank node!"<<endl;
 						//we might have a problem here: if set_object() fails we end up with non-initialized memory, also happens
 						//if the connection is lost,
+						/*
 						base_resource::instance_iterator o=current_property->add_property(0);
 						o->set_object(create_by_type_blank(current_property->get_Property()->get_const<rdfs::range>()));	
 						parse_update_data_statement(i->v[0].v.cbegin(),i->v[0].v.cend(),do_delete,v,o->get_object());
-						//SPARQL_RESOURCE_PTR tmp=create_by_type_blank(current_property->get_Property()->get_const<rdfs::range>());	
-						//parse_update_data_statement(i->v[0].v.cbegin(),i->v[0].v.cend(),do_delete,v,tmp);
-						//current_property->add_property(0)->set_object(tmp);
+						*/
+						SPARQL_RESOURCE_PTR tmp=create_by_type_blank(current_property->get_Property()->get_const<rdfs::range>());	
+						parse_update_data_statement(i->v[0].v.cbegin(),i->v[0].v.cend(),do_delete,v,tmp);
+						current_property->add_property(0)->set_object(tmp);
 					}
 					break;
 					case turtle_parser::variable::id:{
