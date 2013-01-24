@@ -1,4 +1,51 @@
 @media screen{
+.report{
+	width:500px;
+	background-color:#eeeeee;
+	padding:1px;
+	margin:4px;
+
+}
+.text{
+	background-color:white;
+}
+.uptime{
+	stroke:none;
+	fill:#66cc00;
+	opacity:0.5;
+}
+.vgrid,.hgrid{
+	stroke:blue;
+	stroke-width:0.1;
+}
+.dscn{
+	stroke:red;
+	stroke-width:0.1;
+}
+.we{
+	stroke:none;
+	fill:#ccc;
+	opacity:0.5;
+}
+.trace{
+	stroke-width:0.5;
+}
+.trace_data{
+	stroke-width:0.5;
+	stroke:green;
+}
+.client_0{
+	fill:black;
+}
+.client_1{
+	fill:green;
+}
+.client_2{
+	fill:lime;
+}
+.client_3{
+	fill:red;
+}
 body{
 	font-family:helvetica;
 	font-size:12px;
@@ -37,6 +84,10 @@ a:hover{
 }
 .jm select{
 	font-size:12px;
+}
+.jm textarea{
+	width:500px;	
+	height:200px;
 }
 #top{
 	margin:2px;

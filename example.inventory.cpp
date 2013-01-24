@@ -145,16 +145,23 @@ PROPERTY(uptime,time_t);//how long has the kiosk been up
 PROPERTY(uptime_v,objrdf::NIL);
 PROPERTY(n_client,uint16_t);
 PROPERTY(volt,float);
+//PROPERTY(out,unsigned int);//outgoing traffic in number of bytes
+//PROPERTY(in,unsigned int);//incoming traffic in number of bytes
+PROPERTY(data,unsigned int);//traffic in bytes
+/*
+ *	network usage monitoring and accounting, we need to be able to separate traffic by destination
+ */
 char _Logger[]="Logger";
 /*
  *	this class will use the bulk of the storage space and will increase linearly with time 
  *	a new log is generated at constant 10 min interval, the size is 80 bytes (per obj:sizeOf) so 
  *	an operating site will add ~ 8*6*80=~3K of data per day
  *	there is a simple compression scheme implemented in Set::set_p(logger& p) that discards repeated
- *	entries.
+ *	or similar entries (battery voltage changes slowly).
+ *	it should also report network usage for monitoring and accounting (billing)
  *
  */
-class Logger:public resource<rdfs_namespace,_Logger,std::tuple<time_stamp,uptime,n_client,volt>,Logger>{
+class Logger:public resource<rdfs_namespace,_Logger,std::tuple<time_stamp,uptime,n_client,volt,data>,Logger>{
 public:
 	typedef std::tuple<time_stamp_v,uptime_v> PSEUDO_PROPERTIES;
 	Logger(uri id):SELF(id){
@@ -178,10 +185,32 @@ PROPERTY(logger,Logger::allocator::pointer);
 PROPERTY(plot,objrdf::NIL);
 PROPERTY(svg_plot,rdfs::XMLLiteral);//we can choose to make it real property or pseudo
 /*
+ *	data package management:
+ *		up to 4 Gb
+ *		how much data used so far and how much available,
+ *		we must have used_data < available_data < reserved_data
+ */
+PROPERTY(used_data,unsigned int);
+PROPERTY(available_data,unsigned int);
+PROPERTY(reserved_data,unsigned int);
+/*
  *	how do we track changes: eg new location
  *
  */
-class Set:public resource<rdfs_namespace,_Set,std::tuple<located,on,/*uptime*/array<logger>/*,objrdf::prev*/>,Set/*very important!*/>{
+class Set:public resource<
+	rdfs_namespace,
+	_Set,
+	std::tuple<
+		located,
+		on,
+		/*uptime*/
+		array<logger>
+		/*,objrdf::prev*/
+		,used_data
+		,available_data
+		,reserved_data
+	>,
+	Set/*very important!*/>{
 	time_t start;
 public:
 	typedef array<logger> loggers;
@@ -217,6 +246,9 @@ public:
 		}
 		float range_v=max_v-min_v;
 		float scale_y=static_cast<float>(height)/range_v;
+		//data
+		data::RANGE min_d=0,max_d=100000000;
+		float scale_d=static_cast<float>(height)/(max_d-min_d);
 		//careful : could be empty!
 		//time_t stop=get_const<array<logger>>().back()->get_const<time_stamp>().t;	
 		time_t stop=time(0);//now
@@ -234,7 +266,6 @@ public:
 		timeinfo->tm_hour=0;
 		time_t mn=mktime(timeinfo);
 		{
-			auto i=j;
 			os<<"<g transform='scale(1,-1) translate(0,"<<-height<<")'>"<<endl;;
 			for(;mn>start;mn-=24*3600){
 				int wday=localtime(&mn)->tm_wday;
@@ -245,16 +276,34 @@ public:
 			for(float v=min_v+1.0;v<max_v;v+=1.0)
 				os<<"<path class='hgrid' d='M0 "<<((v-min_v)*scale_y)<<"h"<<width<<"'/>"<<endl;
 			os<<"<path class='dscn' d='M0 "<<((dscn_v-min_v)*scale_y)<<"h"<<width<<"'/>"<<endl;
-			int x=((*i)->get_const<time_stamp>().t-start)*scale_x;
-			int y=((*i)->get_const<volt>().t-min_v)*scale_y;
-			os<<"<path class='trace' d='M"<<x<<" "<<y<<"L";
-			++i;
-			for(;i<get_const<array<logger>>().cend();++i){
+			{
+				auto i=j;
 				int x=((*i)->get_const<time_stamp>().t-start)*scale_x;
 				int y=((*i)->get_const<volt>().t-min_v)*scale_y;
-				os<<x<<" "<<y<<" ";
-			}	
-			os<<"'/></g>"<<endl;
+				os<<"<path class='trace' d='M"<<x<<" "<<y<<"L";
+				++i;
+				for(;i<get_const<array<logger>>().cend();++i){
+					int x=((*i)->get_const<time_stamp>().t-start)*scale_x;
+					int y=((*i)->get_const<volt>().t-min_v)*scale_y;
+					os<<x<<" "<<y<<" ";
+				}	
+				os<<"'/>"<<endl;
+			}
+			//data usage plot
+			{
+				auto i=j;
+				int x=((*i)->get_const<time_stamp>().t-start)*scale_x;
+				int y=((*i)->get_const<data>().t-min_d)*scale_d;
+				os<<"<path class='trace_data' d='M"<<x<<" "<<y<<"L";
+				++i;
+				for(;i<get_const<array<logger>>().cend();++i){
+					int x=((*i)->get_const<time_stamp>().t-start)*scale_x;
+					int y=((*i)->get_const<data>().t-min_d)*scale_d;
+					os<<x<<" "<<y<<" ";
+				}	
+				os<<"'/>"<<endl;
+			}
+			os<<"</g>"<<endl;
 		}
 		//is the machine on? how many clients connected?, let's draw rectangles
 		{
@@ -280,6 +329,8 @@ public:
  	* space has been allocated for the objects wether they are used or not
  	*/
 	void set_p(logger& p){
+		get<loggers>().back()=p;
+		/*
 		cerr<<"trigger!"<<endl;
 		get<loggers>().pop_back(); //ugly
 		if(get_const<array<logger>>().size()==0){
@@ -298,6 +349,7 @@ public:
 			}else
 				get<array<logger>>().push_back(p);
 		} 
+		*/
 	}
 	void set_p(on& p){
 		/*if(p.t)
