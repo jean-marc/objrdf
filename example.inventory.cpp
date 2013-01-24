@@ -331,6 +331,22 @@ public:
 	void set_p(logger& p){
 		get<loggers>().back()=p;
 		/*
+ 		*	let us increment the used_data counter, has the counter be reset?
+ 		*	problem: the blank object has not been parsed yet!!!!!!!
+ 		*
+ 		*/
+		if(get_const<loggers>().size()==1){
+			get<used_data>().t+=p->get<data>().t;
+		}else{
+			auto previous=get_const<loggers>()[get_const<loggers>().size()-2];
+			cerr<<"current:"<<endl;
+			objrdf::to_rdf_xml(p,cerr);	
+			if(previous->get_const<time_stamp>().t < (p->get_const<time_stamp>().t-p->get_const<uptime>().t))
+				get<used_data>().t+=p->get<data>().t;
+			else
+				get<used_data>().t+=p->get<data>().t-previous->get<data>().t;
+		}
+		/*
 		cerr<<"trigger!"<<endl;
 		get<loggers>().pop_back(); //ugly
 		if(get_const<array<logger>>().size()==0){
