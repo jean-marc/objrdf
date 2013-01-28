@@ -235,7 +235,11 @@ public:
 		//need to distinguish 12V/24V
 		//we could query db or guess from voltage
 		float min_v=0,max_v=0,dscn_v=0;
-		if(get_const<array<logger>>().back()->get_const<volt>().t>20){
+		//problem: if measured failed (-1) it assumes it is 12V system so we look for good measurement in first 10
+		auto k=get_const<loggers>().cbegin();
+		while(k!=get_const<loggers>().cbegin()+min<int>(10,get_const<loggers>().size())&&(*k)->get_const<volt>().t==-1) ++k;
+		//if(get_const<array<logger>>().back()->get_const<volt>().t>20){
+		if((*k)->get_const<volt>().t>20){
 			min_v=20;
 			max_v=30;
 			dscn_v=24.5;
