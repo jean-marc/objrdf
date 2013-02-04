@@ -221,6 +221,7 @@ public:
 	//typedef located VERSION;
 	Set(uri id):SELF(id),start(time(0)){cerr<<"new Set()"<<endl;}
 	static bool comp(const logger& a,time_t b){return a->get_const<time_stamp>().t<b;}
+	static bool comp_data(const logger& a,const logger& b){return a->get_const<data>().t<b->get_const<data>().t;}
 	void out_p(plot,ostream& os) const{
 	/*
  	*	display of uptime, power, bandwidth,....
@@ -228,7 +229,7 @@ public:
  	*	it might make sense to cache it, but the function is declared const
  	*/ 
 		if(get_const<array<logger>>().size()==0) return;
-		int width=200,height=100;	
+		int width=200,label_width=20,height=100;//labels on both side
 		//should be made a parameter
 		time_t duration=10*24*3600;//1 day
 		float scale_x=static_cast<float>(width)/duration;
@@ -250,16 +251,21 @@ public:
 		}
 		float range_v=max_v-min_v;
 		float scale_y=static_cast<float>(height)/range_v;
-		//data
-		data::RANGE min_d=0,max_d=100000000;
-		float scale_d=static_cast<float>(height)/(max_d-min_d);
 		//careful : could be empty!
 		//time_t stop=get_const<array<logger>>().back()->get_const<time_stamp>().t;	
 		time_t stop=time(0);//now
 		time_t start=stop-duration; 
 		//find the index in get<array>
-		auto j=lower_bound(get_const<array<logger>>().cbegin(),get_const<array<logger>>().cend(),start,Set::comp);
-		os<<"<svg width='"<<width<<"' height='"<<height<<"' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' style='fill:none;stroke:black;stroke-width:1;'>";
+		auto j=lower_bound(get_const<loggers>().cbegin(),get_const<loggers>().cend(),start,Set::comp);
+		os<<"<svg width='"<<label_width+width+label_width<<"' height='"<<height<<"' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'>";
+		//data
+		//find maximum data in this range
+		auto max_data=max_element(j,get_const<loggers>().cend(),Set::comp_data);
+		//next range multiple of 10: 1K, 10K, 100K, 1G,...
+		auto max_data_10=pow(10,ceil(log10((*max_data)->get_const<data>().t)));
+		data::RANGE min_d=0,max_d=max_data_10;
+		data::RANGE range_d=max_d-min_d;
+		float scale_d=static_cast<float>(height)/range_d;
 		//how to draw a line at midnight?
 		time_t rawtime;
 		time ( &rawtime );
@@ -270,15 +276,39 @@ public:
 		timeinfo->tm_hour=0;
 		time_t mn=mktime(timeinfo);
 		{
-			os<<"<g transform='scale(1,-1) translate(0,"<<-height<<")'>"<<endl;;
+			//labels, needs to be cleaned up!!!
+			os<<"<g class='left_labels' transform='translate(0,0)'>";
+			float v=min_v+9*range_v/10;
+			for(int i=height/10;i<height;i+=height/10,v-=range_v/10)
+				os<<"<text class='label' y='"<<i<<"'>"<<v<<"V</text>"<<endl;
+			os<<"</g>"<<endl;
+			os<<"<g class='right_labels' transform='translate("<<label_width+width<<",0)'>";
+			data::RANGE d=min_d+9*(range_d/10);//!!!int
+			for(int i=height/10;i<height;i+=height/10,d-=range_d/10)
+				os<<"<text class='label' y='"<<i<<"'>"<<(d/1000000)<<"Mb</text><!-- "<<d<<"-->"<<endl;
+			os<<"</g>"<<endl;
+			//change the reference but messes up text display (mirror image)
+			os<<"<g transform='scale(1,-1) translate("<<label_width<<","<<-height<<")'>"<<endl;;
 			for(;mn>start;mn-=24*3600){
 				int wday=localtime(&mn)->tm_wday;
+				//buggy here...
 				if(wday==0||wday==6) 
 					os<<"<rect class='we' x='"<<((mn-start)*scale_x)<<"' y='0' width='"<<(24*3600*scale_x)<<"' height='"<<height<<"'/>"<<endl;
 				os<<"<path class='vgrid' d='M"<<((mn-start)*scale_x)<<" 0v"<<height<<"'/>"<<endl;
 			}
-			for(float v=min_v+1.0;v<max_v;v+=1.0)
-				os<<"<path class='hgrid' d='M0 "<<((v-min_v)*scale_y)<<"h"<<width<<"'/>"<<endl;
+			//we must use the same grid for all curves: voltage (current), data,... 
+			//for(float v=min_v+1.0;v<max_v;v+=1.0)
+			//	os<<"<path class='hgrid' d='M0 "<<((v-min_v)*scale_y)<<"h"<<width<<"'/>"<<endl;
+			for(int i=height/10;i<height;i+=height/10)
+				os<<"<path class='hgrid' d='M0 "<<i<<"h"<<width<<"'/>"<<endl;
+			//problem: mirror image because of scale(1,-1) in parent <g/>
+			/*
+			os<<"<g class='data_labels'>";
+			for(int i=height/10;i<height;i+=height/10)
+				//os<<"<text class='label' y='"<<i<<"'>"<<i<<"</text>"<<endl;
+				os<<"<text transform='scale(1,-1) translate(0,"<<i<<")' class='label'>"<<i<<"</text>"<<endl;
+			os<<"</g>";
+			*/
 			os<<"<path class='dscn' d='M0 "<<((dscn_v-min_v)*scale_y)<<"h"<<width<<"'/>"<<endl;
 			{
 				auto i=j;
@@ -287,9 +317,11 @@ public:
 				os<<"<path class='trace' d='M"<<x<<" "<<y<<"L";
 				++i;
 				for(;i<get_const<array<logger>>().cend();++i){
-					int x=((*i)->get_const<time_stamp>().t-start)*scale_x;
-					int y=((*i)->get_const<volt>().t-min_v)*scale_y;
-					os<<x<<" "<<y<<" ";
+					if((*i)->get_const<volt>().t!=-1){
+						int x=((*i)->get_const<time_stamp>().t-start)*scale_x;
+						int y=((*i)->get_const<volt>().t-min_v)*scale_y;
+						os<<x<<" "<<y<<" ";
+					}
 				}	
 				os<<"'/>"<<endl;
 			}
@@ -307,11 +339,8 @@ public:
 				}	
 				os<<"'/>"<<endl;
 			}
-			os<<"</g>"<<endl;
-		}
-		//is the machine on? how many clients connected?, let's draw rectangles
-		{
-			os<<"<g transform='scale(1,-1) translate(0,"<<-height<<")'>"<<endl;;
+			//os<<"</g>"<<endl;
+			//is the machine on? how many clients connected?, let's draw rectangles
 			time_t prev=start;
 			for(auto i=j;i<get_const<array<logger>>().cend();++i){
 				time_t current=(*i)->get_const<time_stamp>().t;
@@ -322,9 +351,9 @@ public:
 				os<<"<rect class='uptime' x='"<<x-w<<"' y='0' width='"<<w<<"' height='"<<h<<"'/>"<<endl;		
 				prev=current;
 			}	
-			os<<"</g>";
 		}
 		os<<"<rect class='frame' x='0' y='0' width='"<<width<<"' height='"<<height<<"'/>";
+		os<<"</g>";
 		os<<"</svg>";
 	}
 	/*

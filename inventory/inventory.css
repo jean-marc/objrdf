@@ -1,4 +1,8 @@
 @media screen{
+svg{
+	fill:none;
+	stroke:black;
+}
 .report{
 	width:500px;
 	background-color:#eeeeee;
@@ -6,9 +10,9 @@
 	margin:4px;
 
 }
-.text{
+/*.text{
 	background-color:white;
-}
+}*/
 .uptime{
 	stroke:none;
 	fill:#66cc00;
@@ -28,11 +32,17 @@
 	opacity:0.5;
 }
 .trace{
-	stroke-width:0.5;
+	stroke-width:0.3;
 }
 .trace_data{
-	stroke-width:0.5;
-	stroke:green;
+	stroke-width:0.3;
+	stroke:orange;
+}
+.label{
+	dominant-baseline:central;
+	font-size:6px;
+	stroke:none;
+	fill:black;
 }
 .client_0{
 	fill:black;
