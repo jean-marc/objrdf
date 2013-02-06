@@ -302,20 +302,6 @@ namespace objrdf{
 		struct type_iterator:V::iterator{
 			ITERATOR_RESOURCE_PTR subject;
 			type_iterator(ITERATOR_RESOURCE_PTR subject,V::iterator i):V::iterator(i),subject(subject){}
-			/* what is that for? to get an iterator from a type PROPERTY 
- 			*	not sure it is worth the trouble
- 			*/ 
-			/*
-			template<typename PROPERTY,typename RESOURCE> static type_iterator get(RESOURCE* subject){
-				auto begin(RESOURCE::v.begin()),end(RESOURCE::v.end());
-				//should be only done once
-				while(begin!=end){
-					if(begin->p==PROPERTY::get_property()) return type_iterator(subject,begin);
-					++begin;
-				}
-				return type_iterator(subject,end);
-			}
-			*/
 			V::iterator& get_base(){return *this;}
 			size_t get_size() const;
 			bool literalp() const;
@@ -340,18 +326,6 @@ namespace objrdf{
 				//assert(0);
 				//cerr<<"const_type_iterator alt:"<<this->subject<<"\t"<<this->alt_subject<<endl;
 			}
-			/* what is that for? */
-			/*
-			template<typename PROPERTY,typename RESOURCE> static const_type_iterator get(RESOURCE* subject){
-				auto begin(RESOURCE::v.begin()),end(RESOURCE::v.end());
-				//should be only done once
-				while(begin!=end){
-					if(begin->p==PROPERTY::get_property()) return const_type_iterator(subject,begin);
-					++begin;
-				}
-				return const_type_iterator(subject,end);
-			}
-			*/
 			V::const_iterator& get_base(){return *this;}
 			size_t get_size() const;
 			bool literalp() const;
@@ -464,6 +438,7 @@ namespace objrdf{
 	base_resource::type_iterator end(RESOURCE_PTR r);
 	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r);
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r);
+
 	base_resource::const_instance_iterator get_const_self_iterator(CONST_RESOURCE_PTR r);
 	void to_rdf_xml(CONST_RESOURCE_PTR r,ostream& os);
 	
@@ -583,7 +558,6 @@ namespace objrdf{
 	*	this does not work: basic_string<> does not use Allocator::pointer
 	*	for its own storage, so the pool is never loaded and it gives segfault
 	*	alternative: store in vector<char>
- 	*
  	*/
 	template< 
 		class CharT,
@@ -1118,9 +1092,29 @@ namespace objrdf{
 namespace objrdf{
 	OBJRDF_PROPERTY(superClassOf,objrdf::CLASS_PTR);
 	/*
- 	*	in memory size
+ 	*	in memory size, we could also add info about pool management: rw/ro, usage,...
  	*/ 
 	OBJRDF_PROPERTY(sizeOf,size_t);
+}
+namespace objrdf{
+	/*
+ 	*	users have privileges on classes and the associated properties
+ 	*	user 1 is root
+ 	*	password is md5sum encrypted for now
+ 	*/ 
+	char _User[]="User";
+	struct User:objrdf::resource<_rdfs_namespace,_User,std::tuple<>,User>{
+		//could also be made transient and users are created at run time for security
+		typedef persistent_store STORE;
+		typedef pool_allocator<User,STORE> allocator;
+		User(objrdf::uri id):SELF(id){}
+	};
+	typedef User::allocator::const_pointer CONST_USER_PTR;
+	//role based version
+	base_resource::type_iterator begin(RESOURCE_PTR r,CONST_USER_PTR u);
+	base_resource::type_iterator end(RESOURCE_PTR r,CONST_USER_PTR u);
+	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r,CONST_USER_PTR u);
+	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r,CONST_USER_PTR u);
 }
 namespace rdfs{
 	char _Class[]="Class";
@@ -1137,7 +1131,7 @@ namespace rdfs{
 		Class>{
 		/*
  		*	should store all the information about the resources including function pointers, the only problem with that
- 		*	is the user might want to add his own function pointer (unless she decides to use virtual functions) and that
+ 		*	is the user might want to add his own function pointer (unless he decides to use virtual functions) and that
  		*	would mean defining (deriving) her own rdfs::Class class	
  		*	A pointer to a resource should be coupled with one to the resource's rdfs::Class but still use
  		*	the standard pointer semantic 
@@ -1146,6 +1140,10 @@ namespace rdfs{
  		*/ 
 		typedef free_store STORE;
 		typedef pool_allocator<Class,STORE> allocator;
+		/*
+ 		*	is it possible to store multiple function tables corresponding to different users?
+ 		*
+ 		*/
 		const objrdf::base_resource::class_function_table t;
 		Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,string comment,objrdf::sizeOf);
 		~Class(){
@@ -1268,6 +1266,17 @@ namespace objrdf{
 		typename RANGE,
 		typename IMPLEMENTATION
 	> PROPERTY_PTR property<NAMESPACE,NAME,RANGE,IMPLEMENTATION>::get_property(){
+		//need helper function
+		/*
+		typename rdf::Property::allocator a;
+		static PROPERTY_PTR c;
+		a.construct(
+			a.allocate(1),
+			objrdf::get_uri<NAMESPACE>(NAME),
+			rdfs::range(selector<RANGE>::ResultT::get_class()),
+			property<NAMESPACE,NAME,RANGE,IMPLEMENTATION>::TYPE&LITERAL
+		);
+		*/
 		static PROPERTY_PTR c(
 			PROPERTY_PTR::construct(
 				objrdf::get_uri<NAMESPACE>(NAME),

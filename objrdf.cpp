@@ -262,6 +262,12 @@ namespace objrdf{
 	base_resource::type_iterator end(RESOURCE_PTR r){return std::get<2>(get_class(r)->t)(r);}
 	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return std::get<3>(get_class(r)->t)(r);}
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r){return std::get<4>(get_class(r)->t)(r);}
+	//to start we could define profiles then a full blown access control
+	base_resource::type_iterator begin(RESOURCE_PTR r,CONST_USER_PTR){return std::get<1>(get_class(r)->t)(r);}
+	base_resource::type_iterator end(RESOURCE_PTR r,CONST_USER_PTR){return std::get<2>(get_class(r)->t)(r);}
+	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r,CONST_USER_PTR){return std::get<3>(get_class(r)->t)(r);}
+	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r,CONST_USER_PTR){return std::get<4>(get_class(r)->t)(r);}
+
 	base_resource::const_instance_iterator get_const_self_iterator(CONST_RESOURCE_PTR r){
 		return base_resource::const_instance_iterator(r,r,base_resource::v.cbegin()+1,0);//hard-coded index, careful!
 	}
