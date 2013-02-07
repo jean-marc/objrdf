@@ -9,7 +9,8 @@ In the following a class 'Test' and two properties 'a' and 'b' are defined in th
 * properties must be defined before the domain class, because C++ does not allow to add members after the class has been defined	
 * properties are packed in a std::tuple (if the class has no properties use std::tuple<>)
 * the class defines an allocator to create and destroy instances (it can be customized see later)
-```
+
+```cpp
 #include "objrdf.h"
 using namespace objrdf;
 RDFS_NAMESPACE("http://test.example.org/#","test")
