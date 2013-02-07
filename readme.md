@@ -71,16 +71,17 @@ Trigger are used to notify a resource that one property will be modified (add, d
 ## Versioning
 
 It might be desirable to record versions of a predicate, one solution is to stow away a copy of the entire resource before removing a predicate (it means the resource and the copy will only differ by one predicate), the new - modified - resource will have a reference to the copy e.g:
-
-	<inv:Set rdf:ID='test'>
-		<inv:located rdf:resource='#naguru'/>
-		<inv:on>0</inv:on>
-		<obj:prev rdf:nodeID='ae2'/>
-	</inv:Set>
-	<inv:Set rdf:nodeID='ae2'>
-		<inv:located rdf:resource='#kololo'/>
-		<inv:on>0</inv:on>
-	</inv:Set>
+```xml
+<inv:Set rdf:ID='test'>
+	<inv:located rdf:resource='#naguru'/>
+	<inv:on>0</inv:on>
+	<obj:prev rdf:nodeID='ae2'/>
+</inv:Set>
+<inv:Set rdf:nodeID='ae2'>
+	<inv:located rdf:resource='#kololo'/>
+	<inv:on>0</inv:on>
+</inv:Set>
+```
 We modified the property inv:located in the resource test from 'kololo' to 'naguru', note that the copy is a blank node and can only be reached through the objrdf:prev property of the resource, the copy must not be modified. 
 
 ## Privileges
