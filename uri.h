@@ -26,6 +26,7 @@ namespace objrdf{
 		bool operator==(const uri& u) const;
 		bool operator!=(const uri& u) const;
 		bool operator<(const uri& u) const;//for std::map
+		int compare(const uri& u) const;
 		friend ostream& operator<<(ostream& os,const uri& u);
 		static void print();
 		static void ns_declaration(ostream& os);
@@ -54,6 +55,9 @@ namespace objrdf{
  		*
  		*/ 
 	public:
+		/*
+ 		*	indices will become stale when using persistence, that vector should be persisted too!!
+ 		*/ 
 		static vector<ns_prefix>& ns_v();
 		short index;
 	};
