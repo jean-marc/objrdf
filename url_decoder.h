@@ -1,6 +1,6 @@
 #ifndef URL_DECODER_H
 #define URL_DECODER_H
-#include "ebnf_template.h"
+#include "ebnf.h"
 #include <map>
 #include <sstream>
 
