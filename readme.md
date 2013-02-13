@@ -33,8 +33,7 @@ The code relies heavily on the latest language features brought in C++0x
 
 ## Reference
 
-Once classes and members are defined in code by specializing templates any new object becomes part of a RDF document, that can be published (RDFXML) and 
-modified (SPARQL).
+Once classes and members are defined in code by specializing templates any new object becomes part of a RDF document, that can be published (RDFXML) and modified (SPARQL).
 
 Persistence
 
@@ -86,6 +85,10 @@ We modified the property inv:located in the resource test from 'kololo' to 'nagu
 
 ## Privileges
 
-All modification to the document done through SPARQL and RDF parsing are done through the class s function table (virtual functions are not used) which provide a generic interface to all the properties. That function table can be modified to change behaviour.
-
+Any modification to the document through SPARQL or RDF parsing is done through the class s function table which provide a generic interface to all the properties (similar to virtual functions). That function table can be modified to change behaviour e.g:
+* disable editing of resources allocated on the persistent store mapped to a read-only file 
+* hide properties 	
+* create pseudo-properties (e.g: rdf:type)
+* obfuscate/encrypt properties
+Rather than modify the existing table we can extend it and use offset based on user, 'root' has access to the original table and can do anything, other users will use a filtered copy of the original.  
 
