@@ -9,20 +9,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <stdexcept>
 /*
- *	will only work in objrdf framework
- *
- */
-/*
-	a generic shared pointer , the type T MUST have a member int T::n 
-	intrusive reference counting pg167 `Modern C++ design' Alexandrescu 
-*/
-/*
- *	since it is customized anyway we could have some special behaviour when
- *	n reaches 1 or 2, because it might mean that the resource is only referenced
- *	by the RDF document (in the map and the vector) and it is ready for 
- *	deletion. It might be desirable to leave a resource dangling for later reuse.
- *
+ *	will only work in objrdf framework, not necessarily
  */
 #ifdef OBJRDF_VERB
 #include <iostream>
@@ -30,7 +19,7 @@
 #include <sstream>
 using namespace std;
 namespace pseudo{
-	enum{N=64};
+	enum{N=1024};
 	typedef char POOL_INDEX;
 	struct pool{
 		/*
@@ -40,69 +29,112 @@ namespace pseudo{
 		*/
 		struct next_free{
 			//we cannot use ptr because the structure will be persisted
-			//char* ptr;//if 0 then next cell is assumed to be good
 			//we have to make sure it fits into the cell
+			//also it should not overlap base_resource::n because that tells us if a cell is used or not
 			size_t i;
-			next_free():i(0){}
+			size_t n_cells;//total number of cells
+			next_free():i(0),n_cells(0){}
+
 		};
+		//too bad because can not optimize
 		/*const*/ size_t size;
 		char* v;
+		POOL_INDEX p;
 		int fd;
-		/*size_t next_index;*/
 		inline next_free* root(){return (next_free*)(void*)v;}
-		pool(size_t size,POOL_INDEX p):size(size)/*,v(new char[N*size])*//*,next_index(1)*/{
-			//can use memory map
-			ostringstream os;
-			os<<"db/_"<<(unsigned int)p;
-			fd = open(os.str().c_str(), O_RDWR /*| O_CREAT | O_TRUNC*/, (mode_t)0600);
+		template<typename T> pool(POOL_INDEX):size(sizeof(T)),v(0),fd(-1){
+
+		}
+		pool(size_t size,POOL_INDEX p,string filename):size(size),v(0),p(p),fd(-1)/*,v(new char[N*size])*/{
+			//creates the file if it does not exist
+			fd = open(filename.c_str(), O_RDWR | O_CREAT/* | O_TRUNC*/, (mode_t)0600);
 			if (fd == -1) {
-				perror("Error opening file for writing");
+				cerr<<"\nError opening file `"<<filename<<"' for writing"<<endl;
 				exit(EXIT_FAILURE);
+			}
+			//set the size
+			struct stat s;
+			int r=fstat(fd,&s);
+			if(r==-1){
+				cerr<<"\ncould not stat file `"<<filename<<"'"<<endl;
+				exit(EXIT_FAILURE);
+			}
+			size_t file_size=max<size_t>(4096,size*N);
+			if(s.st_size<file_size){
+				int result = lseek(fd,file_size-1, SEEK_SET);
+				if (result == -1) {
+					close(fd);
+					cerr<<"Error calling lseek() to 'stretch' the file"<<endl;
+					exit(EXIT_FAILURE);
+				}
+				result = write(fd, "", 1);
+				if (result != 1) {
+					close(fd);
+					cerr<<"Error writing last byte of the file"<<endl;
+					exit(EXIT_FAILURE);
+				}
 			}
 			v = (char*)mmap((void*)NULL, N*size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-			cerr<<" mmap:"<<(void*)v<<endl;
 			if (v == MAP_FAILED) {
 				close(fd);
-				perror("Error mmapping the file");
+				cerr<<"Error mmapping the file"<<endl;
 				exit(EXIT_FAILURE);
 			}
-			//v[0]=0xab;	
+			//sanity check (checksum?) otherwise it will crash and burn
+			/*
+ 			*	what to do about duplication???
+ 			*/ 
 			//memset(v,0,N*size);//it has to be zeroed for scheme to work
 			//VERY IMPORTANT!
-			if(root()->i==0) root()->i=size;
+			if(root()->i==0) {
+				root()->i=size;
+				root()->n_cells=0;
+			}
 			std::cerr<<" size "<<size<<" @"<<(void*)v<<std::endl;
-			//the memory is not ready yet: the vtable pointer is no longer valid, it will create segmentation fault
+			std::cerr<<root()->n_cells<<" cells used"<<endl;
+			//the memory is not quite ready yet: the vtable pointer is no longer valid, it will create segmentation fault
 			//how do we know what the current vtable pointer is? we could create an instance but dangerous: it will 
-			//call allocate!
+			//call `allocate'!
 		}
 		~pool(){
 		}
 		char* get(size_t index){return v+index*size;}
 		template<typename T> void* allocate(size_t s){
+			if(root()->n_cells>N){
+				throw std::runtime_error("pool full");
+				//could also return NULL
+			}
 			char* n=v+root()->i;
-			std::cerr<<" size "<<size<<" @"<<(void*)n<<" "<<(n-v)<<std::endl;
+			//could we use it to allocate contiguous blocks?
+			std::cerr<<"allocate "<<s<<" bytes from pool "<<(int)p<<" size "<<size<<" @"<<(void*)n<<" "<<(n-v)<<std::endl;
 			if(((next_free*)(void*)(v+root()->i))->i==0){
 				root()->i+=size;//next cell
 			}else{
 				root()->i=((next_free*)(void*)(v+root()->i))->i;
 			}
-			//std::cerr<<" size "<<size<<" @"<<(T*)v+next_index<<" "<<next_index<<std::endl;
-			//return (T*)v+next_index++;
+			root()->n_cells++;
 			return n;
 		}
 		/*
  		*	when releasing it copies information to the cell about next available empty cell
- 		*	or top of stack, we can use cell[0] to store information
  		*/ 
 		template<typename T> void release(void* p){
+			// we are not using the type
 			static_cast<next_free*>(p)->i=root()->i;
 			root()->i=(char*)p-v;	
+			root()->n_cells--;
 		}
 		void output(ostream& os){
 			os<<"********";
 			os.write(v,N*size);
 		}
 	};
+	/*
+ 	*	we want storage like
+ 	*	db/rdf/Class;
+ 	*	to be implemented (with specialization) in objrdf.h
+ 	*/ 
+	template<typename T> string filename();//{return "??";}
 	struct pools{
 		/*
  		*	could eventually replace rdf::RDF
@@ -119,7 +151,7 @@ namespace pseudo{
 			//let's create instance to figure out the pointer
 			//we can create on the stack
 			//char tmp[sizeof(T)];
-			v.push_back(pool(sizeof(T),p));
+			v.push_back(pool(sizeof(T),p,"db/"+filename<T>()));
 			return p;
 		}
 		template<typename T> inline const POOL_INDEX get_pool_index(){
@@ -127,7 +159,7 @@ namespace pseudo{
 			return p;	
 		}
 		template<typename T> void * allocate(size_t s){
-			std::cerr<<"allocate "<<s<<" bytes from pool "<<(int)get_pool_index<T>();
+			//std::cerr<<"allocate "<<s<<" bytes from pool "<<(int)get_pool_index<T>();
 			return v[get_pool_index<T>()].allocate<T>(s);
 		}
 		template<typename T> void release(void *p){v[get_pool_index<T>()].release<T>(p);}
@@ -149,7 +181,17 @@ namespace pseudo{
  		*	we can also serialize as a RDF document
  		*/ 
 	};
+	//pseudo_ptr should be drop-in replacement
 	template<typename T> class shared_ptr{
+	/*
+ 	*	how do we persist data if the goal of the shared_pointer is to garbage collect?
+ 	*	just increase base_resource::n
+ 	*
+ 	*/
+	/*
+ 	*	specialize for property, no derivation for now so no need to keep a pool index
+ 	*	also no need for reference counting
+ 	*/ 
 	protected:
 		/*
  		*	the index type will depend on the number of instances
@@ -164,18 +206,11 @@ namespace pseudo{
 			//how can we tell the type?
 			//we can use get_Class virtual function, would be nice to have a member in base_resource
 			//we can use get_Class()->get<c_index> for now
-			//t* is supposed to be stored inside an array at storage<T>::v
-			//things will go very bad if t is not of type T
-			//
-			/*
- 			*	first we have to establish if t is of type T
- 			*/ 
-			//would be better if the index was given by
 			index=((char*)(t) - pools::get_instance().get(pool_index,0))/pools::get_instance().v[pool_index].size;
 			std::cerr<<"shared_ptr "<<this<<"\t"<<t<<"\t{"<<(int)pool_index<<","<<index<<"}"<<std::endl;
 			if(index) ++get()->n;
 		}
-		inline T* get() const{return (T*)pools::get_instance().get(pool_index,index);}
+		inline T* get() const{return index ? (T*)pools::get_instance().get(pool_index,index):0;}
 		inline T* operator->() const{return get();}
 		inline T& operator*() const{return *get();}
 		int use_count() const{return index ? get()->n : 0;}
@@ -229,7 +264,12 @@ namespace pseudo{
 		}
 	};
 	template<typename S,typename T> shared_ptr<S> static_pointer_cast(const shared_ptr<T>& s){
-		return shared_ptr<S>(static_cast<S*>(s.get()));
+		//a bit more complicated
+		shared_ptr<S> tmp;
+		tmp.pool_index=s.pool_index;
+		tmp.index=s.index;
+		return tmp;
+		//return shared_ptr<S>(static_cast<S*>(s.get()));
 	} 
 }
 #endif
