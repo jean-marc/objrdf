@@ -44,6 +44,9 @@ svg{
 	stroke:none;
 	fill:black;
 }
+.frame{
+	stroke-width:0.5;
+}
 .client_0{
 	fill:black;
 }
