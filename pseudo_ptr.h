@@ -664,7 +664,7 @@ template<
 	*
 	*/
 	template<typename S,typename OTHER_STORE,typename OTHER_INDEX> pseudo_ptr(const pseudo_ptr<S,OTHER_STORE,true,OTHER_INDEX>& p):index(p.index){
-		static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
+		//static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
 		//we can make it safe but should be optional 
 		//static_assert(is_derived<S,T>::value||is_derived<T,S>::value,"types are not related");
 		//only if p.index!=0

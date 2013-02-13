@@ -63,7 +63,18 @@ PROPERTY(time_stamp,time_t);
 PROPERTY(time_stamp_v,objrdf::NIL);
 //CLASS(Report,std::tuple<text>);
 char _Report[]="Report";
-class Report:public resource<rdfs_namespace,_Report,std::tuple<time_stamp,text>,Report>{
+class Report:public resource<
+	rdfs_namespace,
+	_Report,
+	std::tuple<time_stamp,text>,
+	Report,
+	base_resource,
+	pool_allocator<
+		Report,
+		persistent_store,
+		uint8_t //we assume there will be at most 256 reports
+	>
+>{
 public:
 	typedef std::tuple<time_stamp_v> PSEUDO_PROPERTIES;
 	Report(uri id):SELF(id){
@@ -76,7 +87,7 @@ public:
 };
 PROPERTY(report,Report::allocator::pointer);//what about const_pointer?
 
-CLASS(Organization,std::tuple<>);
+PERSISTENT_CLASS(Organization,std::tuple<>);
 PROPERTY(organization,Organization::allocator::pointer);
 DERIVED_CLASS(Site,geo::Point,std::tuple<organization,array<report>>);
 PROPERTY(located,Site::allocator::pointer);
@@ -161,7 +172,18 @@ char _Logger[]="Logger";
  *	it should also report network usage for monitoring and accounting (billing)
  *
  */
-class Logger:public resource<rdfs_namespace,_Logger,std::tuple<time_stamp,uptime,n_client,volt,data>,Logger>{
+class Logger:public resource<
+	rdfs_namespace,
+	_Logger,
+	std::tuple<time_stamp,uptime,n_client,volt,data>,
+	Logger,
+	base_resource,
+	pool_allocator<
+		Logger,
+		persistent_store,
+		uint8_t
+	>
+>{
 public:
 	typedef std::tuple<time_stamp_v,uptime_v> PSEUDO_PROPERTIES;
 	Logger(uri id):SELF(id){
