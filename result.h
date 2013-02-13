@@ -6,7 +6,8 @@ using namespace std;
 //name conflict with another `result'
 template<typename T> struct _result_{
 	T t;
-	vector<_result_> v;
+	typedef vector<_result_> V;
+	V v;
 	_result_(T t):t(t){}
 	_result_(){}
 	void add(T _t,int depth){
@@ -21,7 +22,12 @@ template<typename T> struct _result_{
 //default, to be specialized
 template<typename T> ostream& operator<<(ostream& os,_result_<T>& r){
 	os<<"("<<r.t;
-	for(typename vector<_result_<T> >::iterator i=r.v.begin();i<r.v.end();++i) os<<*i;
+	for(auto i=r.v.begin();i<r.v.end();++i) os<<*i;
+	return os<<")";
+}
+template<typename T> ostream& operator<<(ostream& os,const _result_<T>& r){
+	os<<"("<<r.t;
+	for(auto i=r.v.cbegin();i<r.v.cend();++i) os<<*i;
 	return os<<")";
 }
 #endif
