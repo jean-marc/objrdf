@@ -1,9 +1,10 @@
 #include "httpd.h"
-#include "rdf_xml_parser.h"
+//#include "rdf_xml_parser.h"
 #include "sparql_engine.h"
 #include "url_decoder.h"
 #include <fstream>
 #include <sys/stat.h>
+#include "popen_streambuf.h"
 using namespace objrdf;
 
 string get_mime(string extension){
@@ -16,14 +17,6 @@ string get_mime(string extension){
 					P("css","text/css"),
 					P("js","application/javascript"),
 					P("mat","application/octet-stream")};
-	/*
-	if((extension=="html")||(extension=="htm")) return "text/html";
-	if((extension=="xml")||(extension=="xsd")||(extension=="xsl")||(extension=="rdf")) return "text/xml";
-	if(extension=="svg") return "image/svg+xml";
-	if(extension=="png") return "image/png";
-	if(extension=="css") return "text/css";
-	if(extension=="mat") return "application/octet-stream";
-	*/
 	auto i=m.find(extension);
 	return i==m.end() ? "text/plain" : i->second;
 }
@@ -43,6 +36,7 @@ void httpd::start(){
 void* httpd::server(void* s){
 	TCPSocketWrapper sockserver;
 	int port=static_cast<httpd*>(s)->port;
+	//can we make it listen only on 127.0.0.1?
 	sockserver.listen(port);
 	cerr << "http server is listening on port "<<port<< endl;
 	for(;;){
@@ -61,6 +55,7 @@ inline ostream& http_404(ostream& stream){
 	o<<"<html><title>404 Not Found</title><body><h1>Not Found</h1>The requested URL was not found on this server.";
 	o<<"<hr/><address>httpd Server at "<<hostname<<"</address></body></html>"<<endl;
 	stream<<"Content-Length:"<<o.str().size()<<endl;
+	stream<<"Content-Type:"<<get_mime("html")<<"\r\n";
 	stream<<"\r\n";
 	stream<<o.str();
 	stream.flush();
@@ -117,8 +112,8 @@ void httpd::get(http_parser& h,iostream& io){
  	*	can only query local variables
  	*	problem with hash URI: the browser loads the whole document
  	*/
-		string id=h.current_path.substr(4);
-		shared_ptr<base_resource> r=doc.query(uri(id));
+		string id=h.current_path.substr(6);
+		CONST_RESOURCE_PTR r=find(uri(id));
 		if(!r){
 			io<<http_404;
 		}else{
@@ -127,7 +122,7 @@ void httpd::get(http_parser& h,iostream& io){
 			ostringstream out;
 			out<<"<?xml-stylesheet type='text/xsl' href='/describe.xsl'?>";
 			//not a valid RDF document, should use DESCRIBE query instead
-			r->to_rdf_xml(out);
+			to_rdf_xml(r,out);
 			io<<"Content-Length:"<<out.str().size()<<"\r\n";
 			io<<"\r\n";
 			io<<out.str();
@@ -135,7 +130,7 @@ void httpd::get(http_parser& h,iostream& io){
 		}
 	}else if(h.current_path.compare(0,3,"/r/")==0){
 		string id=h.current_path.substr(3);
-		shared_ptr<base_resource> r=doc.query(uri(id));
+		CONST_RESOURCE_PTR r=find(uri(id));
 		if(!r){
 			io<<http_404;
 		}else{
@@ -144,19 +139,37 @@ void httpd::get(http_parser& h,iostream& io){
 			r->get_output(io);
 		}	
 	}else if(h.current_path=="/sparql"){//sparql end-point
+		/*
+ 		*	we should test if the query is select or update, only authorized users should modify db,
+ 		*	in mysql we have: 'grant all privileges on 'table'.'column' to 'user'@'host' with privileges SELECT|INSERT|UPDATE|DELETE
+ 		*	in sparql an UPDATE is implemented by DELETE then INSERT
+ 		*	here we have rdfs::Class and rdf::Property
+ 		*
+ 		*/ 
 		auto i=h.url_arguments.find("query");
 		if(i!=h.url_arguments.end()){
-			istringstream is(url_decode(i->second));
+			//can we cache queries?
+			istringstream is(url_decode(i->second)+char(EOF));//hack to work around parser limitation
 			is.exceptions(iostream::eofbit);
-			sparql_parser p(doc,is);
-			if(p.go()){
+			sparql_parser p(is);
+			//modify the parser
+			//if(p.go()){
+			if(p._go<seqw<sparql_parser::document,char_p<EOF>>>()){
 				cerr<<"success!"<<endl;
 				io<<"HTTP/1.1 200 OK"<<"\r\n";
 				io<<"Content-Type:"<<get_mime("xml")<<"\r\n";
 				ostringstream out;
 				auto j=h.url_arguments.find("xsl");
-				if(j!=h.url_arguments.end()) out<<"<?xml-stylesheet type='text/xsl' href='"<<j->second<<"'?>";
-				p.out(out);
+				if(j!=h.url_arguments.end()){
+					//only one xslt parameter for now, see https://developer.mozilla.org/en/XSLT/PI_Parameters
+					//does not work with Chromium
+					auto k=h.url_arguments.find("xslt-param-name");
+					auto l=h.url_arguments.find("xslt-param-value");
+					if((k!=h.url_arguments.end())&&(l!=h.url_arguments.end()))
+						out<<"<?xslt-param name='"<<k->second<<"' value='"<<url_decode(l->second)<<"'?>"<<endl;
+					out<<"<?xml-stylesheet type='text/xsl' href='"<<j->second<<"'?>"<<endl;
+				}
+				p.out(out);//this where the processing takes place
 				io<<"Content-Length:"<<out.str().size()<<"\r\n";
 				io<<"\r\n";
 				io<<out.str();
@@ -175,8 +188,33 @@ void httpd::get(http_parser& h,iostream& io){
 			io.setstate(ios::badbit);
 			io.flush();
 		}	
+	}else if(h.current_path=="/add"){
+		/*
+ 		*	create 
+ 		*/ 
+	}else if(h.current_path.compare(0,9,"/cgi-bin/")==0){
+		//pass the arguments to the command: http://unix.derkeiler.com/Newsgroups/comp.unix.programmer/2006-12/msg00447.html
+		string command="./"+h.current_path.substr(9);
+		cerr<<"running command `"<<command<<"'"<<endl;
+		popen_streambuf sb;
+		istream in(&sb);
+		if (NULL == sb.open(command.c_str(), "r")) {
+			io<<"HTTP/1.1 500 Bad Request\r\n";
+			io<<"\r\n";
+			io<<"could not parse sparql query"<<endl;
+			io.setstate(ios::badbit);
+			io.flush();
+		}else{
+			io<<in.rdbuf();
+			io.flush();
+		}
 	}else{
-		ifstream file(h.current_path.substr(1).c_str(),ios_base::binary);
+		//default to index.html
+		string path=h.current_path.substr(1);
+		if(path.empty()) path="index.html";
+		//ifstream file(h.current_path.substr(1).c_str(),ios_base::binary);
+		cerr<<"opening file `"<<path<<"'"<<endl;
+		ifstream file(path.c_str(),ios_base::binary);
 		if(file){
 			struct stat results;
 			stat(h.current_path.substr(1).c_str(),&results);
@@ -228,21 +266,22 @@ void httpd::post(http_parser& h,iostream& io){
  	*	it would be nice to have a generic parser that can use char*
  	*
  	*/
-	/*
-	if(!h.headers["Content-Length"].empty()){
-		istringstream in(h.headers["Content-Length"]);
-		int l=0;
-		in>>l;
-		string message=io.read(l);
-	}else{
-		//error
-	}
-	*/
 	try{
-		//throw SocketRunTimeException("test");
+		io.exceptions(iostream::eofbit);
+		cerr<<"attempting to get mutex...";
 		pthread_mutex_lock(&mutex);
-		sparql_parser p(doc,io);
+		cerr<<"ok"<<endl;
+		//problem: no EOF to tell the parser to stop
+		/*
+		if(!h.headers["Content-Length"].empty()){
+			istringstream in(h.headers["Content-Length"]);
+			int l=0;
+			in>>l;
+			string query;
+		*/		
+		sparql_parser p(io);
 		cerr<<"peek:`"<<io.peek()<<"'"<<endl;
+		//a lot of things happening in go, it can be interrupted anytime by socket exception
 		if(p.go()){
 			io<<"HTTP/1.1 200 OK\r\n";
 			//io<<"Content-Type: text/xml\r\n";
@@ -280,6 +319,8 @@ void httpd::post(http_parser& h,iostream& io){
 	}catch(SocketRunTimeException& e){
 		pthread_mutex_unlock(&mutex);
 		cerr<<"http::post "<<e.what()<<endl;
+	}catch(...){
+		pthread_mutex_unlock(&mutex);
 	}
 }
 void httpd::put(http_parser& h,iostream& io){}	
