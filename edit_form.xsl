@@ -21,8 +21,12 @@
 <!--
 	we can extract the type from the query result
 -->
+<!--
 <xsl:param name='id' select="string('?')"/>
+-->
+<!-- is it always the first result ? -->
 <xsl:variable name='type' select="s:sparql/s:results/s:result[1]/s:binding[@name='v']/s:uri"/>
+<xsl:variable name='id' select="s:sparql/s:results/s:result[2]/s:binding[@name='v']/s:literal"/>
 <xsl:variable name='esc_type' select="concat(substring-before($type,'#'),'%23',substring-after($type,'#'))"/>
 <!-- 
 	could be more specific, we don't need all the literal properties, only the ones relevant to
@@ -58,16 +62,15 @@ body{
 
 </head>
 <body>
-<h1>Edit <xsl:value-of select="substring-after($type,'#')"/></h1>
+<h1>Edit <xsl:value-of select="substring-after($type,'#')"/>: <span><xsl:value-of select="$id"/></span> </h1>
 <form name='add' method='get'>
 <table>
-<tr>
 <!--
 	SPARQL does not allow modifying the ID but we could define
 	a pseudo-attribute to work around that limitation
 	it would also allow to pass the ID in the sparql reply
 -->
-<td>ID:</td><td><input type='text' name='ID' value='{$id}'/></td></tr>
+<!--<tr><td>ID:</td><td><input type='text' name='ID' value='{$id}'/></td></tr>-->
 <xsl:call-template name='form'>
 <xsl:with-param name='properties' select='$properties'/>
 </xsl:call-template>
@@ -83,10 +86,11 @@ body{
 <script type="text/javascript">
 $("form").submit(function(){
 	//it's good to send type along to speed up query, even better use special id
-	var s='insert data {&lt;'+$('form input:first').val()+'&gt; a &lt;<xsl:value-of select='$type'/>&gt;'
+	//var s='insert data {&lt;'+$('form input:first').val()+'&gt; a &lt;<xsl:value-of select='$type'/>&gt;'
+	var s='insert data {&lt;<xsl:value-of select='$id'/>&gt; a &lt;<xsl:value-of select='$type'/>&gt;'
 	$('form input[type!=submit][name!=ID]').each(function(){
 		if($(this).attr('value')!=$(this).val())
-			s+=';&lt;'+$(this).attr('name')+'&gt; '+$(this).val();
+			s+=';&lt;'+$(this).attr('name')+'&gt; "'+$(this).val()+'"';
 	});	
 	$('form select').each(function(){
 		//need to limit scope!!!
@@ -94,8 +98,8 @@ $("form").submit(function(){
 			s+=';&lt;'+$(this).attr('name')+'&gt; &lt;'+$(this).val()+'&gt;';
 	});
 	s+=' .}'
+	alert(s)
 	$.post('/',s,function(){})
-	//alert(s)
 })
 </script>
 </body>
@@ -160,4 +164,5 @@ $("form").submit(function(){
 </td>
 </tr>
 </xsl:template>
+<xsl:template match="s:result[s:binding[@name='p']/s:uri='http://www.w3.org/1999/02/22-rdf-syntax-ns#type']"/>
 </xsl:stylesheet>

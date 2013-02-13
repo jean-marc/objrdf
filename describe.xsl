@@ -5,24 +5,43 @@
 	xmlns='http://www.w3.org/1999/xhtml'
 	xmlns:xlink='http://www.w3.org/1999/xlink'
 	xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'
+	xmlns:obj='http://www.example.org/objrdf#'
 >
 <xsl:template match='/'>
+<html>
+<head>
+<style type='text/css'>
+body{
+	font-family:helvetica;
+}
+</style>
+
+</head>
+<body>
 <div id='jm'>
 <table>
 <xsl:apply-templates/>
 </table>
 </div>
+</body>
+</html>
 </xsl:template>
 <xsl:template match='s:sparql'>
 	<table>
 	<xsl:apply-templates select='s:head'/>
-	<xsl:apply-templates select='s:results/s:result'/>
+	<xsl:apply-templates select='s:results'/>
 	</table>
 </xsl:template>
 <xsl:template match='s:head'>
 	<tr><xsl:apply-templates select='s:variable'/></tr>
 </xsl:template>
 <xsl:template match='s:variable'><th><xsl:value-of select='@name'/></th>
+</xsl:template>
+<xsl:template match='s:results[not(node())]'>
+No result!
+</xsl:template>
+<xsl:template match='s:results'>
+<xsl:apply-templates/>
 </xsl:template>
 <xsl:template match='s:result'><tr><xsl:apply-templates/></tr></xsl:template>
 <xsl:template match='s:binding'><xsl:apply-templates/></xsl:template>
@@ -60,48 +79,49 @@
 	<xsl:apply-templates mode='resource'/>
 </xsl:template>
 <xsl:template match='*' mode='resource'>
-	<!--
-<xsl:template match='*[@rdf:about]' mode='resource'>
-	<tr>
-	<td><a href="{concat('/sparql?query=DESCRIBE &lt;',substring-before(@rdf:about,'#'),'%23',substring-after(@rdf:about,'#'),'&gt;')}"><xsl:value-of select='@rdf:about'/></a></td>
-	-->
+	<xsl:apply-templates select='.' mode='uri'/>
 	<xsl:apply-templates select='*' mode='property'/>
-	<!--
-	</tr>
-	<xsl:call-template name='statement'>
-		<xsl:with-param name='subject' select='@rdf:about'/>
-	</xsl:call-template>
-	-->
 </xsl:template>
-<!--
-<xsl:template match='*[@rdf:ID]' mode='resource'>
-	<tr>
-	<td><a href="{concat('/sparql?query=DESCRIBE &lt;',@rdf:ID,'&gt;')}"><xsl:value-of select='@rdf:ID'/></a></td>
-	<xsl:apply-templates select='*' mode='property'/>
+<xsl:template match='obj:id' mode='property'/>
+<xsl:template match='*[@rdf:about]' mode='uri'>
+	<tr style='background-color:#eeeeee;'>
+	<td>
+	<b><xsl:value-of select='@rdf:about'/></b>
+	</td>
+	<td/>
+	<td/>
+	<td><a href=''>edit</a></td>
 	</tr>
 </xsl:template>
--->
-<xsl:template match='*[@rdf:about]' mode='uri'><xsl:value-of select='@rdf:about'/></xsl:template>
-<xsl:template match='*[@rdf:ID]' mode='uri'><a href='/data/{@rdf:ID}'><xsl:value-of select='@rdf:ID'/></a></xsl:template>
+<xsl:template match='*[@rdf:ID]' mode='uri'>
+	<tr style='background-color:#eeeeee;'>
+	<td>
+	<b><xsl:value-of select='@rdf:ID'/></b> 
+	<!--<a href="{concat('/sparql?query=select * where {&lt;',substring-before(@rdf:ID,'#'),'%23',substring-after(@rdf:ID,'#'),'&gt; ?p ?v .}&amp;xsl=edit_form.xsl')}">edit</a>-->
+	</td>
+	<td/>
+	<td/>
+	<td><a href="{concat('/sparql?query=select * where {&lt;',@rdf:ID,'&gt; ?p ?v .}&amp;xsl=edit_form.xsl')}">edit</a></td>
+	</tr>
+</xsl:template>
 <xsl:template match='*[@rdf:resource]' mode='property'>
 <!--
 	we need to get URI for property
 	INSERT DATA 
 -->
+	<xsl:variable name='object'><xsl:apply-templates select='@rdf:resource' mode='uri'/></xsl:variable>
 	<tr>
-	<td><xsl:apply-templates select='..' mode='uri'/></td>
+	<td/>
 	<!--<td><xsl:value-of select="concat(namespace-uri(),local-name())"/></td>-->
 	<td><xsl:value-of select='name()'/></td>
-	<!--<td><input type='text' value='{@rdf:resource}'/></td>-->
-	<td><a href='#'><xsl:value-of select='@rdf:resource'/></a></td>
-	<td><a href='#' onclick='edit(this)'>edit</a></td>
+	<td><a href="{concat('/sparql?query=describe &lt;',substring-before(@rdf:resource,'#'),'%23',substring-after(@rdf:resource,'#'),'&gt;&amp;xsl=describe.xsl')}"><xsl:value-of select='@rdf:resource'/></a></td>
+	<td/>
 	</tr>
 </xsl:template>
 <xsl:template match='*' mode='property'>
 	<tr>
-	<td><xsl:apply-templates select='..' mode='uri'/></td>
+	<td/>
 	<td><xsl:value-of select='name()'/></td>
-	<!--<td><xsl:value-of select='text()'/></td>-->
 	<td><xsl:apply-templates/></td>
 	</tr>
 </xsl:template>	

@@ -33,7 +33,7 @@ body{
 </head>
 <body>
 <h1><xsl:value-of select='$type'/></h1>
-<form name='add' action="javascript:alert('success')" method='get'>
+<form name='add' method='get'>
 <table>
 <tr>
 <td>ID:</td><td><input type='text' name='ID'/></td></tr>
@@ -48,9 +48,10 @@ body{
 <script type="text/javascript">
 $("form").submit(function(){
 	var s='insert data {&lt;'+$('form input:first').val()+'&gt; a &lt;<xsl:value-of select='$type'/>&gt;'
-	$('form input[type!=submit][name!=ID]').each(function(){s+=';&lt;'+$(this).attr('name')+'&gt; '+$(this).val();});	
+	$('form input[type!=submit][name!=ID]').each(function(){s+=';&lt;'+$(this).attr('name')+'&gt; "'+$(this).val()+'"';});	
 	$('form select').each(function(){s+=';&lt;'+$(this).attr('name')+'&gt; &lt;'+$(this).val()+'&gt;';});
 	s+=' .}'
+	alert(s)
 	$.post('/',s,function(){})
 })
 </script>
@@ -92,4 +93,6 @@ $("form").submit(function(){
 </td>
 </tr>
 </xsl:template>
+<xsl:template match="s:result[s:binding[@name='p']/s:uri='http://www.w3.org/1999/02/22-rdf-syntax-ns#type']"/>
+<xsl:template match="s:result[s:binding[@name='p']/s:uri='http://www.example.org/objrdf#id']"/>
 </xsl:stylesheet>
