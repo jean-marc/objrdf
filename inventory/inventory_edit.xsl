@@ -91,6 +91,17 @@ $("form").submit(function(){
 			$.post('/',s,function(){})
 		}
 	});	
+
+	$('textarea.edit[type!=submit][name!=ID]').each(function(){
+		var s='insert data {&lt;<xsl:value-of select='$id'/>&gt; &lt;'+$(this).attr('name')+'&gt; "'+$(this).val()+'" .}';
+		//alert(s);
+		$.post('/',s,function(){})
+	});
+	$('textarea.add[type!=submit][name!=ID]').each(function(){
+		var s='insert data {&lt;<xsl:value-of select='$id'/>&gt; &lt;'+$(this).attr('name')+'&gt; "'+$(this).val()+'" .}';
+		//alert(s);
+		$.post('/',s,function(){})
+	});
 	$('input.add[type!=submit][name!=ID]').each(function(){
 		if($(this).attr('value')!=$(this).val()){
 			var s='insert data {&lt;<xsl:value-of select='$id'/>&gt; &lt;'+$(this).attr('name')+'&gt; "'+$(this).val()+'" .}';
@@ -154,7 +165,22 @@ $("form").submit(function(){
 <td><xsl:value-of select="substring-after(s:binding[@name='p']/s:uri,'#')"/>:</td>
 <xsl:choose>
 	<xsl:when test="$literals[text()=$current_property/s:binding[@name='r']/s:uri/text()]">
-		<td><input class='edit' type='text' name="{$current_property/s:binding[@name='p']/s:uri}" value="{$current_instance/s:binding[@name='v']/s:literal}"/></td>
+		<!-- 
+			how to customize forms by property type? 
+			would be a lot easier with specialized templates
+		-->
+		<td>
+			<xsl:choose>
+			<xsl:when test="$current_property/s:binding[@name='p']/s:uri='http://inventory.unicefuganda.org/#text'">
+			<textarea class='edit' name="{$current_property/s:binding[@name='p']/s:uri}">
+				<xsl:value-of select="$current_instance/s:binding[@name='v']/s:literal"/>
+			</textarea>
+			</xsl:when>
+			<xsl:otherwise>
+			<input class='edit' type='text' name="{$current_property/s:binding[@name='p']/s:uri}" value="{$current_instance/s:binding[@name='v']/s:literal}"/>
+			</xsl:otherwise>
+			</xsl:choose>
+		</td>
 		<td><input class='delete_literal' type='checkbox' name="{$current_property/s:binding[@name='p']/s:uri}" value="{$current_instance/s:binding[@name='v']/s:literal}"/></td>
 	</xsl:when>
 	<xsl:otherwise>
@@ -182,7 +208,14 @@ $("form").submit(function(){
 <td>
 	<xsl:choose>
 	<xsl:when test="$literals[text()=$current_property/s:binding[@name='r']/s:uri/text()]">
+		<xsl:choose>
+		<xsl:when test="$current_property/s:binding[@name='p']/s:uri='http://inventory.unicefuganda.org/#text'">
+		<textarea class='add' name="{$current_property/s:binding[@name='p']/s:uri}"/>
+		</xsl:when>
+		<xsl:otherwise>
 		<input class='add' type='text' name="{$current_property/s:binding[@name='p']/s:uri}" value=""/>
+		</xsl:otherwise>
+		</xsl:choose>
 	</xsl:when>
 	<xsl:otherwise>
 		<select class='add' name="{$current_property/s:binding[@name='p']/s:uri}">
@@ -201,4 +234,5 @@ $("form").submit(function(){
 </xsl:template>
 <xsl:template match="s:result[s:binding[@name='p']/s:uri='http://www.w3.org/1999/02/22-rdf-syntax-ns#type']"/>
 <xsl:template match="s:result[s:binding[@name='p']/s:uri='http://www.example.org/objrdf#self']"/>
+<xsl:template match="s:result[s:binding[@name='p']/s:uri='http://inventory.unicefuganda.org/#logger']"/>
 </xsl:stylesheet>
