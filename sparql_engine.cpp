@@ -244,11 +244,11 @@ RESULT subject::run(base_resource::const_instance_iterator i,PROPERTY_PTR p){
 		return ret;	
 	}
 }
-verb::verb(PROPERTY_PTR p,subject* object):p(p),object(object),is_optional(false),is_selected(true),bound(p){}
+verb::verb(PROPERTY_PTR p,subject* object,CONST_USER_PTR user):p(p),object(object),is_optional(false),is_selected(true),bound(p),user(user){}
 RESULT verb::run(SPARQL_RESOURCE_PTR r){
 	if(p){
 		LOG<<"bound\tP "<<this<<" to `"<<p->id<<"'"<<endl;	
-		base_resource::const_type_iterator current_property=std::find_if(cbegin(r),cend(r),match_property(p));
+		base_resource::const_type_iterator current_property=std::find_if(cbegin(r,user),cend(r,user),match_property(p));
 		if(current_property!=cend(r)){
 			RESULT ret;
 			for(base_resource::const_instance_iterator j=current_property->cbegin();j!=current_property->cend();++j){
@@ -274,7 +274,7 @@ RESULT verb::run(SPARQL_RESOURCE_PTR r){
 		}
 	}else{
 		RESULT ret;
-		for(base_resource::const_type_iterator i=cbegin(r);i!=cend(r);++i){
+		for(base_resource::const_type_iterator i=cbegin(r,user);i!=cend(r);++i){
 			base_resource::const_instance_iterator pt=get_const_self_iterator(i->get_Property());
 			for(base_resource::const_instance_iterator j=i->cbegin();j!=i->cend();++j){
 				LOG<<"binding P "<<this<<" to `"<<i->get_Property()->id<<"'"<<endl;	
@@ -569,14 +569,14 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 			case turtle_parser::verb::id:{
 				switch(i->v[0].t.first){
 					case turtle_parser::variable::id:{
-						current_sbj->verbs.push_back(verb(PROPERTY_PTR(),0));
+						current_sbj->verbs.push_back(verb(PROPERTY_PTR(),0,user));
 						current_sbj->verbs.back().name=i->v[0].t.second;		
 						current_sbj->verbs.back().is_selected=variable_set.empty()||variable_set.count(i->v[0].t.second);
 					}
 					break;
 					case turtle_parser::uriref::id:{
 						PROPERTY_PTR r=find_t<PROPERTY_PTR>(uri::hash_uri(i->v[0].t.second));
-						current_sbj->verbs.push_back(verb(r,0));
+						current_sbj->verbs.push_back(verb(r,0,user));
 					}
 					break;
 					case turtle_parser::qname::id:{
@@ -584,7 +584,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						if(j!=prefix_ns.end()){
 							uri u(j->second,i->v[0].v[1].t.second);
 							PROPERTY_PTR r=find_t<PROPERTY_PTR>(u);
-							current_sbj->verbs.push_back(verb(r,0));
+							current_sbj->verbs.push_back(verb(r,0,user));
 						}else{
 							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
 							return false;
@@ -592,7 +592,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					}
 					break;
 					case turtle_parser::is_a::id:{
-						current_sbj->verbs.push_back(verb(rdf::type::get_property(),0));
+						current_sbj->verbs.push_back(verb(rdf::type::get_property(),0,user));
 					}
 					break;
 				}
@@ -798,14 +798,14 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 				switch(i->v[0].t.first){
 					case turtle_parser::uriref::id:{ 
 						uri u=uri::hash_uri(i->v[0].t.second);
-						current_property=std::find_if(objrdf::begin(sub),objrdf::end(sub),name_p(u));
+						current_property=std::find_if(objrdf::begin(sub,user),objrdf::end(sub,user),name_p(u));
 						if(current_property==objrdf::end(sub)){
 							cerr<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
-							current_property=objrdf::begin(base_resource::nil);
+							current_property=objrdf::begin(base_resource::nil,user);
 						}else{//what if property constant
 							if(current_property.constp()){
 								cerr<<"property `"<<u<<"' can not be modified"<<endl;
-								current_property=objrdf::begin(base_resource::nil);
+								current_property=objrdf::begin(base_resource::nil,user);
 							}
 						}
 					}break;
@@ -814,14 +814,14 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 						if(j!=prefix_ns.end()){
 							uri u(j->second,i->v[0].v[1].t.second);
 							//find if property belongs to subject
-							current_property=std::find_if(objrdf::begin(sub),objrdf::end(sub),name_p(u));
+							current_property=std::find_if(objrdf::begin(sub,user),objrdf::end(sub,user),name_p(u));
 							if(current_property==objrdf::end(sub)){
 								cerr<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
-								current_property=objrdf::begin(base_resource::nil);
+								current_property=objrdf::begin(base_resource::nil,user);
 							}else{
 								if(current_property.constp()){
 									cerr<<"property `"<<u<<"' can not be modified"<<endl;
-									current_property=objrdf::begin(base_resource::nil);
+									current_property=objrdf::begin(base_resource::nil,user);
 								}
 							}
 						}else{
@@ -831,13 +831,13 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 					}
 					break;
 					case turtle_parser::is_a::id:{
-						current_property=objrdf::begin(sub);//first property is always rdf::type
+						current_property=objrdf::begin(sub,user);//first property is always rdf::type
 					}break;
 					case turtle_parser::variable::id:{
 						cerr<<"property variable: `"<<i->v[0].t.second<<"'"<<endl;
 						auto j=v.find(i->v[0].t.second.substr(1));
 						if(j!=v.end()){
-							current_property=std::find_if(objrdf::begin(sub),objrdf::end(sub),match_property(j->second->get_const_object()));
+							current_property=std::find_if(objrdf::begin(sub,user),objrdf::end(sub,user),match_property(j->second->get_const_object()));
 							if(current_property==objrdf::end(sub)){
 								cerr<<"property `"<<j->second->get_const_object()->id<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
 								return false;

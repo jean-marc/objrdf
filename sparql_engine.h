@@ -52,11 +52,12 @@ struct verb{
 	bool is_optional;
 	bool is_selected;//will be returned in result set
 	bool bound;
-	verb(PROPERTY_PTR p,subject* object);
+	verb(PROPERTY_PTR p,subject* object,CONST_USER_PTR user);
 	verb();
 	RESULT run(SPARQL_RESOURCE_PTR r);
 	int size();
 	vector<string> get_variables() const;
+	CONST_USER_PTR user;//who is running the query
 };
 struct subject{
 	SPARQL_RESOURCE_PTR r;//0 -> not bound	
@@ -158,6 +159,7 @@ public:
 	PREFIX_NS prefix_ns;
 	//generic_property::PROVENANCE p;
 	PROVENANCE p;
+	CONST_USER_PTR user;//who is running the query
 	sparql_parser(istream& is,PROVENANCE p=2);
 	bool go();
 	//we can specialize the document
