@@ -30,6 +30,7 @@ template <typename T> int sgn(T val){
 //property that exists in the objrdf namespace
 #define OBJRDF_PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
 #define CLASS(n,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__> n
+#define OBJRDF_CLASS(n,...) char _##n[]=#n;typedef objrdf::resource<_rdfs_namespace,_##n,__VA_ARGS__> n
 #define DERIVED_CLASS(n,BASE,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__,objrdf::NIL,BASE> n
 /*
  *	could we define lightweight classes? to reuse code?, that would all use the same pool because they are identical
@@ -378,6 +379,12 @@ namespace objrdf{
 		const_type_iterator cend() const;
 		void get_output(ostream& os) const;//local resources can have content accessible through a URL scheme 
 		void end_resource(){};//will be invoked when finished parsing the element
+		/*
+ 		*	do we have to use functions? what about storing type_iterator begin,end,...
+ 		*	it could work as long as iterators don't get invalidated by container (resource::v) modification, it means
+ 		*	that the container must be ready by the time we define the class, could be tricky
+ 		*	it will also be necessary if we modify the container by adding new entries to implement privileges
+ 		*/ 
 		typedef std::tuple<
 			//do we even need this when using PERSISTENT?
 			//yes when creating new resource in the parser or sparql update query
@@ -388,11 +395,6 @@ namespace objrdf{
 			const_type_iterator (*)(CONST_RESOURCE_PTR)	//cend
 			//shall we add a clone function?
 			/* add more functions here ... */
-			/* pointer to member function */
-			/*
-			,type_iterator (base_resource::*)()
-			,type_iterator (base_resource::*)()
-			*/
 		> class_function_table;
 		/*
  		* 	we add information about the class to get rid of vtable	
@@ -402,6 +404,8 @@ namespace objrdf{
 		static CLASS_PTR get_class();	
 		template<typename U> U& get(){return helper<base_resource,U>::get(*this);}
 		template<typename U> const U& get_const() const{return helper<base_resource,U>::get_const(*this);}
+		//shorter name
+		template<typename U> const U& cget() const{return helper<base_resource,U>::get_const(*this);}
 		void to_turtle(ostream& os);
 		void to_xml(ostream& os);
 		void to_xml_leaf(ostream& os);
@@ -459,13 +463,18 @@ namespace objrdf{
  		*	could add information about the expected number of instances when using persistent store
  		*/ 
 		/*
- 		*	information about the STORE 	
+ 		*	information about allocator	
  		*/
 	>
 	struct resource:_SUPERCLASS_{
 		typedef _PROPERTIES_ PROPERTIES;
 		typedef _SUPERCLASS_ SUPERCLASS;
 		typedef resource SELF;
+		//problem: overides _SUPERCLASS_::allocator
+		//typedef persistent_store _STORE_;
+		//clever way: compare types
+		//typedef typename IfThenElse<equality<_STORE_,typename _SUPERCLASS_::STORE>::VALUE,resource,SUBCLASS>::ResultT TMP;
+	
 		typedef persistent_store STORE;
 		typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,resource,SUBCLASS>::ResultT TMP;
 		typedef pool_allocator<TMP,/*typename TMP::*/STORE> allocator;
@@ -942,11 +951,9 @@ namespace objrdf{
 	//make it possible to modify a resource's id after it has been created, it is possible because the db
 	//relies on pointers, not on id
 	OBJRDF_PROPERTY(id,uri);
-	//we can specialize for objrdf::id
 	template<typename SUBJECT> struct functions<SUBJECT,objrdf::id,STRING|LITERAL>{
 		static void set_string(ITERATOR_RESOURCE_PTR subject,string s,size_t){
-			//only makes sense with local resources
-			if(subject->id.is_local())
+			if(subject->id.is_local()) //only makes sense with local resources
 				subject->id=uri(s);//could add code to detect duplicate id's
 		}
 		static void in(ITERATOR_RESOURCE_PTR subject,istream& is,size_t){
@@ -1030,7 +1037,8 @@ namespace rdf{
 	struct Literal:objrdf::resource<rdfs_namespace,_Literal,std::tuple<>,Literal>{
 		Literal(objrdf::uri u):SELF(u){}
 		typedef empty_store STORE;
-		COMMENT("The class of literal values, eg. textual strings an integers")
+		typedef  pool_allocator<Literal,STORE> allocator;
+		COMMENT("The class of literal values, eg. textual strings and integers")
 	};
 }
 namespace xsd{
@@ -1115,6 +1123,8 @@ namespace objrdf{
 	base_resource::type_iterator end(RESOURCE_PTR r,CONST_USER_PTR u);
 	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r,CONST_USER_PTR u);
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r,CONST_USER_PTR u);
+	//to investigate new method to store indices
+	OBJRDF_CLASS(Test_class,std::tuple<>);
 }
 namespace rdfs{
 	char _Class[]="Class";
@@ -1137,7 +1147,15 @@ namespace rdfs{
  		*	the standard pointer semantic 
  		*	similar to instance_iterator::get_Property(), although instance_iterator never returns an actual reference/pointer 
  		*	to the underlying property.
- 		*/ 
+ 		*
+ 		*	can we store the pool inside the Class?, it would make sense
+ 		*	when creating a Class, first we look in the array:
+ 		*		if the Class exists, we just refresh the function table 
+ 		*		if not: append the new Class
+ 		*	so in this case the Class index would decide the pool index, not the other way
+ 		*	the advantage is that we could catch modification to the class definition using a hash function
+ 		*
+ 		*/
 		typedef free_store STORE;
 		typedef pool_allocator<Class,STORE> allocator;
 		/*
@@ -1218,6 +1236,7 @@ namespace objrdf{
 			//in case of persistent storage we will override old version and refresh pointers and function pointers
 			//we have to find the index of pool where instances are stored, this is also where the pool is initialized
 			//POOL_PTR::help<TMP>().index,
+			//this is where the pool is created
 			TMP::allocator::get_index().index,
 			objrdf::get_uri<NAMESPACE>(NAME),
 			rdfs::subClassOf(SUPERCLASS::get_class()),
