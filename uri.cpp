@@ -14,8 +14,10 @@ vector<uri::ns_prefix>& uri::ns_v(){
 	/*
  	*	v[0] is the default/local namespace it's empty, it will be set by xml:base
  	*	if index==0 then we can serialize with rdf:ID otherwise it is rdf:about
+ 	*	v[1] is for blank nodes
  	*/ 
-	static vector<ns_prefix> *v=new vector<ns_prefix>(1);
+	//static vector<ns_prefix> *v=new vector<ns_prefix>(2);
+	static vector<ns_prefix> *v=new vector<ns_prefix>({ns_prefix(),ns_prefix("","_:")});
 	return *v;
 }
 struct match_ns{
@@ -49,6 +51,7 @@ uri::uri(string local):local(local.empty()?get(this):local),index(0){}
 
 #ifdef PERSISTENT
 uri::uri(string ns,string _local){
+	//does not use ns!
 	local[uri::STR_SIZE-1]=0;
 	strncpy(local,_local.c_str(),uri::STR_SIZE-1);
 #else
@@ -114,7 +117,7 @@ bool uri::is_local() const{
 }
 bool uri::operator==(const uri& u) const{
 #ifdef PERSISTENT
-	cerr<<"`"<<local<<"'("<<index<<")==`"<<u.local<<"'("<<u.index<<")"<<endl;
+	//cerr<<"`"<<local<<"'("<<index<<")==`"<<u.local<<"'("<<u.index<<")"<<endl;
 	return index==u.index && strcmp(local,u.local)==0;
 #else
 	return index==u.index && local==u.local;
@@ -127,13 +130,15 @@ bool uri::operator!=(const uri& u) const{
 	return index!=u.index || local!=u.local;
 #endif
 }
-bool uri::operator<(const uri& u) const{
+int uri::compare(const uri& u) const{
 #ifdef PERSISTENT
-	//cerr<<"compare: `"<<local<<"' and `"<<u.local<<"'"<<endl;
-	return index==u.index ? (strcmp(local,u.local)<0) : index<u.index;
+	return index==u.index ? (strcmp(local,u.local)) : index-u.index;
 #else
-	return index==u.index ? local<u.local : index<u.index;
+	return index==u.index ? local.compare(u.local) : index-u.index;
 #endif
+}
+bool uri::operator<(const uri& u) const{
+	return compare(u)<0;
 }
 #ifdef PERSISTENT
 uri::uri(const uri& u):index(u.index){
@@ -172,7 +177,7 @@ void uri::check(){
 }
 void uri::ns_declaration(ostream& os){
 	check();
-	for(vector<ns_prefix>::iterator i=ns_v().begin()+1;i<ns_v().end();++i){
+	for(auto i=ns_v().cbegin()+2;i<ns_v().cend();++i){
 		if(i->second.empty())
 			os<<"xmlns='"<<i->first<<"'"<<endl;
 		else

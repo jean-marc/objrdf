@@ -57,6 +57,7 @@ namespace objrdf{
 	public:
 		/*
  		*	indices will become stale when using persistence, that vector should be persisted too!!
+ 		*	but problem with allocator for string...
  		*/ 
 		static vector<ns_prefix>& ns_v();
 		short index;
