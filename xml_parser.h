@@ -1,6 +1,6 @@
 #ifndef XML_PARSER_H
 #define XML_PARSER_H
-#include "ebnf_template.h"
+#include "ebnf.h"
 #include <iostream>
 #include <string>
 #include <map>
@@ -33,15 +33,15 @@ template<typename SAX_HANDLER> struct xml_parser:char_iterator{
 	typedef seq_c<'<','!'> start_doctype;
 	typedef seq_c<']','>'> end_doctype;
 	typedef _range_<start_doctype,end_doctype> doctype;
-	typedef choice<char_p<' '>,char_p<'\n'>,char_p<'\r'>,char_p<'\t'> > white_space;
+	typedef choice<char_p<' '>,char_p<'\n'>,char_p<'\r'>,char_p<'\t'>> white_space;
 	//namespace support
 	//typedef event<plus_p<choice<range_p<'a','z'>,range_p<'A','Z'>,range_p<'0','9'>,char_p<'_'>,char_p<'-'> > > > nname;
-	typedef plus_p<choice<range_p<'a','z'>,range_p<'A','Z'>,range_p<'0','9'>,char_p<'_'>,char_p<'-'> > > nname;
+	typedef plus_p<choice<range_p<'a','z'>,range_p<'A','Z'>,range_p<'0','9'>,char_p<'_'>,char_p<'-'>>> nname;
 	//typedef event<char_p<':'> > colon;
 	//typedef seq<nname,or_p<seq<colon,nname>,true_p> > name;
 	typedef event<nname> prefix;
 	typedef event<nname,int> suffix;
-	typedef seq<prefix,or_p<seq<char_p<':'>,suffix>,true_p> > name;
+	typedef seq<prefix,or_p<seq<char_p<':'>,suffix>,true_p>> name;
 	//typedef seq<nname,colon,nname> name;
 	//typedef plus_p<choice<range_p<'a','z'>,range_p<'A','Z'>,range_p<'0','9'>,char_p<'_'>,char_p<'-'> > > name;
 	//struct _prefix;typedef event<name,_prefix> prefix;
@@ -54,18 +54,18 @@ template<typename SAX_HANDLER> struct xml_parser:char_iterator{
 	typedef event<name> element_name;
 	typedef event<name,int> attribute_name;
 	//typedef cb<plus_p<not_p<char_p<'='> > > > attribute_name;
-	typedef event<kleene_p<not_p<char_p<'\''> > > > attribute_value_0;
-	typedef seq<char_p<'\''>,attribute_value_0,char_p<'\''>  > attribute_0;
-	typedef event<kleene_p<not_p<char_p<'\"'> > > > attribute_value_1;
-	typedef seq<char_p<'"'>,attribute_value_1,char_p<'"'>  > attribute_1;
-	typedef kleene_p<seq<plus_p<white_space>,seq<attribute_name,char_p<'='>,or_p<attribute_0,attribute_1> > > > attributes;
+	typedef event<kleene_p<not_p<char_p<'\''>>>> attribute_value_0;
+	typedef seq<char_p<'\''>,attribute_value_0,char_p<'\''>> attribute_0;
+	typedef event<kleene_p<not_p<char_p<'\"'>>>> attribute_value_1;
+	typedef seq<char_p<'"'>,attribute_value_1,char_p<'"'>> attribute_1;
+	typedef kleene_p<seq<plus_p<white_space>,seq<attribute_name,char_p<'='>,or_p<attribute_0,attribute_1>>>> attributes;
 	//typedef event<seq<char_p<'<'>,element_name,attributes,kleene_p<white_space>,char_p<'>'> > > start_tag;
-	typedef event<seq<char_p<'<'>,element_name,attributes,kleene_p<white_space> > > start_tag;
-	typedef event<seq<char_p<'<'>,char_p<'/'>,element_name,kleene_p<white_space>,char_p<'>'> > > end_tag;
-	typedef event<seq_c<'/','>'> > empty_end_tag;
+	typedef event<seq<char_p<'<'>,element_name,attributes,kleene_p<white_space>>> start_tag;
+	typedef event<seq<char_p<'<'>,char_p<'/'>,element_name,kleene_p<white_space>,char_p<'>'>>> end_tag;
+	typedef event<seq_c<'/','>'>> empty_end_tag;
 	//typedef event<seq<char_p<'<'>,element_name,attributes,kleene_p<white_space>,char_p<'/'>,char_p<'>'> > > empty_element;
 	//will fill up the buffer quickly
-	typedef event<plus_p<not_p<char_p<'<'> > > > text;//could add support for escaping 
+	typedef event<plus_p<not_p<char_p<'<'>>>> text;//could add support for escaping 
 	struct element:choice<
 		seq<start_tag,or_p<
 			seq<char_p<'>'>,kleene_p<or_p<text,element> >,end_tag>, //<abc ...>...</abc>
