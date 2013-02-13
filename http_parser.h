@@ -10,7 +10,7 @@
  */
 #ifndef HTTP_PARSER_H
 #define HTTP_PARSER_H
-#include "ebnf_template.h"
+#include "ebnf.h"
 #include <iostream>
 #include <string>
 #include <map>
