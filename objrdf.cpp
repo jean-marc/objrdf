@@ -52,6 +52,15 @@ struct cmp_uri{
 	bool operator()(CLASS_PTR s)const{return s->id==u;}
 };
 rdfs::Class::Class(objrdf::uri id,rdfs::subClassOf s,objrdf::base_resource::class_function_table t,string comment_str,objrdf::sizeOf size):SELF(id),t(t){
+	objrdf::Test_class::allocator a;
+	auto ptr=a.allocate(1);
+	a.construct(ptr,id);
+	for(auto i=a.cbegin();i<a.cend();++i){
+		//cout<<(*i).index<<endl;
+		//crashes, does id become stale?, yes: the namespace handle!!!
+		cout<<"Test_Class:`"<<(*i)->id.local<<"'"<<endl;
+		//we could use a hash to identify class
+	}
 	#ifdef OBJRDF_VERB
 	cerr<<"create rdfs::Class `"<<id<<"'\t"<<this<</*"\t"<<t<<*/endl;
 	#endif
