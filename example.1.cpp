@@ -18,6 +18,6 @@ int main(){
 	a_C->get<p_0>()=1;
 	a_C->get<p_1>().t="test";
 	doc.insert(a_C);//better
-	doc.to_turtle_pretty(std::cout);
+	doc.to_rdf_xml_pretty(std::cout);
 }
 
