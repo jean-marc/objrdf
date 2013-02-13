@@ -1,6 +1,6 @@
 #ifndef TURTLE_PARSER_H
 #define TURTLE_PARSER_H
-#include "ebnf_template.h"
+#include "ebnf.h"
 #include <iostream>
 using namespace std;
 //template<typename T=int> //different version of the parser
@@ -16,7 +16,7 @@ struct turtle_parser:char_iterator{
 		> name;
 	typedef char_p<'\''> sq;
 	typedef char_p<'\"'> dq;
-	typedef or_p<range_p<'a','z'>,range_p<'A','Z'> > pn_char_base;
+	typedef or_p<range_p<'a','z'>,range_p<'A','Z'>> pn_char_base;
 	//typedef or_p<char_p<' '>,or_p<char_p<'\t'>,or_p<char_p<'\r'>,char_p<'\n'> > > > white_space;
 	//dangerous! "<aaaa " will cause it to read forever
 	typedef event_1<kleene_p<not_p<or_p<char_p<'>'>,white_space> > >,__COUNTER__> uriref;
@@ -32,6 +32,9 @@ struct turtle_parser:char_iterator{
 	typedef seq<char_p<'#'>,kleene_p<not_p<or_p<char_p<'\r'>,char_p<'\n'> > > > > comment;
 	typedef event_1<kleene_p<not_p<sq> >,__COUNTER__> string_literal_1;
 	typedef event_1<kleene_p<not_p<dq> >,__COUNTER__> string_literal_2;
+	/*
+ 	*	add support for hex values?
+ 	*/ 
 	typedef seq_p<choice<char_p<'-'>,char_p<'+'>,true_p>,plus_p<range_p<'0','9'> > > integer;
 	typedef seq<
 			choice<char_p<'-'>,char_p<'+'>,true_p>,
@@ -47,15 +50,37 @@ struct turtle_parser:char_iterator{
 	typedef event_1<choice<_uriref_,qname,variable,is_a>,__COUNTER__ > verb;
 	template<typename OBJECT> 
 	struct objectList:seq<OBJECT,or_p<seq<char_p<','>,objectList<OBJECT> >,true_p> >{};
-	template<typename OBJECT> 
-	struct predicateObjectList:seq<verb,white_space,objectList<OBJECT>,or_p<seq<char_p<';'>,predicateObjectList<OBJECT> >,true_p> >{};
-	template<typename OBJECT> 
-	struct blank:seq<char_p<'['>,predicateObjectList<event<OBJECT> >,char_p<']'> >{};
-	struct _object_:choice<resource,blank<_object_>,literal,variable>{};
-	typedef event_1<_object_,__COUNTER__> object;
-	typedef event_1<choice<resource,blank<object>,variable>,__COUNTER__ > subject;
-	typedef seq<subject,white_space,predicateObjectList<event<object> > > triples;
-	typedef seq<triples,white_space,char_p<'.'>,kleene_p<white_space> > statement;
+	template<typename OBJECT> struct predicateObjectList:seq<
+		verb,
+		white_space,
+		objectList<OBJECT>,
+		or_p<
+			seq<
+				char_p<';'>,
+				predicateObjectList<OBJECT> 
+			>,
+		true_p> >{};
+	//template<typename OBJECT> struct blank:seq<char_p<'['>,predicateObjectList<event<OBJECT> >,char_p<']'> >{};
+	template<typename OBJECT> struct blank:seq<
+		char_p<'['>,
+		predicateObjectList<OBJECT>,
+		char_p<']'>
+	>{};
+	
+	struct object:event_1<
+		choice<
+			resource,
+			event_1<blank<object>,9999>,
+			literal,
+			variable
+		>,
+	1111>{};
+	//typedef _object_ object;	
+	//typedef event_1<_object_,__COUNTER__> object;
+	//typedef event_1<choice<resource,blank<object>,variable>,__COUNTER__ > subject;
+	typedef event_1<choice<resource,/*blank<object>,*/variable>,__COUNTER__ > subject;
+	typedef seq<subject,white_space,predicateObjectList<object>> triples;
+	typedef seq<triples,white_space,char_p<'.'>,kleene_p<white_space>> statement;
 	typedef plus_p<statement> turtle_doc;
 	turtle_parser(istream& is):char_iterator(is){}
 	bool go(){return turtle_doc::go(*this);}
