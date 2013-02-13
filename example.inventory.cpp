@@ -309,6 +309,11 @@ public:
 				os<<"<text transform='scale(1,-1) translate(0,"<<i<<")' class='label'>"<<i<<"</text>"<<endl;
 			os<<"</g>";
 			*/
+			/*
+ 			*	improvement: avoid long interpolation during down-time 
+ 			*
+ 			*/ 
+			//disconnect voltage
 			os<<"<path class='dscn' d='M0 "<<((dscn_v-min_v)*scale_y)<<"h"<<width<<"'/>"<<endl;
 			{
 				auto i=j;
