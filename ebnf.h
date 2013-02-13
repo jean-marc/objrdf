@@ -174,25 +174,15 @@ struct _help_{
 	_help_(int& depth):depth(depth){++depth;}
 	~_help_(){--depth;}
 };
-ostream& operator<<(ostream& os,char_iterator::R& vv){
-	return os<<get<0>(vv)<<"\t"<<get<1>(vv)<<"\t"<<get<2>(vv);
-}
+ostream& operator<<(ostream& os,char_iterator::R& vv);
 //ostream& operator<<(ostream& os,ch
 typedef std::pair<char_iterator::ID,string> PARSE_RES;
 typedef _result_<PARSE_RES> PARSE_RES_TREE;
-ostream& operator<<(ostream& os,PARSE_RES& r){
-	return os<<r.first<<"\t"<<r.second;
-}
-void print(ostream& os,PARSE_RES_TREE& p,int depth){
-	string s(depth,'\t');
-	os<<p.t.first<<"\t"<<s<<p.t.second<<endl;
-	for(auto i=p.v.begin();i<p.v.end();++i) print(os,*i,depth+1);
-	
-}
-ostream& operator<<(ostream& os,PARSE_RES_TREE& p){
-	print(os,p,0);
-	return os;
-};
+ostream& operator<<(ostream& os,PARSE_RES& r);
+ostream& operator<<(ostream& os,const PARSE_RES& r);
+void print(ostream& os,const PARSE_RES_TREE& p,int depth);
+//ostream& operator<<(ostream& os,PARSE_RES_TREE& p);
+ostream& operator<<(ostream& os,const PARSE_RES_TREE& p);
 template<typename S,int ID> struct event_1{
 	typedef S SELF;
 	//maybe we could pass index to main buffer instead of copying onto string, even better we could have istream available
