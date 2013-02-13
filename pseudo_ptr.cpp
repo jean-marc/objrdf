@@ -36,22 +36,24 @@ uint32_t pool::hash() const{return jenkins_one_at_a_time_hash((char*)p.v,p.n);}
 pool::~pool(){
 	cerr<<"~hash: "<<hash()<<" "<<this<<endl;
 }
+/*
+ *	used by RESOURCE_PTR objrdf::create_by_type(CLASS_PTR c,uri id)
+ */
 size_t pool::allocate(){
-	info& first=*static_cast<info*>(p.v);
-	if(first.n_cells==p.n-1){
+	info* first=static_cast<info*>(p.v);
+	if(first->n_cells==p.n-1){
 		cerr<<"increasing pool size from "<<p.n<<" to "<<2*p.n<<" cells "<<this<<endl;
 		size_t original_size=p.n;
+		cerr<<"before: "<<p.v<<endl;
 		p.resize(2*p.n);
+		cerr<<"after: "<<p.v<<endl;
 		cerr<<"new pool size: "<<p.n<<endl;
-		first=*static_cast<info*>(p.v);
+		first=static_cast<info*>(p.v);
 	}	
-	info& current=*static_cast<info*>(p.v+first.next*p.cell_size);
-	size_t i=first.next;
-	if(current.next==0)
-		first.next++;
-	else
-		first.next=current.next;
-	first.n_cells++;
+	info* current=static_cast<info*>(p.v+first->next*p.cell_size);
+	size_t i=first->next;
+	first->next=(current->next==0) ? first->next+1 : current->next;
+	first->n_cells++;
 	cerr<<"allocate cell at index "<<i<<"{"<<(p.v+i*p.cell_size)<<"} in pool "<<this<<endl;
 	return i;	
 }
@@ -94,11 +96,18 @@ bool pool::TEST(const pool& p){
 	return p.type_id;//good because the type_id can not be 0
 }
 pool_array::pool_array(param& p,DESTRUCTOR destructor,size_t type_id):p(p),destructor(destructor),type_id(type_id){
+	/*
+ 	*	we might have to modify p.cell_size
+ 	*/ 
+	cerr<<"cell size:"<<p.cell_size<<endl;
+	p.cell_size=max(p.cell_size,sizeof(pool_array::info));
+	cerr<<"cell size:"<<p.cell_size<<endl;
 	info& first=*static_cast<info*>(p.v);
 	info& second=*static_cast<info*>(p.v+p.cell_size);
+	cerr<<"initial pool size:"<<first.n_cells<<endl;
 	if(first.n_cells==0){
+		cerr<<"setting up pool..."<<endl;
 		first.next=1;
-		//only used when using allocate_t(int)
 		second.next=0;
 		second.cell_size=p.n-1;	
 	}
