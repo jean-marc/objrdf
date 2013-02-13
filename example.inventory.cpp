@@ -321,11 +321,16 @@ public:
 				int y=((*i)->get_const<volt>().t-min_v)*scale_y;
 				os<<"<path class='trace' d='M"<<x<<" "<<y<<"L";
 				++i;
+				time_t prev=start;
 				for(;i<get_const<array<logger>>().cend();++i){
 					if((*i)->get_const<volt>().t!=-1){
-						int x=((*i)->get_const<time_stamp>().t-start)*scale_x;
-						int y=((*i)->get_const<volt>().t-min_v)*scale_y;
+						time_t current=(*i)->get_const<time_stamp>().t;
+						if((current-prev)>(*i)->get_const<uptime>().t) os<<x<<" "<<y<<"M";
+						/*int*/ x=((*i)->get_const<time_stamp>().t-start)*scale_x;
+						/*int*/ y=((*i)->get_const<volt>().t-min_v)*scale_y;
 						os<<x<<" "<<y<<" ";
+						if((current-prev)>(*i)->get_const<uptime>().t) os<<"L";
+						prev=current;
 					}
 				}	
 				os<<"'/>"<<endl;
@@ -337,10 +342,15 @@ public:
 				int y=((*i)->get_const<data>().t-min_d)*scale_d;
 				os<<"<path class='trace_data' d='M"<<x<<" "<<y<<"L";
 				++i;
+				time_t prev=start;
 				for(;i<get_const<array<logger>>().cend();++i){
-					int x=((*i)->get_const<time_stamp>().t-start)*scale_x;
-					int y=((*i)->get_const<data>().t-min_d)*scale_d;
+					time_t current=(*i)->get_const<time_stamp>().t;
+					if((current-prev)>(*i)->get_const<uptime>().t) os<<x<<" "<<y<<"M";
+					/*int*/ x=((*i)->get_const<time_stamp>().t-start)*scale_x;
+					/*int*/ y=((*i)->get_const<data>().t-min_d)*scale_d;
 					os<<x<<" "<<y<<" ";
+					if((current-prev)>(*i)->get_const<uptime>().t) os<<"L";
+					prev=current;
 				}	
 				os<<"'/>"<<endl;
 			}
