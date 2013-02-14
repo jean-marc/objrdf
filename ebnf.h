@@ -1,255 +1,253 @@
-#ifndef EBNF_TEMPLATE_H
-#define EBNF_TEMPLATE_H
-#include <typeinfo>
-#include "result.h"
+#ifndef EBNF_H
+#define EBNF_H
 /*
- *	is there anyway we could ignore the result of parsing?
  *
  */
-/*
- *	we should flag parsers that parse anything eg true_p
- *	could we translate parser to EBNF?
- *	could it handle recursive definition?
- *	S*
- *	struct test:or_p<seq_p<S,test>,true_p>{};
- *	test = S, (test|true);
- *	test = S, {test};
- *
- *
- */
-#include "char_iterator.h"
-
-template<typename T> struct ebnf{};
-
-struct nil;
+#include <string>
+#include <iostream>
+#include <vector>
+using namespace std;
+template<typename T> struct result{
+	int id;
+	T s;
+	typedef vector<result> V;
+	V v;	
+	friend ostream& operator<<(ostream& os,const result& r){
+		os<<"("<<hex<<r.id<<dec<<"\t`"<<string(r.s.begin,r.s.end)<<"'"<<endl;
+		for(auto i=r.v.cbegin();i<r.v.cend();++i) os<<*i;
+		return os<<")"<<endl;
+	}
+	result():id(0),s(T()){}
+};
 struct true_p{
 	typedef true_p SELF;
-	static bool go(char_iterator& c){return true;}
+	template<typename T,typename ITERATOR> static bool go(T& t,ITERATOR&){return true;}
 };
-struct false_p{
-	typedef false_p SELF;
-	static bool go(char_iterator& c){return false;}
-};
-struct any_p{
-	typedef any_p SELF;
-	template<typename T> static bool go(T& c){c.increment();return true;}
-};
-// A=0x41 1000001
-// a=0x61 1100001
-template<char C,char c=(C|0x20)> struct is_letter{enum{N=('a'<=c)&&(c<='z')};};
-template<char C,typename T,int N=T::CASE_INSENSITIVE&&is_letter<C>::N> struct helper{
-	static bool go(T& c){
-		c.increment();
-		return *c==C;
-	}
-};
-template<char C,typename T> struct helper<C,T,1>{
-	static bool go(T& c){
-		c.increment();
-		return (*c|0x20)==(C|0x20);
-	}
-};
-
 template<char C> struct char_p{
 	typedef char_p SELF;
-	template<typename T> static bool go(T& c){
-		return helper<C,T>::go(c);
+	template<typename T,typename ITERATOR> static bool go(T& t,ITERATOR&){
+		//we could also use a character that is never valid EOF it would save one comparison
+		if(t.begin==t.end) return false;
+		if(C==*t.begin){
+			++t.begin;
+			return true;
+		}
+		return false;
 	}
-	/*
-	template<typename T,int N=T::CASE_INSENSITIVE&&is_letter<C>::N> static bool go(T& c){//so we can augment the type for callbacks
-		c.increment();
-		return *c==C;
-	}
-	template<typename T> static bool go<T,1>(T& c){
-		c.increment();
-		return (*c|0x20)==(C|0x20);
-	}
-	*/
 };
-
 template<char A,char Z> struct range_p{
 	typedef range_p SELF;
-	template<typename T> static bool go(T& c){
-		++c;
-		bool r=(A<=*c)&&(*c<=Z);
-		return r;
+	template<typename T,typename ITERATOR> static bool go(T& t,ITERATOR&){
+		if(t.begin==t.end) return false;
+		if((A<=*t.begin)&&(*t.begin<=Z)){
+			++t.begin;
+			return true;
+		}
+		return false;
 	}
 };
-template<typename S,typename T>	struct seq_p{
+template<typename A,typename B> struct seq_p{
 	typedef seq_p SELF;
-	template<typename U> static bool go(U& c){
-		return S::go(c)&&T::go(c);
-	}
+	template<typename T,typename ITERATOR> static bool go(T& t,ITERATOR& r){return A::go(t,r)&&B::go(t,r);}
 };
-
-
-//template<typename S,typename T,typename U=nil,typename V=nil,typename W=nil> struct seq:seq_p<S,seq<T,U,V,W> >{};
-template<typename A,typename B,typename C=nil,typename D=nil,typename E=nil,typename F=nil,typename G=nil,typename H=nil> struct seq:seq_p<A,seq<B,C,D,E,F,G,H> >{};
-template<typename A,typename B> struct seq<A,B>:seq_p<A,B>{};
-
-template<char A,char B,char C=0,char D=0,char E=0,char F=0,char G=0,char H=0> struct seq_c:seq_p<char_p<A>,seq_c<B,C,D,E,F,G,H> >{};
-template<char A,char B> struct seq_c<A,B>:seq_p<char_p<A>,char_p<B> >{};
-
-
-template<typename S,typename T> struct or_p{
+template<typename A,typename B> struct or_p{
 	typedef or_p SELF;
-	template<typename U> static bool go(U& c){
-		int tmp=c.char_iterator::index;
-		//std::cout<<"or_p "<<c.index<<" " <<*c<<std::endl;
-		if(S::go(c)) return true;
-		c.char_iterator::index=tmp;
-		//std::cout<<"\tor_p "<<c.index<<" " <<*c<<std::endl;
-		if(T::go(c)) return true;
-		c.char_iterator::index=tmp;
-		//std::cout<<"\t\tor_p "<<c.index<<" " <<*c<<std::endl;
+	template<typename T,typename ITERATOR> static bool go(T& t,ITERATOR& r){
+		T tmp=t;
+		if(A::go(t,r)) return true;
+		t=tmp;
+		if(B::go(t,r)) return true;
+		t=tmp;
 		return false;
 	}
 };
-//could specialize or_p<char_p,char_p>
-template<typename A,typename B,typename C=nil,typename D=nil,typename E=nil,typename F=nil,typename G=nil,typename H=nil> struct choice:or_p<A,choice<B,C,D,E,F,G,H> >{};
-template<typename S,typename T> struct choice<S,T>:or_p<S,T>{};
 
-template<typename S> struct not_p{
+
+template<typename... A> struct seq;
+template<typename Head,typename... Tail> struct seq<Head,Tail...>:seq_p<Head,seq<Tail...>>{};
+template<typename Head> struct seq<Head>:Head{};
+template<char... C> struct seq_c:seq<char_p<C>...>{};
+
+template<typename... A> struct choice;
+template<typename Head,typename... Tail> struct choice<Head,Tail...>:or_p<Head,choice<Tail...>>{};
+template<typename Head> struct choice<Head>:Head{};
+template<char... C> struct choice_c:choice<char_p<C>...>{};
+
+typedef choice_c<' ','\t','\n','\r'> white_space;
+//typedef white_space ws;
+
+template<typename A,typename _SELF_=typename A::SELF> struct not_p{
 	typedef not_p SELF;
-	template<typename T> static bool go(T& c){
-		return !S::go(c);
+	template<typename T,typename ITERATOR> static bool go(T& t,ITERATOR& r){
+		//return !A::go(t,r);
+		if(!A::go(t,r)){
+			++t.begin;//maybe 
+			return true;
+		}	
+		return false;
 	}
 };
-//there is a problem with not_p<or_p<...> > because it will not read in anything
-//it does not work with choice!
-template<typename S,typename T> struct not_p<or_p<S,T> >{
-	typedef not_p<or_p<S,T> > SELF;
-	template<typename U> static bool go(U& c){
-		if(!or_p<S,T>::go(c)){
-			++c;//assume we read one char at a time
+/*
+//need to be specialized
+template<typename A,typename B,typename C> struct not_p<A,or_p<B,C>>{
+	typedef not_p<or_p<A,or_p<B,C>>> SELF;
+	template<typename T,typename ITERATOR> static bool go(T& t,ITERATOR& r){
+		
+		return false;	
+	}
+
+};
+*/
+template<typename S> struct kleene_p:or_p<seq_p<S,kleene_p<S>>,true_p>{}; /* a* b=(ab)|true */
+template<typename S> struct plus_p:seq_p<S,or_p<plus_p<S>,true_p>>{}; /* a+ b=a(b|true) */
+
+template<typename... A> struct seq_t;
+template<typename Head,typename... Tail> struct seq_t<Head,Tail...>:seq<Head,plus_p<white_space>,seq_t<Tail...>>{};
+template<typename Head> struct seq_t<Head>:Head{};
+
+template<typename A,typename SEPARATOR=plus_p<white_space>> struct plus_pt:seq_p<A,or_p<seq_p<SEPARATOR,plus_pt<A,SEPARATOR>>,true_p>>{};
+template<typename S,typename SEPARATOR=plus_p<white_space>> struct kleene_pt:or_p<plus_pt<S,SEPARATOR>,true_p>{}; /* a* b=(ab)|true */
+
+template<typename A,typename B> struct equality{enum{N=0};};
+template<typename A> struct equality<A,A>{enum{N=1};};
+
+template<typename A,typename B> struct store{};
+template<typename A,typename B> struct in_store{enum{N=0};};
+template<typename A> struct in_store<A,A>{enum{N=1};};
+template<typename A,typename B> struct in_store<A,store<A,B>>{enum{N=1};};
+template<typename A,typename B,typename C> struct in_store<A,store<B,C>>:in_store<A,C>{};
+
+struct NIL;
+template<
+	typename S,
+	typename SELF=typename S::SELF,
+	typename STORE=NIL,
+	int STOP=in_store<S,STORE>::N
+> struct find_event{
+	enum{N=0};
+	enum{UID=0x1111111};
+};
+template<typename S> struct event{
+	typedef event SELF;
+	template<typename T,typename ITERATOR> static bool go(T& t,ITERATOR& r){
+		auto begin=t.begin;
+		result<T> tmp;
+		back_insert_iterator<typename result<T>::V> i(tmp.v);
+		if(S::go(t,i)){
+			cerr<<"\t("<<hex<<find_event<event>::UID<<dec<<" `"<<string(begin,t.begin)<<"')"<<endl;
+			tmp.id=find_event<event>::UID;
+			tmp.s=T(begin,t.begin);
+			*r=tmp;
+			++r;
 			return true;
 		}
 		return false;
 	}
-	//enum{HASH=-S::HASH};
-};
-//recursion 
-//carefull with maximum stack depth!, g++ optimizes tail recursion
-template<typename S> struct kleene_p:or_p<seq_p<S,kleene_p<S> >,true_p>{}; /* a* b=(ab)|true */
-template<typename S> struct plus_p:seq_p<S,or_p<plus_p<S>,true_p> >{}; /* a+ b=a(b|true) */
-
-//common parsers
-typedef or_p<char_p<' '>,or_p<char_p<'\t'>,or_p<char_p<'\r'>,char_p<'\n'> > > > white_space;
-
-//consume whitespace
-template<typename S,typename T>	struct seq_pw:seq_p<S,seq_p<kleene_p<white_space>,T> >{};
-template<typename A,typename B,typename C=nil,typename D=nil,typename E=nil,typename F=nil,typename G=nil,typename H=nil> struct seqw:seq_pw<A,seqw<B,C,D,E,F,G,H> >{};
-template<typename A,typename B> struct seqw<A,B>:seq_pw<A,B>{};
-template<typename S> struct kleene_pw:or_p<seq_pw<S,kleene_pw<S> >,true_p>{}; /* a* b=(ab)|true */
-template<typename S> struct plus_pw:seq_pw<S,or_p<plus_pw<S>,true_p> >{}; /* a+ b=a(b|true) */
-
-
-template<typename S,typename T=nil> struct event{
-	//maybe we could pass index to main buffer instead of copying onto string, even better we could have istream available
-	//enum{HASH=S::HASH};
-	template<typename U> static bool go(U& c){
-		int begin=(c.char_iterator::index+1)&char_iterator::MASK;
-		if(S::go(c)){
-			int end=(c.char_iterator::index+1)&char_iterator::MASK;
-			std::string s;
-			//could be optimized
-			if(begin<=end)
-				s=std::string(c.buffer+begin,c.buffer+end);
-			else
-				s=std::string(c.buffer+begin,c.buffer+char_iterator::N)+std::string(c.buffer,c.buffer+end);
-			//should return a bool to exit early
-			c.callback(event(),s);
-			return true;
-		}
-		return false;
+	template<typename T> static result<T> go(T& t){
+		result<T> rs;
+		back_insert_iterator<typename result<T>::V> i(rs.v);
+		go(t,i);
+		return rs;
 	}
 };
-#ifdef TTTTTTT
-template<typename S,typename T=nil> struct event_1:S{
-	static char_iterator::ID id;
+
+template<
+	typename S,
+	typename SELF,
+	typename STORE
+> struct find_event<S,SELF,STORE,1>{
+	enum{N=0};
+	enum{UID=0x33333333};
 };
-#else
-struct _help_{
-	int& depth;
-	_help_(int& depth):depth(depth){++depth;}
-	~_help_(){--depth;}
+
+template<
+	typename S,
+	char A,
+	typename STORE
+> struct find_event<S,char_p<A>,STORE,0>{
+	enum{N=0};
+	enum{UID=A};
 };
-ostream& operator<<(ostream& os,char_iterator::R& vv);
-//ostream& operator<<(ostream& os,ch
-typedef std::pair<char_iterator::ID,string> PARSE_RES;
-typedef _result_<PARSE_RES> PARSE_RES_TREE;
-ostream& operator<<(ostream& os,PARSE_RES& r);
-ostream& operator<<(ostream& os,const PARSE_RES& r);
-void print(ostream& os,const PARSE_RES_TREE& p,int depth);
-//ostream& operator<<(ostream& os,PARSE_RES_TREE& p);
-ostream& operator<<(ostream& os,const PARSE_RES_TREE& p);
-template<typename S,int ID> struct event_1{
-	typedef S SELF;
-	//maybe we could pass index to main buffer instead of copying onto string, even better we could have istream available
-	/*
- 	* switch id{
- 	*	case token_0::id:
- 	*	case token_1::id:
- 	*	...
- 	* }
- 	* unique id for each event, would be nice to hash the class (sizeof, typeof,...) so we could use enum
- 	* problem: recursion breaks it
- 	* sizeof could work if we add members char[N] but same problem with recursion
- 	* we could also have a template attribute, but a bit awkward because we need to keep track of all events
- 	*/
-	enum{id=ID};
-	template<typename U> static bool go(U& c){
-		const bool is_top=c.char_iterator::depth==0;
-		_help_ h(c.char_iterator::depth);
-		int begin=(c.char_iterator::index+1)&char_iterator::MASK;
-		//we could augment type at this stage and steal all callbacks, but it means copying char_iterator: difficult
-		int n=c.char_iterator::v.size();
-		if(S::go(c)){
-			int end=(c.char_iterator::index+1)&char_iterator::MASK;
-			std::string s;
-			//could be optimized
-			if(begin<=end)
-				s=std::string(c.buffer+begin,c.buffer+end);
-			else
-				s=std::string(c.buffer+begin,c.buffer+char_iterator::N)+std::string(c.buffer,c.buffer+end);
-			c.char_iterator::v.push_back(char_iterator::R(id,s,c.char_iterator::depth));
-			if(is_top){
-				//still a bit annoying: comes in sequentially 
-				/*
-				for(auto i=c.char_iterator::v.begin();i<c.char_iterator::v.end();++i){
-					c.callback(i->first,i->second);
-				}
-				*/
-				//create tree from vector
-				PARSE_RES_TREE t;
-				for(auto i=c.char_iterator::v.rbegin();i<c.char_iterator::v.rend();++i) 
-					t.add(PARSE_RES(get<0>(*i),get<1>(*i)),get<2>(*i)-1);
-				c.char_iterator::v.clear();
-				//send tree
-				return c.callback(t.v[0]);
-				//send the whole vector
-				//bool r=c.callback(c.char_iterator::v);
-			}
-			return true;
-		}else{
-			c.char_iterator::v.resize(n);
-			if(is_top){
-				c.char_iterator::v.clear();
-			}
-			return false;
-		}
+template<
+	typename S,
+	typename A,
+	typename B,
+	typename GUARD
+> struct find_event<S,seq_p<A,B>,GUARD,0>{
+	enum{N=find_event<A,typename A::SELF,store<S,GUARD>>::N+find_event<B,typename B::SELF,store<S,GUARD>>::N};
+	enum{UID=find_event<A,typename A::SELF,store<S,GUARD>>::UID^find_event<B,typename B::SELF,store<S,GUARD>>::UID<<2};
+};
+template<
+	typename S,
+	typename A,
+	typename B,
+	typename GUARD
+> struct find_event<S,or_p<A,B>,GUARD,0>{
+	enum{N=find_event<A,typename A::SELF,store<S,GUARD>>::N+find_event<B,typename B::SELF,store<S,GUARD>>::N};
+	enum{UID=find_event<A,typename A::SELF,store<S,GUARD>>::UID^find_event<B,typename B::SELF,store<S,GUARD>>::UID<<3};
+};
+template<
+	typename S,
+	typename A,
+	typename GUARD
+> struct find_event<S,event<A>,GUARD,0>{
+	enum{N=1|find_event<A,typename A::SELF,store<S,GUARD>>::N<<4};
+	enum{UID=find_event<A,typename A::SELF,store<S,GUARD>>::UID<<1};
+};
+
+template<typename ITERATOR> struct range{
+	ITERATOR begin;
+	ITERATOR end;
+	range(ITERATOR begin,ITERATOR end):begin(begin),end(end){}
+	range():begin(0),end(0){}
+};
+template<typename T> range<T> get_range(T begin,T end){return range<T>(begin,end);}
+
+struct c_iterator{
+	struct buffer{
+		enum{N=17};
+		enum{MASK=N-2};
+		int n;//reference counting
+		char buffer[N];
+		char get(int i)const{return buffer[i&MASK];}
+		void set(int i,char c){buffer[i&MASK]=c;}
+	};
+	istream& is;
+	buffer* b;
+	int n_read,index;
+	c_iterator(istream& is):is(is){
+		b=new buffer();
+		b->n=1;
 	}
-};
-//template<typename S> char_iterator::ID event_1<S>::id=new int;
-#endif
-template<typename S,typename T,void (T::*fun)()> struct ttttest{
-	/*
- 	*	could work but notation heavy because of pointer to member function  
- 	*/
-	template<typename U> static bool go(U& c){
-		(c.*fun)();
-		//c.callback(id,s);
-		return true;
+	c_iterator(const c_iterator& c):is(c.is){
+		b=c.b;
+		++b->n;
+	}
+	void operator=(const c_iterator& c){
+		if(b!=c.b){
+			--b->n;
+			if(b->n==0) delete b;
+			b=c.b;
+		}
+		++b->n;
+	}
+	~c_iterator(){
+		--b->n;
+		if(b->n==0) delete b;
+	}
+	c_iterator& operator++(){
+		++index;
+		if(index>n_read){
+			b->set(index,is.get());		
+			++n_read;
+		}
+		return *this;
+	}
+	bool operator==(const c_iterator& c) const{
+		return index==c.index;
+	}
+	char operator*(){
+		return b->get(index);
 	}
 };
 #endif
