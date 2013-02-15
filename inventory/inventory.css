@@ -44,6 +44,12 @@ svg{
 	stroke:none;
 	fill:black;
 }
+.left_labels{
+	text-anchor:end;
+}
+.right_labels{
+	text-anchor:start;
+}
 .frame{
 	stroke-width:0.5;
 }

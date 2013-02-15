@@ -70,7 +70,7 @@ public:
 		get<time_stamp>().t=time(0);	
 	}
 	void out_p(time_stamp_v,ostream& os) const{
-		os<<ctime(&get_const<time_stamp>().t);
+		os<<ctime(&cget<time_stamp>().t);
 	}
 
 };
@@ -168,10 +168,10 @@ public:
 		get<time_stamp>().t=time(0);	
 	}
 	void out_p(time_stamp_v,ostream& os) const{
-		os<<ctime(&get_const<time_stamp>().t);
+		os<<ctime(&cget<time_stamp>().t);
 	}
 	void out_p(uptime_v,ostream& os) const{
-		time_t t=get_const<uptime>().t;
+		time_t t=cget<uptime>().t;
 		int m=(t/60)%60;	
 		int h=(t/3600)%24;	
 		int d=t/(3600*24);	
@@ -217,18 +217,18 @@ public:
 	typedef std::tuple<plot/*,svg_plot*/> PSEUDO_PROPERTIES;
 	//typedef on TRIGGER;
 	//typedef located TRIGGER;
-	typedef array<logger> TRIGGER;
+	typedef loggers TRIGGER;
 	//typedef located VERSION;
 	Set(uri id):SELF(id),start(time(0)){cerr<<"new Set()"<<endl;}
-	static bool comp(const logger& a,time_t b){return a->get_const<time_stamp>().t<b;}
-	static bool comp_data(const logger& a,const logger& b){return a->get_const<data>().t<b->get_const<data>().t;}
+	static bool comp(const logger& a,time_t b){return a->cget<time_stamp>().t<b;}
+	static bool comp_data(const logger& a,const logger& b){return a->cget<data>().t<b->cget<data>().t;}
 	void out_p(plot,ostream& os) const{
 	/*
  	*	display of uptime, power, bandwidth,....
  	*	get the time at midnight or display the last 24 hours, or the last 24 hours recorded
  	*	it might make sense to cache it, but the function is declared const
  	*/ 
-		if(get_const<array<logger>>().size()==0) return;
+		if(cget<loggers>().size()==0) return;
 		int width=200,label_width=20,height=100;//labels on both side
 		//should be made a parameter
 		time_t duration=10*24*3600;//1 day
@@ -237,32 +237,32 @@ public:
 		//we could query db or guess from voltage
 		float min_v=0,max_v=0,dscn_v=0;
 		//problem: if measured failed (-1) it assumes it is 12V system so we look for good measurement in first 10
-		auto k=get_const<loggers>().cbegin();
-		while(k!=get_const<loggers>().cbegin()+min<int>(10,get_const<loggers>().size())&&(*k)->get_const<volt>().t==-1) ++k;
-		//if(get_const<array<logger>>().back()->get_const<volt>().t>20){
-		if((*k)->get_const<volt>().t>20){
-			min_v=20;
-			max_v=30;
+		auto k=cget<loggers>().cbegin();
+		while(k!=cget<loggers>().cbegin()+min<int>(10,cget<loggers>().size())&&(*k)->cget<volt>().t==-1) ++k;
+		//if(cget<loggers>().back()->cget<volt>().t>20){
+		if((*k)->cget<volt>().t>20){
+			min_v=24;
+			max_v=29;
 			dscn_v=24.5;
 		}else{
 			min_v=10;
-			max_v=20;
+			max_v=15;
 			dscn_v=12.25;
 		}
 		float range_v=max_v-min_v;
 		float scale_y=static_cast<float>(height)/range_v;
 		//careful : could be empty!
-		//time_t stop=get_const<array<logger>>().back()->get_const<time_stamp>().t;	
+		//time_t stop=cget<loggers>().back()->cget<time_stamp>().t;	
 		time_t stop=time(0);//now
 		time_t start=stop-duration; 
 		//find the index in get<array>
-		auto j=lower_bound(get_const<loggers>().cbegin(),get_const<loggers>().cend(),start,Set::comp);
+		auto j=lower_bound(cget<loggers>().cbegin(),cget<loggers>().cend(),start,Set::comp);
 		os<<"<svg width='"<<label_width+width+label_width<<"' height='"<<height<<"' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'>";
 		//data
 		//find maximum data in this range
-		auto max_data=max_element(j,get_const<loggers>().cend(),Set::comp_data);
+		auto max_data=max_element(j,cget<loggers>().cend(),Set::comp_data);
 		//next range multiple of 10: 1K, 10K, 100K, 1G,...
-		auto max_data_10=pow(10,ceil(log10((*max_data)->get_const<data>().t)));
+		auto max_data_10=pow(10,ceil(log10((*max_data)->cget<data>().t)));
 		data::RANGE min_d=0,max_d=max_data_10;
 		data::RANGE range_d=max_d-min_d;
 		float scale_d=static_cast<float>(height)/range_d;
@@ -277,7 +277,7 @@ public:
 		time_t mn=mktime(timeinfo);
 		{
 			//labels, needs to be cleaned up!!!
-			os<<"<g class='left_labels' transform='translate(0,0)'>";
+			os<<"<g class='left_labels' transform='translate("<<label_width<<",0)'>";
 			float v=min_v+9*range_v/10;
 			for(int i=height/10;i<height;i+=height/10,v-=range_v/10)
 				os<<"<text class='label' y='"<<i<<"'>"<<v<<"V</text>"<<endl;
@@ -309,27 +309,39 @@ public:
 				os<<"<text transform='scale(1,-1) translate(0,"<<i<<")' class='label'>"<<i<<"</text>"<<endl;
 			os<<"</g>";
 			*/
+			//is the machine on? how many clients connected?, let's draw rectangles
+			//backwards
+			auto first=*j;
+			for(auto i=j;i<cget<loggers>().cend()-1;++i){
+				auto current=*i,next=*(i+1);
+				if((next->cget<time_stamp>().t-first->cget<time_stamp>().t)>next->cget<uptime>().t || next->cget<n_client>().t!=first->cget<n_client>().t || i==cget<loggers>().cend()-2){
+					float x=(current->cget<time_stamp>().t-start)*scale_x;
+					float w=(current->cget<time_stamp>().t-first->cget<time_stamp>().t)*scale_x;
+					int h=0.1*height*(1+current->cget<n_client>().t);
+					os<<"<rect class='uptime' x='"<<x-w<<"' y='0' width='"<<w<<"' height='"<<h<<"'/>"<<endl;		
+					first=next;
+				}
+			}	
 			/*
  			*	improvement: avoid long interpolation during down-time 
  			*
  			*/ 
-			//disconnect voltage
-			os<<"<path class='dscn' d='M0 "<<((dscn_v-min_v)*scale_y)<<"h"<<width<<"'/>"<<endl;
+			os<<"<path class='dscn' d='M0 "<<((dscn_v-min_v)*scale_y)<<"h"<<width<<"'/>"<<endl; //disconnect voltage
 			{
 				auto i=j;
-				int x=((*i)->get_const<time_stamp>().t-start)*scale_x;
-				int y=((*i)->get_const<volt>().t-min_v)*scale_y;
+				int x=((*i)->cget<time_stamp>().t-start)*scale_x;
+				int y=((*i)->cget<volt>().t-min_v)*scale_y;
 				os<<"<path class='trace' d='M"<<x<<" "<<y<<"L";
 				++i;
 				time_t prev=start;
-				for(;i<get_const<array<logger>>().cend();++i){
-					if((*i)->get_const<volt>().t!=-1){
-						time_t current=(*i)->get_const<time_stamp>().t;
-						if((current-prev)>(*i)->get_const<uptime>().t) os<<x<<" "<<y<<"M";
-						/*int*/ x=((*i)->get_const<time_stamp>().t-start)*scale_x;
-						/*int*/ y=((*i)->get_const<volt>().t-min_v)*scale_y;
+				for(;i<cget<loggers>().cend();++i){
+					if((*i)->cget<volt>().t!=-1){
+						time_t current=(*i)->cget<time_stamp>().t;
+						if((current-prev)>(*i)->cget<uptime>().t) os<<x<<" "<<y<<"M";
+						/*int*/ x=((*i)->cget<time_stamp>().t-start)*scale_x;
+						/*int*/ y=((*i)->cget<volt>().t-min_v)*scale_y;
 						os<<x<<" "<<y<<" ";
-						if((current-prev)>(*i)->get_const<uptime>().t) os<<"L";
+						if((current-prev)>(*i)->cget<uptime>().t) os<<"L";
 						prev=current;
 					}
 				}	
@@ -338,34 +350,22 @@ public:
 			//data usage plot
 			{
 				auto i=j;
-				int x=((*i)->get_const<time_stamp>().t-start)*scale_x;
-				int y=((*i)->get_const<data>().t-min_d)*scale_d;
+				int x=((*i)->cget<time_stamp>().t-start)*scale_x;
+				int y=((*i)->cget<data>().t-min_d)*scale_d;
 				os<<"<path class='trace_data' d='M"<<x<<" "<<y<<"L";
 				++i;
 				time_t prev=start;
-				for(;i<get_const<array<logger>>().cend();++i){
-					time_t current=(*i)->get_const<time_stamp>().t;
-					if((current-prev)>(*i)->get_const<uptime>().t) os<<x<<" "<<y<<"M";
-					/*int*/ x=((*i)->get_const<time_stamp>().t-start)*scale_x;
-					/*int*/ y=((*i)->get_const<data>().t-min_d)*scale_d;
+				for(;i<cget<loggers>().cend();++i){
+					time_t current=(*i)->cget<time_stamp>().t;
+					if((current-prev)>(*i)->cget<uptime>().t) os<<x<<" "<<y<<"M";
+					/*int*/ x=((*i)->cget<time_stamp>().t-start)*scale_x;
+					/*int*/ y=((*i)->cget<data>().t-min_d)*scale_d;
 					os<<x<<" "<<y<<" ";
-					if((current-prev)>(*i)->get_const<uptime>().t) os<<"L";
+					if((current-prev)>(*i)->cget<uptime>().t) os<<"L";
 					prev=current;
 				}	
 				os<<"'/>"<<endl;
 			}
-			//os<<"</g>"<<endl;
-			//is the machine on? how many clients connected?, let's draw rectangles
-			time_t prev=start;
-			for(auto i=j;i<get_const<array<logger>>().cend();++i){
-				time_t current=(*i)->get_const<time_stamp>().t;
-				float x=(current-start)*scale_x;
-				float w=min(current-prev,(*i)->get_const<uptime>().t)*scale_x;
-				int h=0.1*height*(1+(*i)->get_const<n_client>().t);
-				//room for optimization: 1 big rectangle instead of many (assuming same number of clients)
-				os<<"<rect class='uptime' x='"<<x-w<<"' y='0' width='"<<w<<"' height='"<<h<<"'/>"<<endl;		
-				prev=current;
-			}	
 		}
 		os<<"<rect class='frame' x='0' y='0' width='"<<width<<"' height='"<<height<<"'/>";
 		os<<"</g>";
@@ -383,13 +383,13 @@ public:
  		*	problem: the blank object has not been parsed yet!!!!!!!
  		*
  		*/
-		if(get_const<loggers>().size()==1){
+		if(cget<loggers>().size()==1){
 			get<used_data>().t+=p->get<data>().t;
 		}else{
-			auto previous=get_const<loggers>()[get_const<loggers>().size()-2];
+			auto previous=cget<loggers>()[cget<loggers>().size()-2];
 			cerr<<"current:"<<endl;
 			objrdf::to_rdf_xml(p,cerr);	
-			if(previous->get_const<time_stamp>().t < (p->get_const<time_stamp>().t-p->get_const<uptime>().t))
+			if(previous->cget<time_stamp>().t < (p->cget<time_stamp>().t-p->cget<uptime>().t))
 				get<used_data>().t+=p->get<data>().t;
 			else
 				get<used_data>().t+=p->get<data>().t-previous->get<data>().t;
@@ -397,8 +397,8 @@ public:
 		/*
 		cerr<<"trigger!"<<endl;
 		get<loggers>().pop_back(); //ugly
-		if(get_const<array<logger>>().size()==0){
-			get<array<logger>>().push_back(p);
+		if(cget<loggers>().size()==0){
+			get<loggers>().push_back(p);
 		}else{
 			if(((p->get<time_stamp>().t-get<loggers>().back()->get<time_stamp>().t)<p->get<uptime>().t)&&(p->get<n_client>().t==get<loggers>().back()->get<n_client>().t)&&(fabs(p->get<volt>().t-get<loggers>().back()->get<volt>().t)<0.1)){
 				cerr<<"discarding old result!"<<endl;
@@ -411,7 +411,7 @@ public:
 				//a.deallocate(get<loggers>().back(),1);
 				get<loggers>().back()=p;
 			}else
-				get<array<logger>>().push_back(p);
+				get<loggers>().push_back(p);
 		} 
 		*/
 	}
@@ -505,28 +505,6 @@ int main(int argc,char* argv[]){
 	Organization::get_class();
 	Model::get_class();	
 	Report::get_class();
-	/*
-	//how do I get access to the pool?
-	//auto i=POOL_PTR::help<Set>();
-	//pseudo_ptr<Set> p(i->allocate());
-	//p.construct(Set(uri("jm")));	
-	auto p=pseudo_ptr<Set>::construct(uri("jm"));
-	cerr<<"start test..."<<endl;
-	cerr<<sizeof(Logger)<<" bytes"<<endl;
-	for(;;){
-		//auto i=POOL_PTR::help<Logger>();
-		pseudo_ptr<Logger> l(pseudo_ptr<Logger>::get_pool()->allocate());//broken!!!!
-		//auto l=pseudo_ptr<Logger>::allocate();
-		ostringstream os;
-		l._print(os);
-		uri u(os.str());
-		u.index=1;
-		new(l) Logger(u);
-		//l.construct(u);	
-		p->get<array<logger>>().push_back(logger(l));
-	}
-	//RESOURCE_PTR p=create_by_type(Set::get_class(),uri("test"));
-	*/
 	for(int i=1;i<argc;++i){
 		ifstream in(argv[i]);
 		rdf_xml_parser r(in);
