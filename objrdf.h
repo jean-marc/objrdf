@@ -33,6 +33,7 @@ template <typename T> int sgn(T val){
 #define PERSISTENT_CLASS(n,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__,objrdf::NIL,objrdf::base_resource,pool_allocator<PLACE_HOLDER,persistent_store>> n
 #define OBJRDF_CLASS(n,...) char _##n[]=#n;typedef objrdf::resource<_rdfs_namespace,_##n,__VA_ARGS__> n
 #define DERIVED_CLASS(n,BASE,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__,objrdf::NIL,BASE> n
+#define DERIVED_PERSISTENT_CLASS(n,BASE,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__,objrdf::NIL,BASE,pool_allocator<PLACE_HOLDER,persistent_store>> n
 /*
  *	could we define lightweight classes? to reuse code?, that would all use the same pool because they are identical
  *	they only differ by their rdfs::type
@@ -180,6 +181,7 @@ namespace objrdf{
 	public:
 		enum{TYPE=PROPERTY::TYPE};
 		typedef array SELF;
+		typedef typename PROPERTY::RANGE RANGE;
 		static PROPERTY_PTR get_property();
 		~array(){cerr<<"~array()"<<this->size()<<endl;}
 	};
@@ -684,7 +686,7 @@ namespace objrdf{
 	> class property:public IMPLEMENTATION{
 	public:
 		PROVENANCE p;
-		typedef _RANGE_ RANGE;
+		typedef _RANGE_ RANGE;//not the range
 		typedef property SELF;
 		//template<typename S> property(S s):base_property<RANGE>(s){}
 		property(IMPLEMENTATION r):IMPLEMENTATION(r){
@@ -1340,6 +1342,28 @@ namespace objrdf{
 		name_p(const uri n);
 		bool operator()(const property_info& p) const;
 	};
+	/*
+	*	enforces consistency between the stores:
+	*	subject		object
+	*	persistent	persistent	ok
+	*	persistent	volatile	no!
+	*	volatile	persistent	ok (but might need garbage collection)
+	*	volatile	volatile	ok
+	*	
+	*/
+	template<typename SUBJECT_STORE,typename OBJECT_STORE> struct validate_store{enum{value=1};};
+	template<> struct validate_store<persistent_store,free_store>{enum{value=0};};
+
+	template<
+		typename SUBJECT,
+		typename PROPERTY,
+		bool IS_LITERAL=PROPERTY::TYPE&LITERAL
+	> struct help_validate_store:validate_store<typename SUBJECT::allocator::STORE,typename selector<typename PROPERTY::RANGE>::ResultT::allocator::STORE>{};
+	template<
+		typename SUBJECT,
+		typename PROPERTY
+	> struct help_validate_store<SUBJECT,PROPERTY,true>{enum{value=1};};
+
 	template<typename SUBJECT,typename PROPERTY> property_info get_property_info(){
 		property_info p(PROPERTY::get_property(),functions<SUBJECT,PROPERTY>::get_table());
 		/*
@@ -1357,6 +1381,12 @@ namespace objrdf{
 	template<typename SUBJECT> struct _meta_{
 		V v;
 		template<typename PROPERTY> void operator()(){
+			//would be nice to have message
+			static_assert(help_validate_store<SUBJECT,PROPERTY>::value,"inconsistent stores");
+			/*if(!help_validate_store<SUBJECT,PROPERTY>::value){
+				cerr<<SUBJECT::get_class()->id<<" "<<PROPERTY::get_property()->id<<endl;
+				exit(1);
+			}*/
 			v.push_back(get_property_info<SUBJECT,PROPERTY>());
 		};
 	};

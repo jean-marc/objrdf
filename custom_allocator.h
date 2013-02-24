@@ -17,9 +17,10 @@
  */
 template<
 	typename VALUE_TYPE,
-	typename STORE,
+	typename _STORE_,
 	typename INDEX=uint16_t
 > struct pool_allocator{
+	typedef _STORE_ STORE;
 	typedef pseudo_ptr<VALUE_TYPE,STORE,false,INDEX> pointer;
 	typedef pseudo_ptr<const VALUE_TYPE,STORE,false,INDEX> const_pointer;
 	typedef VALUE_TYPE value_type;
