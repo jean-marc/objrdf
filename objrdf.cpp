@@ -58,7 +58,7 @@ rdfs::Class::Class(objrdf::uri id,rdfs::subClassOf s,objrdf::base_resource::clas
 	for(auto i=a.cbegin();i<a.cend();++i){
 		//cout<<(*i).index<<endl;
 		//crashes, does id become stale?, yes: the namespace handle!!!
-		cout<<"Test_Class:`"<<(*i)->id.local<<"'"<<endl;
+		cerr<<"Test_Class:`"<<(*i)->id.local<<"'"<<endl;
 		//we could use a hash to identify class
 	}
 	*/

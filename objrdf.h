@@ -30,8 +30,10 @@ template <typename T> int sgn(T val){
 //property that exists in the objrdf namespace
 #define OBJRDF_PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
 #define CLASS(n,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__> n
+#define PERSISTENT_CLASS(n,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__,objrdf::NIL,objrdf::base_resource,pool_allocator<PLACE_HOLDER,persistent_store>> n
 #define OBJRDF_CLASS(n,...) char _##n[]=#n;typedef objrdf::resource<_rdfs_namespace,_##n,__VA_ARGS__> n
 #define DERIVED_CLASS(n,BASE,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__,objrdf::NIL,BASE> n
+#define DERIVED_PERSISTENT_CLASS(n,BASE,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__,objrdf::NIL,BASE,pool_allocator<PLACE_HOLDER,persistent_store>> n
 /*
  *	could we define lightweight classes? to reuse code?, that would all use the same pool because they are identical
  *	they only differ by their rdfs::type
@@ -192,6 +194,7 @@ namespace objrdf{
 		enum{TYPE=PROPERTY::TYPE};
 		typedef array SELF;
 		static CONST_PROPERTY_PTR get_property();
+		typedef typename PROPERTY::RANGE RANGE;
 		~array(){cerr<<"~array()"<<this->size()<<endl;}
 	};
 	struct match_property{
@@ -466,31 +469,34 @@ namespace objrdf{
 		size_t INDEX
 	> struct helper<SUBJECT,PROPERTY,INDEX,false>:helper<typename SUBJECT::SUPERCLASS,PROPERTY>{};
 
+	struct PLACE_HOLDER;
+	template<
+		typename REAL_VALUE_TYPE,
+		typename ALLOCATOR
+	> struct replace;
+	template<
+		typename REAL_VALUE_TYPE,
+		typename VALUE_TYPE,
+		typename STORE,
+		typename INDEX
+	> struct replace<REAL_VALUE_TYPE,pool_allocator<VALUE_TYPE,STORE,INDEX>>{
+		typedef pool_allocator<REAL_VALUE_TYPE,STORE,INDEX> ResultT;
+	};
+	
 	template<
 		typename NAMESPACE,
 		const char* NAME,//maybe we can improve that in g++ > 4.5
 		typename _PROPERTIES_=std::tuple<>, //MUST BE A std::tuple !!
 		typename SUBCLASS=NIL,//default should be resource
-		typename _SUPERCLASS_=base_resource
-		/*
- 		*	could add information about the expected number of instances when using persistent store
- 		*/ 
-		/*
- 		*	information about allocator	
- 		*/
+		typename _SUPERCLASS_=base_resource,
+		typename ALLOCATOR=typename _SUPERCLASS_::allocator
 	>
 	struct resource:_SUPERCLASS_{
 		typedef _PROPERTIES_ PROPERTIES;
 		typedef _SUPERCLASS_ SUPERCLASS;
 		typedef resource SELF;
-		//problem: overides _SUPERCLASS_::allocator
-		//typedef persistent_store _STORE_;
-		//clever way: compare types
-		//typedef typename IfThenElse<equality<_STORE_,typename _SUPERCLASS_::STORE>::VALUE,resource,SUBCLASS>::ResultT TMP;
-	
-		typedef persistent_store STORE;
 		typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,resource,SUBCLASS>::ResultT TMP;
-		typedef pool_allocator<TMP,/*typename TMP::*/STORE> allocator;
+		typedef typename replace<TMP,ALLOCATOR>::ResultT allocator;
 		/*
  		*	not optimal when no properties (std::tuple<>)
  		*/ 
@@ -558,8 +564,9 @@ namespace objrdf{
 		const char* NAME,
 		typename PROPERTIES,
 		typename SUBCLASS,
-		typename SUPERCLASS	
-	> V resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS>::v=get_generic_property<resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS> >::go();
+		typename SUPERCLASS,
+		typename ALLOCATOR
+	> V resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,ALLOCATOR>::v=get_generic_property<resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,ALLOCATOR>>::go();
 
 	enum{LITERAL=0x1};
 	enum{STRING=0x2};
@@ -699,7 +706,7 @@ namespace objrdf{
 	> class property:public IMPLEMENTATION{
 	public:
 		PROVENANCE p;
-		typedef _RANGE_ RANGE;
+		typedef _RANGE_ RANGE;//not the range
 		typedef property SELF;
 		//template<typename S> property(S s):base_property<RANGE>(s){}
 		property(IMPLEMENTATION r):IMPLEMENTATION(r){
@@ -961,8 +968,9 @@ namespace objrdf{
 		typename PROPERTIES,
 		typename SUBCLASS,
 		typename SUPERCLASS,	
+		typename ALLOCATOR,
 		typename T
-	> struct is_derived<objrdf::resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS>,T>:is_derived<typename SUPERCLASS::SELF,T>{};
+	> struct is_derived<objrdf::resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,ALLOCATOR>,T>:is_derived<typename SUPERCLASS::SELF,T>{};
 
 namespace rdf{
 	PROPERTY(type,objrdf::CONST_CLASS_PTR);
@@ -1251,9 +1259,10 @@ namespace objrdf{
 		const char* NAME,
 		typename PROPERTIES,
 		typename SUBCLASS,
-		typename SUPERCLASS
+		typename SUPERCLASS,
+		typename ALLOCATOR
 	>
-	CONST_CLASS_PTR resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS>::get_class(){
+	CONST_CLASS_PTR resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,ALLOCATOR>::get_class(){
 		typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,resource,SUBCLASS>::ResultT TMP;
 		//we can chain a function to add superClassOf
 		/*
@@ -1375,6 +1384,28 @@ namespace objrdf{
 		name_p(const uri n);
 		bool operator()(const property_info& p) const;
 	};
+	/*
+	*	enforces consistency between the stores:
+	*	subject		object
+	*	persistent	persistent	ok
+	*	persistent	volatile	no!
+	*	volatile	persistent	ok (but might need garbage collection)
+	*	volatile	volatile	ok
+	*	
+	*/
+	template<typename SUBJECT_STORE,typename OBJECT_STORE> struct validate_store{enum{value=1};};
+	template<> struct validate_store<persistent_store,free_store>{enum{value=0};};
+
+	template<
+		typename SUBJECT,
+		typename PROPERTY,
+		bool IS_LITERAL=PROPERTY::TYPE&LITERAL
+	> struct help_validate_store:validate_store<typename SUBJECT::allocator::STORE,typename selector<typename PROPERTY::RANGE>::ResultT::allocator::STORE>{};
+	template<
+		typename SUBJECT,
+		typename PROPERTY
+	> struct help_validate_store<SUBJECT,PROPERTY,true>{enum{value=1};};
+
 	template<typename SUBJECT,typename PROPERTY> property_info get_property_info(){
 		/*
  		* good place to check sanity of stores:
@@ -1400,6 +1431,12 @@ namespace objrdf{
 	template<typename SUBJECT> struct _meta_{
 		V v;
 		template<typename PROPERTY> void operator()(){
+			//would be nice to have message
+			static_assert(help_validate_store<SUBJECT,PROPERTY>::value,"inconsistent stores");
+			/*if(!help_validate_store<SUBJECT,PROPERTY>::value){
+				cerr<<SUBJECT::get_class()->id<<" "<<PROPERTY::get_property()->id<<endl;
+				exit(1);
+			}*/
 			v.push_back(get_property_info<SUBJECT,PROPERTY>());
 		};
 	};
@@ -1415,9 +1452,10 @@ namespace objrdf{
 		const char* NAME,
 		typename PROPERTIES,
 		typename SUBCLASS,
-		typename SUPERCLASS 
-	> struct get_generic_property<resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS>>{
-		typedef resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS> RESOURCE;
+		typename SUPERCLASS,
+		typename ALLOCATOR 
+	> struct get_generic_property<resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,ALLOCATOR>>{
+		typedef resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,ALLOCATOR> RESOURCE;
 		typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,RESOURCE,SUBCLASS>::ResultT TMP;
 		static V go(){
 			LOG<<"get_generic_property:`"<<NAME<<"'"<<endl;
@@ -1480,8 +1518,9 @@ template<
 	const char* NAME,
 	typename PROPERTIES,
 	typename SUBCLASS,
-	typename SUPERCLASS 
-> struct name<objrdf::resource<objrdf::tpair<NAMESPACE,PREFIX>,NAME,PROPERTIES,SUBCLASS,SUPERCLASS>>{ 
+	typename SUPERCLASS,
+	typename ALLOCATOR 
+> struct name<objrdf::resource<objrdf::tpair<NAMESPACE,PREFIX>,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,ALLOCATOR>>{ 
 	static const string get(){return /*"resource/"+*/string(PREFIX)+"_"+NAME;}
 	enum{IS_RESOURCE=true};
 }; 
