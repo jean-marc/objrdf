@@ -1,4 +1,4 @@
-CC = g++ -std=c++0x -O3 
+CC = g++ -std=c++0x -I . -O3 
 #CFLAGS = -Wall -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB
 CFLAGS = -w -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB -DPERSISTENT #-DTEST_STRING
 #CFLAGS = -w -Wno-invalid-offsetof -DOBJRDF_VERB -DPERSISTENT
@@ -15,6 +15,8 @@ OBJS = $(OBJ1) $(OBJ2) $(OBJ3)
 #clean:
 #	rm $(OBJS)
 test%:test%.cpp $(OBJ1) $(OBJ8) objrdf.h
+	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) -o $@ 
+examples/%:examples/%.cpp $(OBJ1) $(OBJ8) objrdf.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) -o $@ 
 #example.%:example.%.cpp libobjrdf.so
 	#$(CC) $(CFLAGS) $< libobjrdf.so -o $@ 
