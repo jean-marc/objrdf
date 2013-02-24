@@ -263,6 +263,8 @@ public:
 		auto max_data=max_element(j,cget<loggers>().cend(),Set::comp_data);
 		//next range multiple of 10: 1K, 10K, 100K, 1G,...
 		auto max_data_10=pow(10,ceil(log10((*max_data)->cget<data>().t)));
+		if((*max_data)->cget<data>().t< max_data_10/2)
+			max_data_10=max_data_10/2;
 		data::RANGE min_d=0,max_d=max_data_10;
 		data::RANGE range_d=max_d-min_d;
 		float scale_d=static_cast<float>(height)/range_d;
