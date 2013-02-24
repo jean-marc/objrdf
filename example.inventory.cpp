@@ -72,7 +72,7 @@ class Report:public resource<
 	pool_allocator<
 		Report,
 		persistent_store,
-		uint8_t //we assume there will be at most 256 reports
+		uint16_t //we assume there will be at most 256 reports
 	>
 >{
 public:
@@ -89,13 +89,13 @@ PROPERTY(report,Report::allocator::pointer);//what about const_pointer?
 
 PERSISTENT_CLASS(Organization,std::tuple<>);
 PROPERTY(organization,Organization::allocator::pointer);
-DERIVED_CLASS(Site,geo::Point,std::tuple<organization,array<report>>);
+DERIVED_PERSISTENT_CLASS(Site,geo::Point,std::tuple<organization,array<report>>);
 PROPERTY(located,Site::allocator::pointer);
 //maybe should use friend of a friend ontology for people
 //people
 PROPERTY(phone,long);
 PROPERTY(site,Site::allocator::pointer);
-CLASS(Person,std::tuple<array<phone,STORE>,array<site>>);//same person can be responsible for more than one site
+PERSISTENT_CLASS(Person,std::tuple<array<phone,STORE>,array<site>>);//same person can be responsible for more than one site
 PROPERTY(status,int);//needs to be developed: working/not working,...history
 PROPERTY(_mac_,long);//MAC address 48 bytes
 struct mac:_mac_{
@@ -109,9 +109,9 @@ struct mac:_mac_{
  */
 //would be nice to know where a piece of equipment has been, also to know if it has been serviced
 //history is a linked-list (how does git work?)
-CLASS(Manufacturer,std::tuple<>);
+PERSISTENT_CLASS(Manufacturer,std::tuple<>);
 PROPERTY(manufacturer,Manufacturer::allocator::pointer);
-CLASS(Model,std::tuple<manufacturer>);
+PERSISTENT_CLASS(Model,std::tuple<manufacturer>);
 PROPERTY(model,Model::allocator::pointer);
 /*
  *	add properties and functions to track usage: how many hours it has been up, the VPN server
@@ -181,7 +181,7 @@ class Logger:public resource<
 	pool_allocator<
 		Logger,
 		persistent_store,
-		uint8_t
+		uint16_t
 	>
 >{
 public:
@@ -232,7 +232,14 @@ class Set:public resource<
 		,available_data
 		,reserved_data
 	>,
-	Set/*very important!*/>{
+	Set,/*very important!*/
+	base_resource,
+	pool_allocator<
+		Set,
+		persistent_store,
+		uint16_t
+	>
+>{
 	time_t start;
 public:
 	typedef array<logger> loggers;
@@ -445,7 +452,7 @@ PROPERTY(partOf,pseudo_ptr<Set,Set::STORE,true>);
 /*
  *	we could have manufacturer & model but it could become inconsistent, so only model is used
  */
-CLASS(Equipment,std::tuple<partOf,model,status>);
+PERSISTENT_CLASS(Equipment,std::tuple<partOf,model,status>);
 //a digital doorway or a drum could be considered a Set
 //could also see a set as a Bag of equipment, using RDF semantic
 //would be nice to have URI for those
@@ -470,7 +477,7 @@ DERIVED_CLASS(Kiosk,Set,std::tuple<>);
 *
 * serial number? useful when dealing with manufacturer
 */
-CLASS(Version,std::tuple<>);
+PERSISTENT_CLASS(Version,std::tuple<>);
 //PROPERTY(version,pseudo_ptr<base_resource>);//most general but problem with persistence
 PROPERTY(version,pseudo_ptr<Version>);
 DERIVED_CLASS(Drive,Equipment,std::tuple<version>);//information about OS/software version
@@ -482,11 +489,11 @@ DERIVED_CLASS(UPS,Equipment,std::tuple<>);
 /*
  *	is the modem attached to a service provider, if not it means it is unlocked
  */
-CLASS(Telco,std::tuple<>); //Orange, MTN, Airtel, Warid
+PERSISTENT_CLASS(Telco,std::tuple<>); //Orange, MTN, Airtel, Warid
 PROPERTY(telco,Telco::allocator::pointer);
 PROPERTY(number,long);//otherwise conflict with phone
-CLASS(Sim,std::tuple<number,telco>);
-PROPERTY(sim,pseudo_ptr<Sim>);//because we will start moving sim cards around
+PERSISTENT_CLASS(Sim,std::tuple<number,telco>);
+PROPERTY(sim,Sim::allocator::pointer);//because we will start moving sim cards around
 DERIVED_CLASS(Modem,Equipment,std::tuple<sim,telco>);
 PROPERTY(power,int);
 PROPERTY(voltage,int);
