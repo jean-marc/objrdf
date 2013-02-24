@@ -18,10 +18,13 @@
 template<
 	typename VALUE_TYPE,
 	typename STORE,
-	typename INDEX=uint16_t
+	typename INDEX=uint16_t //the pointer size, there will be maximum 2^INDEX cells in that pool
 > struct pool_allocator{
 	typedef pseudo_ptr<VALUE_TYPE,STORE,false,INDEX> pointer;
 	typedef pseudo_ptr<const VALUE_TYPE,STORE,false,INDEX> const_pointer;
+	//can be used to reference any subclass of VALUE_TYPE
+	typedef pseudo_ptr<VALUE_TYPE,STORE,true,INDEX> derived_pointer;
+	typedef pseudo_ptr<const VALUE_TYPE,STORE,true,INDEX> const_derived_pointer;
 	typedef VALUE_TYPE value_type;
 	typedef size_t size_type;//for now
 	template<typename T> static void destructor(void* s){
@@ -51,6 +54,10 @@ template<
 	template<typename... Args> void construct(pointer p,Args... args){
 		new(p) VALUE_TYPE(args...);
 	}
+	template<typename... Args> pointer construct_r(pointer p,Args... args){
+		new(p) VALUE_TYPE(args...);
+		return p;
+	}
 	void destroy(pointer p){
 		p->~VALUE_TYPE();
 	}
@@ -58,6 +65,8 @@ template<
 	typedef generic_iterator<const_pointer> const_iterator;
 	const_iterator cbegin(){return const_iterator(get_index(),get_index()->get_size());}
 	const_iterator cend(){return const_iterator(get_index());}
+	//helper function
+	
 };
 
 
