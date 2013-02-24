@@ -649,6 +649,7 @@ template<
 	INDEX index;
 	//explicit pseudo_ptr(INDEX index):index(index){}
 	pseudo_ptr(INDEX index=0):index(index){}
+	pseudo_ptr(INDEX index,POOL_PTR):index(index){}
 	void _print(ostream& os) const{
 		os<<'a'<<hex<<(unsigned int)index;
 	}
@@ -663,22 +664,17 @@ template<
 	*	only makes sense if S and T are related, not clear if they should use same store
 	*
 	*/
-	template<typename S,typename OTHER_STORE,typename OTHER_INDEX> pseudo_ptr(const pseudo_ptr<S,OTHER_STORE,true,OTHER_INDEX>& p):index(p.index){
+	template<
+		typename S,
+		typename OTHER_STORE,
+		typename OTHER_INDEX
+	> pseudo_ptr(const pseudo_ptr<S,OTHER_STORE,true,OTHER_INDEX>& p):index(p.index){
 		static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
-		//we can make it safe but should be optional 
-		//static_assert(is_derived<S,T>::value||is_derived<T,S>::value,"types are not related");
-		//only if p.index!=0
-		//the problem is that we need one null pointer for each type
+		value_type *a;
+		S *b;
+		a=static_cast<value_type*>(b);	
 		assert(p.pool_ptr==get_pool()||index==0);
 	} 
-	//cast away constness, should be used with care
-	pseudo_ptr(const pseudo_ptr<const T,STORE,false,INDEX>& p):index(p.index){
-
-	}
-	pseudo_ptr& operator=(const pseudo_ptr& p){
-		index=p.index;
-		return *this;
-	}
 	//is there reference counting?
 	~pseudo_ptr(){
 
@@ -709,7 +705,7 @@ template<
 	bool operator<(const pseudo_ptr& p)const{return index<p.index;}
 	bool operator==(const pseudo_ptr& p)const{return index==p.index;}
 	//
-	bool operator==(const void* p)const{return (get_typed_v())+index==p;}
+	//bool operator==(const void* p)const{return (get_typed_v())+index==p;}
 	//
 	//never called!
 	//operator bool() const{return index;}
@@ -718,7 +714,7 @@ template<
 	bool operator!()const{return !index;}
 };
 /*
- *	can point to sub- and super-class of T
+ *	can point to T or sub-class of T
  */
 template<
 	typename T,
@@ -781,15 +777,12 @@ struct pseudo_ptr<T,_STORE_,true,_INDEX_>{
 		typename OTHER_STORE,
 		typename OTHER_INDEX
 	> 
-	pseudo_ptr(const pseudo_ptr<S,OTHER_STORE,false,OTHER_INDEX>& p):pool_ptr(pseudo_ptr<S,OTHER_STORE,false,OTHER_INDEX>::get_pool()),index(p.index){
+	pseudo_ptr(const pseudo_ptr<S,OTHER_STORE,false,OTHER_INDEX>& p):pool_ptr(p.get_pool()),index(p.index){
 		static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
-		enum{a=is_derived<typename S::SELF,typename T::SELF>::value};
-		enum{b=is_derived<typename T::SELF,typename S::SELF>::value};
-		//so we get explicit error message
-		typedef typename IfThenElse<a||b,pseudo_ptr,T>::ResultT::STORE A;
-		typedef typename IfThenElse<a||b,pseudo_ptr,S>::ResultT::STORE B;
-		static_assert(is_derived<typename S::SELF,typename T::SELF>::value||is_derived<typename T::SELF,typename S::SELF>::value,"types are not related");
-		//does not prevent unrelated types
+		//enforce standard C pointer conversion rules
+		value_type *a;
+		S *b;
+		a=static_cast<value_type*>(b);	
 	}
 	template<
 		typename S,
@@ -798,12 +791,11 @@ struct pseudo_ptr<T,_STORE_,true,_INDEX_>{
 	> 
 	pseudo_ptr(const pseudo_ptr<S,OTHER_STORE,true,OTHER_INDEX>& p):pool_ptr(p.pool_ptr),index(p.index){
 		static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
-		enum{a=is_derived<typename S::SELF,typename T::SELF>::value};
-		enum{b=is_derived<typename T::SELF,typename S::SELF>::value};
-		//so we get explicit error message
-		typedef typename IfThenElse<a||b,pseudo_ptr,T>::ResultT::STORE A;
-		typedef typename IfThenElse<a||b,pseudo_ptr,S>::ResultT::STORE B;
-		static_assert(is_derived<typename S::SELF,typename T::SELF>::value||is_derived<typename T::SELF,typename S::SELF>::value,"types are not related");
+		//enforce standard C pointer conversion rules
+		value_type *a;
+		S *b;
+		a=static_cast<value_type*>(b);	
+		//not complete because p could be derived from S
 	}
 	value_type* operator->()const{return (value_type*)pool_ptr->get(index);}
 	reference operator*()const{return *(value_type*)pool_ptr->get(index);}
@@ -811,7 +803,7 @@ struct pseudo_ptr<T,_STORE_,true,_INDEX_>{
 	bool operator<(const pseudo_ptr& p)const{return pool_ptr==p.pool_ptr && index<p.index;}
 	bool operator==(const pseudo_ptr& p)const{return pool_ptr==p.pool_ptr && index==p.index;}
 	//
-	bool operator==(const void* p)const{return pool_ptr->get(index)==p;}
+	//bool operator==(const void* p)const{return pool_ptr->get(index)==p;}
 	//never used
 	operator bool() const{return index;}
 	//not very efficient
@@ -844,6 +836,9 @@ template<
 	> 
 	pseudo_ptr(const pseudo_ptr<S,OTHER_STORE,true,OTHER_INDEX>& p):index(p.index){
 		assert((p.pool_ptr==get_pool())||(index==0));
+		value_type *a;
+		S *b;
+		a=static_cast<value_type*>(b);	
 	}
 
 	//we don't need this
@@ -871,7 +866,6 @@ template<
 	bool operator==(const pseudo_ptr& p)const{return index==p.index;}
 	//used by new
 	operator T*() {return index ? get_typed_v()+index:0;}
-
 };
 //does it make sense with POLYMORPHISM=true?
 //yes

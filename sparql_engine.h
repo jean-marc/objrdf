@@ -46,13 +46,13 @@ struct subject;
 typedef vector<vector<base_resource::const_instance_iterator>> RESULT;
 ostream& operator<<(ostream& os,const RESULT& r);
 struct verb{
-	PROPERTY_PTR p;//0 -> not bound
+	CONST_PROPERTY_PTR p;//0 -> not bound
 	subject* object;
 	string name;
 	bool is_optional;
 	bool is_selected;//will be returned in result set
 	bool bound;
-	verb(PROPERTY_PTR p,subject* object,CONST_USER_PTR user);
+	verb(CONST_PROPERTY_PTR p,subject* object,CONST_USER_PTR user);
 	verb();
 	RESULT run(SPARQL_RESOURCE_PTR r);
 	int size();
@@ -72,7 +72,7 @@ struct subject{
 	subject(SPARQL_RESOURCE_PTR r=SPARQL_RESOURCE_PTR(0));
 	explicit subject(string s);
 	subject(uri u);
-	RESULT run(base_resource::const_instance_iterator i,PROPERTY_PTR p);
+	RESULT run(base_resource::const_instance_iterator i,CONST_PROPERTY_PTR p);
 	RESULT run(size_t n=1000000);
 	void del();
 	void ins();
@@ -172,7 +172,7 @@ public:
 	bool callback(PARSE_RES_TREE& r);
 	bool parse_where_statement(PARSE_RES_TREE& r);
 	bool parse_extra_statement(PARSE_RES_TREE& r);
-	PROPERTY_PTR parse_property(const PARSE_RES_TREE& r);
+	CONST_PROPERTY_PTR parse_property(const PARSE_RES_TREE& r);
 	//won't parse literal
 	SPARQL_RESOURCE_PTR parse_object(const PARSE_RES_TREE& r);
 	bool parse_update_data_statement(PARSE_RES_TREE::V::const_iterator begin,PARSE_RES_TREE::V::const_iterator end,bool do_delete=false,VARIABLES v=VARIABLES(),RESOURCE_PTR sub=RESOURCE_PTR());

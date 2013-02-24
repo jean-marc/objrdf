@@ -104,7 +104,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 			RESOURCE_PTR r=find(name);
 			//alternatively only search rdfs::Class::get_instances() will work in most cases
 			if(r&&r->get_Class()==rdfs::Class::get_class()){
-				CLASS_PTR c(r);
+				CONST_CLASS_PTR c(r);
 				if(*current_property->get_Property()->get_const<rdfs::range>() < *c){
 					RESOURCE_PTR r=create_by_type(c,uri(att[rdf::ID]));
 					//LOG<<"new resource:"<<r->id<<endl;
@@ -194,7 +194,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 						}
 					}
 				}else{
-					CLASS_PTR r=find_t<CLASS_PTR>(name);
+					CONST_CLASS_PTR r=find_t<CONST_CLASS_PTR>(name);
 					if(r){
 						RESOURCE_PTR subject=create_by_type(r,uri::hash_uri(i->second));
 						set_missing_object(subject);
@@ -214,7 +214,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 			}else{
 				//ATTRIBUTES::iterator i=att.find(rdf::ID);
 				//if(i!=att.end()){
-					CLASS_PTR r=find_t<CLASS_PTR>(name);
+					CONST_CLASS_PTR r=find_t<CONST_CLASS_PTR>(name);
 					if(r){
 						ATTRIBUTES::iterator i=att.find(rdf::ID);
 						RESOURCE_PTR subject=(i!=att.end()) ? create_by_type(r,uri::hash_uri(i->second)) : create_by_type_blank(r);
@@ -347,7 +347,7 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 			if(j!=att.end()){
 				RESOURCE_PTR r=find(uri::hash_uri(j->second));
 				if(r&&r->get_Class()==rdfs::Class::get_class()){
-					RESOURCE_PTR subject=create_by_type(CLASS_PTR(r),st.top()->id);
+					RESOURCE_PTR subject=create_by_type(CONST_CLASS_PTR(r),st.top()->id);
 					//LOG<<"new resource:"<<subject.get()<<endl;
 					set_missing_object(subject);
 					st.pop();
