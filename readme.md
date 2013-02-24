@@ -44,7 +44,7 @@ Modifying the class is a normal evolution of a program and updating the database
 Pointers have to be stored from one run to the next, they can be put in an array which also gets persisted, an alternative is to use the pool itself, iterated through each cells.
 Alternatively an object can be allocated at a set address.
 The set of pools can be seen as the RDF document.
-
+Persistence is implemented by memory mapped files, the synchronization is controlled by the kernel and might cause a lot of disk writes, a simple solution is to use a file in RAM using tmpfs for instance.
 Parameter
 
 When creating a new class it is useful to know how many instances N to expect.
