@@ -97,7 +97,7 @@ PROPERTY(phone,long);
 PROPERTY(site,Site::allocator::pointer);
 PERSISTENT_CLASS(Person,std::tuple<array<phone,STORE>,array<site>>);//same person can be responsible for more than one site
 PROPERTY(status,int);//needs to be developed: working/not working,...history
-PROPERTY(_mac_,long);//MAC address 48 bytes
+PROPERTY(_mac_,long);//MAC address 48 bytes, there might be multiple adapters, let's pick the smallest mac
 struct mac:_mac_{
 	void in(istream& is){is>>hex>>t>>dec;}
 	void out(ostream& os) const{os<<hex<<t<<dec;}
@@ -233,11 +233,12 @@ class Set:public resource<
 		,reserved_data
 	>,
 	Set,/*very important!*/
+	//would it make sense to derive Set from Equipment? 
 	base_resource,
 	pool_allocator<
 		Set,
 		persistent_store,
-		uint16_t
+		uint16_t//could be made smaller, we wont have more than 256 kiosks?
 	>
 >{
 	time_t start;
@@ -282,7 +283,7 @@ public:
 		float scale_y=static_cast<float>(height)/range_v;
 		//careful : could be empty!
 		//time_t stop=cget<loggers>().back()->cget<time_stamp>().t;	
-		time_t stop=time(0);//now
+		time_t stop=time(0)+3600;//in 1 hour so plot is not hidden by frame
 		time_t start=stop-duration; 
 		//find the index in get<array>
 		auto j=lower_bound(cget<loggers>().cbegin(),cget<loggers>().cend(),start,Set::comp);
@@ -348,7 +349,7 @@ public:
 				if((next->cget<time_stamp>().t-first->cget<time_stamp>().t)>next->cget<uptime>().t || next->cget<n_client>().t!=first->cget<n_client>().t || i==cget<loggers>().cend()-2){
 					float x=(current->cget<time_stamp>().t-start)*scale_x;
 					float w=(current->cget<time_stamp>().t-first->cget<time_stamp>().t)*scale_x;
-					int h=0.1*height*(1+current->cget<n_client>().t);
+					int h=0.1*height*(1+current->cget<n_client>().t);//maximum 9 clients
 					os<<"<rect class='uptime' x='"<<x-w<<"' y='0' width='"<<w<<"' height='"<<h<<"'/>"<<endl;		
 					first=next;
 				}
@@ -459,10 +460,13 @@ public:
 	}
 };
 
-
+/*
+ *	ensures that a piece of equipment is only part of one Set
+ */
 PROPERTY(partOf,pseudo_ptr<Set,Set::STORE,true>);
 /*
  *	we could have manufacturer & model but it could become inconsistent, so only model is used
+ *	add some time information: when was the resource created, also used for versioning
  */
 PERSISTENT_CLASS(Equipment,std::tuple<partOf,model,status>);
 //a digital doorway or a drum could be considered a Set
