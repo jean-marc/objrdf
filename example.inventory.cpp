@@ -261,7 +261,7 @@ namespace inventory{
 			if(cget<loggers>().size()==0) return;
 			int width=200,label_width=20,height=100;//labels on both side
 			//should be made a parameter
-			time_t duration=10*24*3600;//1 day
+			time_t duration=10*24*3600;//10 day
 			float scale_x=static_cast<float>(width)/duration;
 			//time_t stop=cget<loggers>().back()->cget<time_stamp>().t;	
 			time_t stop=time(0)+3600;//in 1 hour so plot is not hidden by frame
@@ -273,11 +273,8 @@ namespace inventory{
 			//need to distinguish 12V/24V
 			//we could query db or guess from voltage
 			float min_v=0,max_v=0,dscn_v=0;
-			//problem: if measured failed (-1) it assumes it is 12V system so we look for good measurement in first 10
 			auto k=j;
-			//while(k!=cget<loggers>().cbegin()+min<int>(10,cget<loggers>().size())&&(*k)->cget<volt>().t==-1) ++k;
 			while(k!=cget<loggers>().cend()&&(*k)->cget<volt>().t==-1) ++k;
-			//if(cget<loggers>().back()->cget<volt>().t>20){
 			if((*k)->cget<volt>().t>20){
 				min_v=24;
 				max_v=29;
