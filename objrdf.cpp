@@ -122,6 +122,7 @@ CONST_CLASS_PTR base_resource::get_class(){
 			f_ptr::end<base_resource>,
 			f_ptr::cbegin<base_resource>,
 			f_ptr::cend<base_resource>
+			,f_ptr::copy_constructor<base_resource>
 		)			
 		,get_comment()
 		,objrdf::sizeOf(sizeof(base_resource))

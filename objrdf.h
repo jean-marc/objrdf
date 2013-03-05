@@ -123,7 +123,7 @@ namespace objrdf{
  	*	this function table can be used to modify privileges
  	*/ 
 	struct _function_table{
-		//void (*)(ITERATOR_RESOURCE_PTR,string,size_t) set_string;
+		//decltype(void f(ITERATOR_RESOURCE_PTR,string,size_t)) set_string;
 		
 	};
 	typedef std::tuple<
@@ -237,7 +237,6 @@ namespace objrdf{
 			friend class base_resource; //for base_resource::erase
 			ITERATOR_RESOURCE_PTR subject;
 			RESOURCE_PTR alt_subject;
-			//we could also store a RESOURCE_PTR along
 			V::iterator i;
 			size_t index;
 			instance_iterator():subject(0),index(0){}
@@ -408,6 +407,7 @@ namespace objrdf{
 			const_type_iterator (*)(CONST_RESOURCE_PTR),//cbegin
 			const_type_iterator (*)(CONST_RESOURCE_PTR)	//cend
 			//shall we add a clone function?
+			,void (*)(void*,CONST_RESOURCE_PTR) //copy constructor
 			/* add more functions here ... */
 		> class_function_table;
 		/*
@@ -482,13 +482,16 @@ namespace objrdf{
 	> struct replace<REAL_VALUE_TYPE,pool_allocator<VALUE_TYPE,STORE,INDEX>>{
 		typedef pool_allocator<REAL_VALUE_TYPE,STORE,INDEX> ResultT;
 	};
-	
+}
+//typedef objrdf::base_resource BASE_CLASS;	
+namespace objrdf{
 	template<
 		typename NAMESPACE,
 		const char* NAME,//maybe we can improve that in g++ > 4.5
 		typename _PROPERTIES_=std::tuple<>, //MUST BE A std::tuple !!
 		typename SUBCLASS=NIL,//default should be resource
 		typename _SUPERCLASS_=base_resource,
+		//typename _SUPERCLASS_=BASE_CLASS,
 		typename ALLOCATOR=typename _SUPERCLASS_::allocator
 	>
 	struct resource:_SUPERCLASS_{
@@ -743,7 +746,7 @@ namespace objrdf{
  	*	it can only be modified by the application, it would be nice to store the sequence outside of the object so as
  	*	to not modify the class when deciding to use versioning
  	*/ 
-	OBJRDF_PROPERTY(prev,RESOURCE_PTR);
+	OBJRDF_PROPERTY(prev,CONST_RESOURCE_PTR);
 
 
 	RESOURCE_PTR create_by_type(CONST_CLASS_PTR c,uri id);
@@ -775,6 +778,7 @@ namespace objrdf{
 			static void erase(ITERATOR_RESOURCE_PTR subject,size_t first,size_t last){
 				//stow away a copy of the object, actually the new version should be the new object
 				//problem: does not work with subclasses!
+				//we need to allocate
 				RESOURCE_PTR c=create_by_type_blank(SUBJECT::get_class());
 				uri tmp=c->id;
 				//deep copy will fail if a member is constant
@@ -941,6 +945,7 @@ namespace objrdf{
 	typedef base_resource* (*fpt)(uri);
 	namespace f_ptr{
 		template<typename T> void constructor(void* p,uri u){new(p)T(u);}//a lot simpler
+		template<typename T> void copy_constructor(void* p,CONST_RESOURCE_PTR r){new(p)T(static_cast<const T&>(*r));}
 		template<> void constructor<rdfs::Class>(void* p,uri u);
 		template<> base_resource::type_iterator end<rdfs::Class>(ITERATOR_RESOURCE_PTR r);
 		template<> void constructor<rdf::Property>(void* p,uri u);
@@ -1157,6 +1162,14 @@ namespace objrdf{
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r,CONST_USER_PTR u);
 	//to investigate new method to store indices
 	OBJRDF_CLASS(Test_class,std::tuple<>);
+	/*	version control, use the git commit hash + date
+	*	<objrdf:Version>
+	*		<objrdf:hash  rdf:resource='https://github.com/jean-marc/objrdf/commit/cd5475382d68999730a6b7623dfdfd0b1026b8ad'/>
+	*	</objrdf:Version>
+	*	we could store so we know how to read any database dump or we could just use a text file
+	*	we need a way to store external references
+	*
+	*/
 }
 namespace rdfs{
 	char _Class[]="Class";
@@ -1300,7 +1313,8 @@ namespace objrdf{
 					static_cast<objrdf::base_resource::type_iterator (*)(ITERATOR_RESOURCE_PTR)>(f_ptr::end<TMP>) : 
 					static_cast<objrdf::base_resource::type_iterator (*)(ITERATOR_RESOURCE_PTR)>(f_ptr::begin<TMP>),
 				f_ptr::cbegin<TMP>,
-				f_ptr::cend<TMP>
+				f_ptr::cend<TMP>,
+				f_ptr::copy_constructor<TMP>
 			),
 			TMP::get_comment!=SUPERCLASS::get_comment ? TMP::get_comment() : "",
 			objrdf::sizeOf(sizeof(TMP))
@@ -1407,13 +1421,6 @@ namespace objrdf{
 	> struct help_validate_store<SUBJECT,PROPERTY,true>{enum{value=1};};
 
 	template<typename SUBJECT,typename PROPERTY> property_info get_property_info(){
-		/*
- 		* good place to check sanity of stores:
-		* SUBJECT::allocator::store=persistent_store,PROPERTY::RANGE::allocator::store=free_store -> wrong!
-		* SUBJECT::allocator::store=persistent_store,PROPERTY::RANGE::allocator::store=persistent_store -> ok
-		* SUBJECT::allocator::store=free_store,PROPERTY::RANGE::allocator::store=persistent_store -> ok
-		* SUBJECT::allocator::store=free_store,PROPERTY::RANGE::allocator::store=free_store -> ok
-		*/
 		property_info p(PROPERTY::get_property(),functions<SUBJECT,PROPERTY>::get_table());
 		/*
  		* by now we can't modify rdfs::domain, why is it broken down in the first place?
