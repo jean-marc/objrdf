@@ -200,7 +200,6 @@ namespace inventory{
 			os<<d<<"d "<<h<<"h "<<m<<"m";
 		}
 	};
-	char _Set[]="Set";
 	PROPERTY(on,bool);
 	PROPERTY(tot_uptime,time_t);//how long has the kiosk been up
 	PROPERTY(logger,Logger::allocator::pointer);
@@ -219,6 +218,7 @@ namespace inventory{
 	 *	how do we track changes: eg new location
 	 *
 	 */
+	char _Set[]="Set";
 	class Set:public resource<
 		rdfs_namespace,
 		_Set,
@@ -462,12 +462,52 @@ namespace inventory{
 	/*
 	 *	ensures that a piece of equipment is only part of one Set
 	 */
-	PROPERTY(partOf,pseudo_ptr<Set,Set::STORE,true>);
+	PROPERTY(partOf,Set::allocator::derived_pointer);
 	/*
 	 *	we could have manufacturer & model but it could become inconsistent, so only model is used
 	 *	add some time information: when was the resource created, also used for versioning
+	 *	we want to keep version on changes to partOf and maybe status
 	 */
-	PERSISTENT_CLASS(Equipment,std::tuple<partOf,model,status>);
+	//PERSISTENT_CLASS(Equipment,std::tuple<partOf,model,status,objrdf::next>);
+	char _Equipment[]="Equipment";
+	char _next[]="next";
+	class Equipment:public objrdf::resource<
+		rdfs_namespace,
+		_Equipment,
+		std::tuple<
+			partOf,
+			model,
+			status
+			//we want to add a property that points to previous/next version
+			,property<rdfs_namespace,_next,pool_allocator<Equipment,persistent_store,uint16_t>::derived_pointer>
+		>,
+		Equipment,
+		base_resource,
+		pool_allocator<
+			Equipment,
+			persistent_store,
+			uint16_t
+		>
+	>{
+	public:
+		typedef partOf VERSION;
+		typedef property<rdfs_namespace,_next,pool_allocator<Equipment,persistent_store,uint16_t>::derived_pointer> next;
+		Equipment(uri u):SELF(u){}
+		/*void set_p(const partOf& p){
+			//when the property is modified we want to create a new object
+			//how do we know our type?
+			//objrdf::to_rdf_xml(cget<partOf>().get_const_object(),cerr);
+			cerr<<"@@@"<<cget<partOf>().get_const_object()<<endl;
+			set<partOf>(p);
+		}*/
+
+
+	};		
+
+
+
+
+	
 	//a digital doorway or a drum could be considered a Set
 	//could also see a set as a Bag of equipment, using RDF semantic
 	//would be nice to have URI for those

@@ -33,10 +33,10 @@ bool base_resource::const_type_iterator::constp() const{return !std::get<7>(stat
 
 property_info::property_info(CONST_PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}
 void base_resource::erase(instance_iterator first,instance_iterator last){
-	std::get<8>(first.i->t)(this,first.index,last.index);
+	std::get<8>(first.i->t)(this,CONST_RESOURCE_PTR(),first.index,last.index);
 }
 void base_resource::erase(instance_iterator position){
-	std::get<8>(position.i->t)(this,position.index,position.index+1);
+	std::get<8>(position.i->t)(this,CONST_RESOURCE_PTR(),position.index,position.index+1);
 }
 void base_resource::get_output(ostream& os) const{
 	//what would be most appropriate HTTP message?	
@@ -305,6 +305,12 @@ namespace objrdf{
 	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r,CONST_USER_PTR){return std::get<3>(get_class(r)->t)(r);}
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r,CONST_USER_PTR){return std::get<4>(get_class(r)->t)(r);}
 
+	void erase(RESOURCE_PTR r,base_resource::instance_iterator first,base_resource::instance_iterator last){
+		std::get<8>(first.i->t)(r,r,first.index,last.index);
+	}
+	void erase(RESOURCE_PTR r,base_resource::instance_iterator position){
+		std::get<8>(position.i->t)(r,r,position.index,position.index+1);
+	}
 	base_resource::const_instance_iterator get_const_self_iterator(CONST_RESOURCE_PTR r){
 		return base_resource::const_instance_iterator(r,r,base_resource::v.cbegin()+1,0);//hard-coded index, careful!
 	}
@@ -463,6 +469,7 @@ RESOURCE_PTR objrdf::create_by_type(uri type,uri id){
 	return c ? objrdf::create_by_type(c,id) : RESOURCE_PTR();
 }
 RESOURCE_PTR objrdf::create_by_type_blank(CONST_CLASS_PTR c){
+	LOG<<"creating blank instance of `"<<c->id<<"'"<<endl;
 	POOL_PTR p(c.index);
 	RESOURCE_PTR rp(p->allocate(),p);
 	ostringstream os;

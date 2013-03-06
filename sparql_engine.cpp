@@ -861,7 +861,8 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 								auto j=current_property->begin();
 								while(j!=current_property->end()){
 									if(j->str()==i->v[0].v[0].t.second){
-										sub->erase(j);
+										//sub->erase(j);
+										erase(sub,j);
 										break;
 									}	
 									++j;
@@ -895,7 +896,8 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 									cerr<<"resource `"<<u<<"' not found"<<endl;
 									return false;
 								}else{
-									sub->erase(j);
+									//sub->erase(j);
+									erase(sub,j);
 								}	
 							}else{
 								SPARQL_RESOURCE_PTR r=find(u);
@@ -920,7 +922,8 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 									auto j=current_property->begin();
 									while(j!=current_property->end()){
 										if(j->get_const_object()->id==u){
-											sub->erase(j);
+											//sub->erase(j);
+											erase(sub,j);
 											break;
 										}	
 									}
@@ -968,7 +971,8 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 											ostringstream os;
 											os<<*k;
 											if(os.str()==object_str){		
-												sub->erase(k);
+												//sub->erase(k);
+												erase(sub,k);
 												break;
 											}	
 											++k;
@@ -990,7 +994,8 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 										auto k=current_property->begin();
 										while(k!=current_property->end()){
 											if(k->get_const_object()==obj){
-												sub->erase(k);
+												//sub->erase(k);
+												erase(sub,k);
 												break;
 											}	
 											++k;
