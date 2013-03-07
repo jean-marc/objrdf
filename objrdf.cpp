@@ -32,11 +32,12 @@ bool base_resource::type_iterator::constp() const{return !std::get<7>(static_cas
 bool base_resource::const_type_iterator::constp() const{return !std::get<7>(static_cast<V::const_iterator>(*this)->t);}
 
 property_info::property_info(CONST_PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}
+//should be deprecated
 void base_resource::erase(instance_iterator first,instance_iterator last){
-	std::get<8>(first.i->t)(this,CONST_RESOURCE_PTR(),first.index,last.index);
+	std::get<8>(first.i->t)(this,RESOURCE_PTR(),first.index,last.index);
 }
 void base_resource::erase(instance_iterator position){
-	std::get<8>(position.i->t)(this,CONST_RESOURCE_PTR(),position.index,position.index+1);
+	std::get<8>(position.i->t)(this,RESOURCE_PTR(),position.index,position.index+1);
 }
 void base_resource::get_output(ostream& os) const{
 	//what would be most appropriate HTTP message?	
@@ -477,6 +478,23 @@ RESOURCE_PTR objrdf::create_by_type_blank(CONST_CLASS_PTR c){
 	uri u(os.str());
 	u.index=1;
 	std::get<0>(c->t)(rp,u);
+	return rp;
+}
+RESOURCE_PTR objrdf::clone(CONST_RESOURCE_PTR r){
+	LOG<<"cloning resource `"<<r->id<<"'"<<endl;
+	CONST_CLASS_PTR c=get_class(r);
+	POOL_PTR p(c.index);
+	RESOURCE_PTR rp(p->allocate(),p);
+	std::get<5>(c->t)(rp,r);
+	return rp;
+}
+RESOURCE_PTR objrdf::clone_and_swap(CONST_RESOURCE_PTR r){
+	LOG<<"cloning resource `"<<r->id<<"'"<<endl;
+	CONST_CLASS_PTR c=get_class(r);
+	POOL_PTR p(c.index);
+	RESOURCE_PTR rp(p->allocate(),p);
+	memcpy(rp,r,c->cget<sizeOf>().t);//this could go very wrong if we don't have the right size
+	std::get<5>(c->t)(r,rp);
 	return rp;
 }
 RESOURCE_PTR objrdf::create_by_type_blank(uri type){

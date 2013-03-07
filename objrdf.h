@@ -138,7 +138,7 @@ namespace objrdf{
 		/*common*/
 		size_t  (*)(ITERATOR_CONST_RESOURCE_PTR),//6 get_size
 		void (*)(ITERATOR_RESOURCE_PTR,PROVENANCE),//7 add_property	
-		void (*)(ITERATOR_RESOURCE_PTR,CONST_RESOURCE_PTR,size_t,size_t),//8 erase
+		void (*)(ITERATOR_RESOURCE_PTR,RESOURCE_PTR,size_t,size_t),//8 erase
 		PROVENANCE (*)(ITERATOR_CONST_RESOURCE_PTR,size_t),//9 get_provenance
 		/*comparison*/
 		int (*)(ITERATOR_CONST_RESOURCE_PTR,size_t,ITERATOR_CONST_RESOURCE_PTR,size_t)//10 compare, should be with literal but we are still using indices 
@@ -754,6 +754,8 @@ namespace objrdf{
 	RESOURCE_PTR create_by_type(CONST_CLASS_PTR c,uri id);
 	RESOURCE_PTR create_by_type(uri type,uri id);
 	RESOURCE_PTR create_by_type_blank(CONST_CLASS_PTR c);
+	RESOURCE_PTR clone(CONST_RESOURCE_PTR r);
+	RESOURCE_PTR clone_and_swap(CONST_RESOURCE_PTR r);
 	RESOURCE_PTR create_by_type_blank(uri type);
 	template<typename P> uri get_uri(const P& p){
 		CONST_RESOURCE_PTR r(p);
@@ -772,26 +774,19 @@ namespace objrdf{
 		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return get_const(subject,0).get_size();}
 		static void add_property(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
 		struct normal{
-			static void erase(ITERATOR_RESOURCE_PTR subject,CONST_RESOURCE_PTR alt_subject,size_t first,size_t last){
+			static void erase(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR alt_subject,size_t first,size_t last){
 				get(subject,0).erase();
 			}	
 		};
 		struct version{
-			static void erase(ITERATOR_RESOURCE_PTR subject,CONST_RESOURCE_PTR alt_subject,size_t first,size_t last){
-				//stow away a copy of the object, actually the new version should be the new object
-				//problem: does not work with subclasses!
-				//we need to allocate
-				//RESOURCE_PTR c=create_by_type_blank(SUBJECT::get_class());
-				RESOURCE_PTR c=create_by_type_blank(get_class(alt_subject));
-				uri tmp=c->id;
-				//deep copy will fail if a member is constant
-				//id get overriden
-				static_cast<SUBJECT&>(*c)=static_cast<SUBJECT&>(*subject);
-				c->id=tmp;
-				//we could define the property to use
-				static_cast<SUBJECT*>(subject)->template get<typename SUBJECT::next>().set_object(c);
-				//we can also swap objects so the new object is the modified version of the old one
-				//maybe the new object has a time stamp when created
+			//we should only have one pointer!!!
+			static void erase(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR alt_subject,size_t first,size_t last){
+				RESOURCE_PTR old=clone_and_swap(alt_subject);//now alt_subject points to the cloned resource
+				ostringstream os;
+				old._print(os);
+				old->id=uri(alt_subject->id.ns(),string(alt_subject->id.local)+"."+os.str());
+				static_cast<typename SUBJECT::allocator::derived_pointer>(alt_subject)->template get<objrdf::prev>().set_object(old);
+				static_cast<typename SUBJECT::allocator::derived_pointer>(old)->template get<objrdf::next>().set_object(alt_subject);
 				get(subject,0).erase();
 			}	
 		};
@@ -818,7 +813,7 @@ namespace objrdf{
 		static inline const PROPERTY& get_const(ITERATOR_CONST_RESOURCE_PTR subject,size_t index){return static_cast<const SUBJECT*>(subject)->template get_const<array<PROPERTY,STORE>>()[index];}
 		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return get_const(subject).size();}
 		static void add_property(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){typedef PROPERTY P;get(subject).push_back(P());}
-		static void erase(ITERATOR_RESOURCE_PTR subject,CONST_RESOURCE_PTR alt_subject,size_t first,size_t last){get(subject).erase(get(subject).begin()+first,get(subject).begin()+last);}
+		static void erase(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR alt_subject,size_t first,size_t last){get(subject).erase(get(subject).begin()+first,get(subject).begin()+last);}
 		static PROVENANCE get_provenance(ITERATOR_CONST_RESOURCE_PTR subject,size_t index){return 0;}
 		static function_table get_table(){
 			function_table t;
@@ -1003,7 +998,7 @@ namespace objrdf{
 		static void out(ITERATOR_CONST_RESOURCE_PTR subject,ostream& os,size_t){os<<subject->id;}	
 		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return 1;}
 		static void add_property(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
-		static void erase(ITERATOR_RESOURCE_PTR subject,CONST_RESOURCE_PTR alt_subject,size_t first,size_t last){}	
+		static void erase(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR alt_subject,size_t first,size_t last){}	
 		static function_table get_table(){
 			function_table t;
 			std::get<0>(t)=set_string;
@@ -1026,7 +1021,7 @@ namespace objrdf{
 		static void set_object(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){}
 		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return 1;}
 		static void add_property(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
-		static void erase(ITERATOR_RESOURCE_PTR subject,CONST_RESOURCE_PTR alt_subject,size_t first,size_t last){}	
+		static void erase(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR alt_subject,size_t first,size_t last){}	
 		static function_table get_table(){
 			function_table t;
 			std::get<4>(t)=get_const_object;
@@ -1445,7 +1440,7 @@ namespace objrdf{
 		V v;
 		template<typename PROPERTY> void operator()(){
 			//would be nice to have message
-			static_assert(help_validate_store<SUBJECT,PROPERTY>::value,"inconsistent stores");
+			//static_assert(help_validate_store<SUBJECT,PROPERTY>::value,"inconsistent stores");
 			/*if(!help_validate_store<SUBJECT,PROPERTY>::value){
 				cerr<<SUBJECT::get_class()->id<<" "<<PROPERTY::get_property()->id<<endl;
 				exit(1);
