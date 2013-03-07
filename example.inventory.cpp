@@ -61,30 +61,31 @@ namespace inventory{
 	PROPERTY(text,my_string);
 	PROPERTY(time_stamp,time_t);
 	PROPERTY(time_stamp_v,objrdf::NIL);
-	//CLASS(Report,std::tuple<text>);
-	char _Report[]="Report";
-	class Report:public resource<
+	//create generic class to time-stamp resources
+	char _Timed[]="Timed";
+	class Timed:public resource<
 		rdfs_namespace,
-		_Report,
-		std::tuple<time_stamp,text>,
-		Report,
-		base_resource,
-		pool_allocator<
-			Report,
-			persistent_store,
-			uint16_t //we assume there will be at most 256 reports
-		>
+		_Timed,
+		std::tuple<time_stamp>,
+		Timed
 	>{
 	public:
 		typedef std::tuple<time_stamp_v> PSEUDO_PROPERTIES;
-		Report(uri id):SELF(id){
+		Timed(uri id):SELF(id){
 			get<time_stamp>().t=time(0);	
+		}
+		Timed(const Timed& t):SELF(t){
+			//time_stamp is the construction date
+			get<time_stamp>().t=time(0);	
+		}
+		Timed& operator=(const Timed& t){
+			return *this;
 		}
 		void out_p(time_stamp_v,ostream& os) const{
 			os<<ctime(&cget<time_stamp>().t);
 		}
-
 	};
+	DERIVED_PERSISTENT_CLASS(Report,Timed,std::tuple<text>);
 	PROPERTY(report,Report::allocator::pointer);//what about const_pointer?
 
 	PERSISTENT_CLASS(Organization,std::tuple<>);
@@ -175,9 +176,9 @@ namespace inventory{
 	class Logger:public resource<
 		rdfs_namespace,
 		_Logger,
-		std::tuple<time_stamp,uptime,n_client,volt,data>,
+		std::tuple<uptime,n_client,volt,data>,
 		Logger,
-		base_resource,
+		Timed,
 		pool_allocator<
 			Logger,
 			persistent_store,
@@ -185,13 +186,8 @@ namespace inventory{
 		>
 	>{
 	public:
-		typedef std::tuple<time_stamp_v,uptime_v> PSEUDO_PROPERTIES;
-		Logger(uri id):SELF(id){
-			get<time_stamp>().t=time(0);	
-		}
-		void out_p(time_stamp_v,ostream& os) const{
-			os<<ctime(&cget<time_stamp>().t);
-		}
+		typedef std::tuple<uptime_v> PSEUDO_PROPERTIES;
+		Logger(uri id):SELF(id){}
 		void out_p(uptime_v,ostream& os) const{
 			time_t t=cget<uptime>().t;
 			int m=(t/60)%60;	
@@ -226,15 +222,15 @@ namespace inventory{
 			located,
 			on,
 			/*uptime*/
-			array<logger>
-			/*,objrdf::prev*/
-			,used_data
-			,available_data
-			,reserved_data
+			array<logger>,
+			used_data,
+			available_data,
+			reserved_data
 		>,
 		Set,/*very important!*/
 		//would it make sense to derive Set from Equipment? 
-		base_resource,
+		//base_resource,
+		Timed,
 		pool_allocator<
 			Set,
 			persistent_store,
@@ -470,19 +466,18 @@ namespace inventory{
 	 */
 	//PERSISTENT_CLASS(Equipment,std::tuple<partOf,model,status,objrdf::next>);
 	char _Equipment[]="Equipment";
-	char _next[]="next";
 	class Equipment:public objrdf::resource<
 		rdfs_namespace,
 		_Equipment,
 		std::tuple<
 			partOf,
 			model,
-			status
-			//we want to add a property that points to previous/next version
-			,property<rdfs_namespace,_next,pool_allocator<Equipment,persistent_store,uint16_t>::derived_pointer>
+			status,
+			objrdf::prev,//version control
+			objrdf::next//version control
 		>,
 		Equipment,
-		base_resource,
+		Timed,
 		pool_allocator<
 			Equipment,
 			persistent_store,
@@ -490,18 +485,8 @@ namespace inventory{
 		>
 	>{
 	public:
-		typedef partOf VERSION;
-		typedef property<rdfs_namespace,_next,pool_allocator<Equipment,persistent_store,uint16_t>::derived_pointer> next;
+		typedef partOf VERSION;//then objrdf::prev and objrdf::next must be present
 		Equipment(uri u):SELF(u){}
-		/*void set_p(const partOf& p){
-			//when the property is modified we want to create a new object
-			//how do we know our type?
-			//objrdf::to_rdf_xml(cget<partOf>().get_const_object(),cerr);
-			cerr<<"@@@"<<cget<partOf>().get_const_object()<<endl;
-			set<partOf>(p);
-		}*/
-
-
 	};		
 
 
@@ -538,14 +523,9 @@ namespace inventory{
 	DERIVED_CLASS(Drive,Equipment,std::tuple<version>);//information about OS/software version
 	//could define versions with some explanations and link to them
 	//eg ubuntu-desktop-11.10-amd64
-	DERIVED_CLASS(Laptop,Equipment,std::tuple<mac>);//problem: won't show up in schema, we can work-around in stylesheet
-	DERIVED_CLASS(Server,Equipment,std::tuple<mac>);
-	//better:
-	/*
 	DERIVED_CLASS(Computer,Equipment,std::tuple<mac>);
 	DERIVED_CLASS(Laptop,Computer,std::tuple<>);
 	DERIVED_CLASS(Server,Computer,std::tuple<>);
-	*/
 	DERIVED_CLASS(UPS,Equipment,std::tuple<>);
 	/*
 	 *	is the modem attached to a service provider, if not it means it is unlocked

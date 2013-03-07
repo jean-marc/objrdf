@@ -194,6 +194,7 @@ search by site: <form id='by_site'><input type='text'/></form> |
 <xsl:template match='rdf:type[@rdf:resource]' mode='property'/>
 <xsl:template match='obj:id' mode='property'/>
 <xsl:template match='obj:self[@rdf:resource]' mode='property'/>
+<xsl:template match='inv:time_stamp' mode='property'/>
 <!-- specialize for geo -->
 <xsl:template match='geo:lat' mode='property'/>
 <xsl:template match='geo:long' mode='property'/>

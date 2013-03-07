@@ -105,4 +105,6 @@ $("form").submit(function(){
 <xsl:template match="s:result[s:binding[@name='p']/s:uri='http://www.w3.org/1999/02/22-rdf-syntax-ns#type']"/>
 <xsl:template match="s:result[s:binding[@name='p']/s:uri='http://www.example.org/objrdf#id']"/>
 <xsl:template match="s:result[s:binding[@name='p']/s:uri='http://www.example.org/objrdf#self']"/>
+<xsl:template match="s:result[s:binding[@name='p']/s:uri='http://www.example.org/objrdf#prev']"/>
+<xsl:template match="s:result[s:binding[@name='p']/s:uri='http://www.example.org/objrdf#next']"/>
 </xsl:stylesheet>
