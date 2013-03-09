@@ -26,7 +26,7 @@ template <typename T> int sgn(T val){
 	return (T(0) < val) - (val < T(0));
 }
 #define PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<rdfs_namespace,_##n,__VA_ARGS__> n
-#define PSEUDO_PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<rdfs_namespace,_##n,__VA_ARGS__> n
+#define PSEUDO_PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<rdfs_namespace,_##n,__VA_ARGS__,objrdf::NIL> n
 //property that exists in the objrdf namespace
 #define OBJRDF_PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
 #define CLASS(n,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__> n
@@ -741,6 +741,8 @@ namespace objrdf{
 		typename RANGE
 	> class property<NAMESPACE,NAME,RANGE,NIL>{
 	public:
+		enum{TYPE=LITERAL};
+		static CONST_PROPERTY_PTR get_property();
 	};
 	/*
  	*	property to keep track of versions, a pointer to the previous version
@@ -942,6 +944,40 @@ namespace objrdf{
 			return t;
 		}
 	};
+	template<
+		typename SUBJECT,
+		typename NAMESPACE,
+		const char* NAME,
+		typename RANGE
+	> struct functions<SUBJECT,property<NAMESPACE,NAME,RANGE,NIL>,LITERAL>{
+		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return 1;}
+		/*static void set_string(ITERATOR_RESOURCE_PTR subject,string s,size_t index){
+			property<NAMESPACE,NAME,RANGE,NIL> tmp;//very awkward
+			static_cast<SUBJECT*>(subject)->set_string_p(tmp,s);//won't find function if in super-class
+		}*/
+		static void in(ITERATOR_RESOURCE_PTR subject,istream& is,size_t index){
+			property<NAMESPACE,NAME,RANGE,NIL> tmp;//very awkward
+			static_cast<SUBJECT*>(subject)->in_p(tmp,is);//won't find function if in super-class
+		}
+		static void out(ITERATOR_CONST_RESOURCE_PTR subject,ostream& os,size_t index){
+			property<NAMESPACE,NAME,RANGE,NIL> tmp;//very awkward
+			static_cast<const SUBJECT*>(subject)->out_p(tmp,os);
+		}
+		static void add_property(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
+		static void erase(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR alt_subject,size_t first,size_t last){}//idem
+		static function_table get_table(){
+			function_table t;
+			//std::get<0>(t)=set_string;
+			std::get<1>(t)=in;
+			std::get<2>(t)=out;
+			//std::get<5>(t)=set_const_object;
+			std::get<6>(t)=get_size;
+			std::get<7>(t)=add_property;
+			std::get<8>(t)=erase;
+			return t;
+		}
+	};
+
 	//schema
 	typedef base_resource* (*fpt)(uri);
 	namespace f_ptr{
@@ -1089,6 +1125,9 @@ namespace xsd{
 	char _Unsigned_Short[]="unsignedShort";typedef objrdf::resource<rdfs_namespace,_Unsigned_Short,std::tuple<>,objrdf::NIL,rdf::Literal> Unsigned_short;
 	char _String[]="string";typedef objrdf::resource<rdfs_namespace,_String,std::tuple<>,objrdf::NIL,rdf::Literal> String;
 	char _anyURI[]="anyURI";typedef objrdf::resource<rdfs_namespace,_anyURI,std::tuple<>,objrdf::NIL,rdf::Literal> anyURI;
+	//date & time
+	DERIVED_CLASS(date,rdf::Literal,std::tuple<>);
+	DERIVED_CLASS(dateTime,rdf::Literal,std::tuple<>);
 }
 namespace objrdf{
 	char _Char[]="Char";typedef objrdf::resource<_rdfs_namespace,_Char,std::tuple<>,NIL,rdf::Literal> Char;
@@ -1367,6 +1406,21 @@ namespace objrdf{
 				objrdf::get_uri<NAMESPACE>(NAME),
 				rdfs::range(selector<RANGE>::ResultT::get_class()),
 				property<NAMESPACE,NAME,RANGE,IMPLEMENTATION>::TYPE&LITERAL
+			)
+		);
+		return c;
+	}
+	//pseudo property
+	template<
+		typename NAMESPACE,
+		const char* NAME,
+		typename RANGE
+	> CONST_PROPERTY_PTR property<NAMESPACE,NAME,RANGE,NIL>::get_property(){
+		static CONST_PROPERTY_PTR c(
+			CONST_PROPERTY_PTR::construct(
+				objrdf::get_uri<NAMESPACE>(NAME),
+				rdfs::range(RANGE::get_class()),
+				property<NAMESPACE,NAME,RANGE,NIL>::TYPE&LITERAL
 			)
 		);
 		return c;
