@@ -239,5 +239,4 @@ $("form").submit(function(){
 <xsl:template match="s:result[s:binding[@name='p']/s:uri='http://inventory.unicefuganda.org/#logger']"/>
 <xsl:template match="s:result[s:binding[@name='p']/s:uri='http://inventory.unicefuganda.org/#logger']"/>
 <xsl:template match="s:result[s:binding[@name='p']/s:uri='http://inventory.unicefuganda.org/#time_stamp']"/>
-<xsl:template match="s:result[s:binding[@name='p']/s:uri='http://inventory.unicefuganda.org/#time_stamp_v']"/>
 </xsl:stylesheet>
