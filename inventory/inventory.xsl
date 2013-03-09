@@ -90,7 +90,15 @@ search by site: <form id='by_site'><input type='text'/></form> |
 <!-- should use css classes instead -->
 <xsl:if test='inv:on=1'><xsl:attribute name='style'>background-color:lime;</xsl:attribute></xsl:if>
 <xsl:if test='inv:on=0 and inv:uptime&gt;0'><xsl:attribute name='style'>background-color:#ccffcc;</xsl:attribute></xsl:if>
-<div class='header'><b><xsl:value-of select="concat(substring-after(*[1]/@rdf:resource,'#'),' ',*[2])"/></b> | <a href="{concat('/sparql?query=select * where {&lt;',@rdf:ID,'&gt; ?p ?v .}&amp;xsl=inventory_edit.xsl')}">edit</a>
+<div class='header'><b><xsl:value-of select="concat(substring-after(*[1]/@rdf:resource,'#'),' ',*[2])"/></b> |
+<xsl:choose>
+<xsl:when test="obj:next">
+	<strike> edit </strike>
+</xsl:when>
+<xsl:otherwise>
+	<a href="{concat('/sparql?query=select * where {&lt;',@rdf:ID,'&gt; ?p ?v .}&amp;xsl=inventory_edit.xsl')}">edit</a>
+</xsl:otherwise>
+</xsl:choose>
 </div>
 <table>
 <xsl:apply-templates mode='property'/>
