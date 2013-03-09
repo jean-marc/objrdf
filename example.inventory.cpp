@@ -60,7 +60,8 @@ namespace inventory{
 		> my_string;	
 	PROPERTY(text,my_string);
 	PROPERTY(time_stamp,time_t);
-	PROPERTY(time_stamp_v,objrdf::NIL);
+	PSEUDO_PROPERTY(date_stamp_v,xsd::date);//[-]CCYY-MM-DD]
+	PSEUDO_PROPERTY(time_stamp_v,xsd::dateTime);//[-]CCYY-MM-DDThh:mm:ss[Z|(+|-)hh:mm]
 	//create generic class to time-stamp resources
 	char _Timed[]="Timed";
 	class Timed:public resource<
@@ -70,6 +71,7 @@ namespace inventory{
 		Timed
 	>{
 	public:
+		//it could be up to sub-class to decide which pseudo_property to implement, but does not work
 		typedef std::tuple<time_stamp_v> PSEUDO_PROPERTIES;
 		Timed(uri id):SELF(id){
 			get<time_stamp>().t=time(0);	
@@ -81,8 +83,27 @@ namespace inventory{
 		Timed& operator=(const Timed& t){
 			return *this;
 		}
+		void in_p(time_stamp_v,istream& is){
+			time_t rawtime;
+			time (&rawtime);
+			tm *timeinfo=localtime(&rawtime);
+			char c;//pretty forgiving parser
+			is>>timeinfo->tm_year>>c>>timeinfo->tm_mon>>c>>timeinfo->tm_mday>>c>>timeinfo->tm_hour>>c>>timeinfo->tm_min>>c>>timeinfo->tm_sec;	
+			timeinfo->tm_year-=1900;
+			timeinfo->tm_mon-=1;
+			if(!is.fail()) get<time_stamp>().t=mktime(timeinfo);
+		}
 		void out_p(time_stamp_v,ostream& os) const{
-			os<<ctime(&cget<time_stamp>().t);
+			char buffer[80];
+			tm* timeinfo=localtime(&cget<time_stamp>().t);
+			strftime (buffer,80,"%FT%T",timeinfo);	
+			os<<buffer;
+		}
+		void in_p(date_stamp_v,istream& is){
+			cerr<<"ignoring date!"<<endl;
+		}
+		void out_p(date_stamp_v,ostream& os) const{
+			os<<"date:"<<ctime(&cget<time_stamp>().t);
 		}
 	};
 	DERIVED_PERSISTENT_CLASS(Report,Timed,std::tuple<text>);
@@ -199,8 +220,9 @@ namespace inventory{
 	PROPERTY(on,bool);
 	PROPERTY(tot_uptime,time_t);//how long has the kiosk been up
 	PROPERTY(logger,Logger::allocator::pointer);
-	PROPERTY(plot,objrdf::NIL);
-	PROPERTY(svg_plot,rdfs::XMLLiteral);//we can choose to make it real property or pseudo
+	PSEUDO_PROPERTY(plot,rdfs::XML_Literal);
+	//PROPERTY(plot,objrdf::NIL);
+	//PROPERTY(svg_plot,rdfs::XMLLiteral);//we can choose to make it real property or pseudo
 	/*
 	 *	data package management:
 	 *		up to 4 Gb
@@ -240,7 +262,7 @@ namespace inventory{
 		time_t start;
 	public:
 		typedef array<logger> loggers;
-		typedef std::tuple<plot/*,svg_plot*/> PSEUDO_PROPERTIES;
+		typedef std::tuple<plot/*,time_stamp_v*/> PSEUDO_PROPERTIES;
 		//typedef on TRIGGER;
 		//typedef located TRIGGER;
 		typedef loggers TRIGGER;
@@ -248,6 +270,7 @@ namespace inventory{
 		Set(uri id):SELF(id),start(time(0)){cerr<<"new Set()"<<endl;}
 		static bool comp(const logger& a,time_t b){return a->cget<time_stamp>().t<b;}
 		static bool comp_data(const logger& a,const logger& b){return a->cget<data>().t<b->cget<data>().t;}
+		void in_p(plot,istream& is){}
 		void out_p(plot,ostream& os) const{
 		/*
 		*	display of uptime, power, bandwidth,....
