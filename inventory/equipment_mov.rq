@@ -1,0 +1,10 @@
+prefix :<http://inventory.unicefuganda.org/#> 
+select ?x ?from ?to ?date where {
+	?x obj:prev ?y . 
+	?x :partOf ?_to . 
+	?_to :located ?to . 
+	?y :partOf ?_from . 
+	?_from :located ?from .
+	?x :time_stamp_v ?date .
+}order by ?from  _buggy_
+
