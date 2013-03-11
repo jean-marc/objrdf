@@ -279,7 +279,8 @@ void rdf_xml_parser::set_missing_object(RESOURCE_PTR object){
 	cerr<<(first==missing_object.end())<<"\t"<<(last==missing_object.end())<<"\t"<<(first==last)<<endl;
 	if(first!=missing_object.end()){//why do we need that???
 		for(MISSING_OBJECT::iterator i=first;i!=last;++i){
-			LOG<<"setting object of resource `"<<i->first<<"'"<<endl;
+			//LOG<<"setting object of resource `"<<i->first<<"'"<<endl;
+			LOG<<"setting property `"<<i->second->get_Property()->id<<"' of resource `"<<i->second.subject->id<<"' "<<endl;
 			i->second->set_object(object);//???
 		}
 		//need to clean up
@@ -319,7 +320,10 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 					current_property->add_property(p)->set_object(object);//NEED TO CHECK THE TYPE!!!!
 				}else{
 					//problem with current_property->add_property()
-					missing_object.insert(MISSING_OBJECT::value_type(uri::hash_uri(i->second),current_property->add_property(p)));
+					auto pr=current_property->add_property(p);
+					cerr<<"stowing away property `"<<pr.get_Property()->id<<"' of resource `"<<pr.subject->id<<"' "<<endl;
+					//missing_object.insert(MISSING_OBJECT::value_type(uri::hash_uri(i->second),current_property->add_property(p)));
+					missing_object.insert(MISSING_OBJECT::value_type(uri::hash_uri(i->second),pr));
 					//ERROR_PARSER<<"resource "<<i->second<<" not found"<<endl;
 				}
 			}else{	

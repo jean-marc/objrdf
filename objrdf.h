@@ -115,33 +115,32 @@ namespace objrdf{
 	typedef pseudo_ptr<const rdf::Property,free_store,false,uint16_t> CONST_PROPERTY_PTR;
 	//does not compile:
 	//typedef pseudo_ptr<const rdf::Property,rdf::Property::STORE,false,uint16_t> PROPERTY_PTR;
-	typedef base_resource* ITERATOR_RESOURCE_PTR;
-	typedef const base_resource* ITERATOR_CONST_RESOURCE_PTR;
 	typedef char PROVENANCE;
 	/*
  	*	can we define default functions that will give a helpful error message when called?
  	*	this function table can be used to modify privileges
  	*/ 
+
 	struct _function_table{
 		//decltype(void f(ITERATOR_RESOURCE_PTR,string,size_t)) set_string;
 		
 	};
 	typedef std::tuple<
 		/*literal*/
-		void (*)(ITERATOR_RESOURCE_PTR,string,size_t),	/* 0	set_string */
-		void (*)(ITERATOR_RESOURCE_PTR,istream&,size_t),//1 in
-		void (*)(ITERATOR_CONST_RESOURCE_PTR,ostream&,size_t),//2 out
+		void (*)(RESOURCE_PTR,string,size_t),	/* 0	set_string */
+		void (*)(RESOURCE_PTR,istream&,size_t),//1 in
+		void (*)(CONST_RESOURCE_PTR,ostream&,size_t),//2 out
 		/*non-literal*/
-		RESOURCE_PTR (*)(ITERATOR_RESOURCE_PTR,RESOURCE_PTR,size_t),//3 get_object
-		CONST_RESOURCE_PTR (*)(ITERATOR_CONST_RESOURCE_PTR,CONST_RESOURCE_PTR,size_t),//4 get_const_object
-		void (*)(ITERATOR_RESOURCE_PTR,RESOURCE_PTR,size_t),//5 set_object
+		RESOURCE_PTR (*)(RESOURCE_PTR,size_t),//3 get_object
+		CONST_RESOURCE_PTR (*)(CONST_RESOURCE_PTR,size_t),//4 get_const_object
+		void (*)(RESOURCE_PTR,RESOURCE_PTR,size_t),//5 set_object
 		/*common*/
-		size_t  (*)(ITERATOR_CONST_RESOURCE_PTR),//6 get_size
-		void (*)(ITERATOR_RESOURCE_PTR,PROVENANCE),//7 add_property	
-		void (*)(ITERATOR_RESOURCE_PTR,RESOURCE_PTR,size_t,size_t),//8 erase
-		PROVENANCE (*)(ITERATOR_CONST_RESOURCE_PTR,size_t),//9 get_provenance
+		size_t  (*)(CONST_RESOURCE_PTR),//6 get_size
+		void (*)(RESOURCE_PTR,PROVENANCE),//7 add_property	
+		void (*)(RESOURCE_PTR,size_t,size_t),//8 erase
+		PROVENANCE (*)(CONST_RESOURCE_PTR,size_t),//9 get_provenance
 		/*comparison*/
-		int (*)(ITERATOR_CONST_RESOURCE_PTR,size_t,ITERATOR_CONST_RESOURCE_PTR,size_t)//10 compare, should be with literal but we are still using indices 
+		int (*)(CONST_RESOURCE_PTR,size_t,CONST_RESOURCE_PTR,size_t)//10 compare, should be with literal but we are still using indices 
 	> function_table;
 	struct property_info{
 		//because now stored in vector<property_info>
@@ -205,6 +204,9 @@ namespace objrdf{
 	};
 	class base_resource{
 	public:
+		//global index, will be populated by
+		static map<uri,RESOURCE_PTR> _index_;
+		static void do_index(CONST_RESOURCE_PTR p);
 		//could break down in TRIGGER_SET and TRIGGER_GET
 		typedef base_resource TRIGGER;
 		typedef base_resource VERSION;
@@ -235,13 +237,11 @@ namespace objrdf{
 		typedef std::tuple<> PROPERTIES; //base_resource does not have properties
 		struct instance_iterator{
 			friend class base_resource; //for base_resource::erase
-			ITERATOR_RESOURCE_PTR subject;
-			RESOURCE_PTR alt_subject;
+			RESOURCE_PTR subject;
 			V::iterator i;
 			size_t index;
 			instance_iterator():subject(0),index(0){}
-			instance_iterator(ITERATOR_RESOURCE_PTR subject,V::iterator i,size_t index):subject(subject),i(i),index(index){}
-			instance_iterator(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR alt_subject,V::iterator i,size_t index):subject(subject),alt_subject(alt_subject),i(i),index(index){}
+			instance_iterator(RESOURCE_PTR subject,V::iterator i,size_t index):subject(subject),i(i),index(index){}
 			instance_iterator& operator+=(const unsigned int& i){index+=i;return *this;}
 			instance_iterator& operator++(){++index;return *this;}
 			instance_iterator* operator->(){return this;}
@@ -256,7 +256,7 @@ namespace objrdf{
 			void out(ostream& os) const;
 			RESOURCE_PTR get_object() const;
 			CONST_RESOURCE_PTR get_const_object() const;
-			ITERATOR_RESOURCE_PTR get_subject()const;
+			RESOURCE_PTR get_subject()const;
 			void set_object(RESOURCE_PTR);
 			//need those sometime
 			CONST_PROPERTY_PTR get_Property() const;
@@ -276,13 +276,11 @@ namespace objrdf{
 		};
 		struct const_instance_iterator{
 			friend class base_resource; //for base_resource::erase
-			ITERATOR_CONST_RESOURCE_PTR subject;
-			CONST_RESOURCE_PTR alt_subject;
+			CONST_RESOURCE_PTR subject;
 			V::const_iterator i;
 			size_t index;
 			const_instance_iterator():subject(0),index(0){}
-			const_instance_iterator(ITERATOR_CONST_RESOURCE_PTR subject,V::const_iterator i,size_t index):subject(subject),alt_subject(CONST_RESOURCE_PTR()),i(i),index(index){}
-			const_instance_iterator(ITERATOR_CONST_RESOURCE_PTR subject,CONST_RESOURCE_PTR alt_subject,V::const_iterator i,size_t index):subject(subject),alt_subject(alt_subject),i(i),index(index){}
+			const_instance_iterator(CONST_RESOURCE_PTR subject,V::const_iterator i,size_t index):subject(subject),i(i),index(index){}
 			const_instance_iterator& operator+=(const unsigned int& i){index+=i;return *this;}
 			const_instance_iterator& operator++(){++index;return *this;}
 			//tricky here
@@ -296,7 +294,7 @@ namespace objrdf{
 			bool operator<(const const_instance_iterator& j) const{return index<j.index;}
 			void out(ostream& os) const;
 			CONST_RESOURCE_PTR get_const_object() const;
-			ITERATOR_RESOURCE_PTR get_subject()const;
+			RESOURCE_PTR get_subject()const;
 			//need those sometime
 			CONST_PROPERTY_PTR get_Property() const;
 			bool literalp() const;
@@ -317,8 +315,8 @@ namespace objrdf{
 		};
 		//should be moved to .cpp
 		struct type_iterator:V::iterator{
-			ITERATOR_RESOURCE_PTR subject;
-			type_iterator(ITERATOR_RESOURCE_PTR subject,V::iterator i):V::iterator(i),subject(subject){}
+			RESOURCE_PTR subject;
+			type_iterator(RESOURCE_PTR subject,V::iterator i):V::iterator(i),subject(subject){}
 			V::iterator& get_base(){return *this;}
 			size_t get_size() const;
 			bool literalp() const;
@@ -336,10 +334,8 @@ namespace objrdf{
 			instance_iterator add_property(PROVENANCE p);
 		};
 		struct const_type_iterator:V::const_iterator{
-			ITERATOR_CONST_RESOURCE_PTR subject;
-			CONST_RESOURCE_PTR alt_subject;
-			const_type_iterator(ITERATOR_CONST_RESOURCE_PTR subject,V::const_iterator i):V::const_iterator(i),subject(subject),alt_subject(CONST_RESOURCE_PTR(0)){}
-			const_type_iterator(ITERATOR_CONST_RESOURCE_PTR subject,CONST_RESOURCE_PTR alt_subject,V::const_iterator i):V::const_iterator(i),subject(subject),alt_subject(alt_subject){}
+			CONST_RESOURCE_PTR subject;
+			const_type_iterator(CONST_RESOURCE_PTR subject,V::const_iterator i):V::const_iterator(i),subject(subject){}
 			V::const_iterator& get_base(){return *this;}
 			size_t get_size() const;
 			bool literalp() const;
@@ -354,8 +350,8 @@ namespace objrdf{
 				return *this;
 			}
 			const_type_iterator* operator->(){return this;}
-			const_instance_iterator cbegin(){return const_instance_iterator(subject,alt_subject,*this,0);}
-			const_instance_iterator cend(){return const_instance_iterator(subject,alt_subject,*this,get_size());}
+			const_instance_iterator cbegin(){return const_instance_iterator(subject,*this,0);}
+			const_instance_iterator cend(){return const_instance_iterator(subject,*this,get_size());}
 		};
 
 		void erase(instance_iterator first,instance_iterator last);
@@ -386,10 +382,12 @@ namespace objrdf{
 			#endif
 		}
 		CONST_CLASS_PTR get_Class() const{return get_class();};
+		/*
 		type_iterator begin();
 		type_iterator end();
 		const_type_iterator cbegin() const;
 		const_type_iterator cend() const;
+		*/
 		void get_output(ostream& os) const;//local resources can have content accessible through a URL scheme 
 		void end_resource(){};//will be invoked when finished parsing the element
 		/*
@@ -402,8 +400,8 @@ namespace objrdf{
 			//do we even need this when using PERSISTENT?
 			//yes when creating new resource in the parser or sparql update query
 			void (*)(void*,uri),	//in-place constructor
-			type_iterator (*)(ITERATOR_RESOURCE_PTR),	//begin
-			type_iterator (*)(ITERATOR_RESOURCE_PTR),	//end
+			type_iterator (*)(RESOURCE_PTR),	//begin
+			type_iterator (*)(RESOURCE_PTR),	//end
 			const_type_iterator (*)(CONST_RESOURCE_PTR),//cbegin
 			const_type_iterator (*)(CONST_RESOURCE_PTR)	//cend
 			//shall we add a clone function?
@@ -420,6 +418,7 @@ namespace objrdf{
 		template<typename U> const U& get_const() const{return helper<base_resource,U>::get_const(*this);}
 		//shorter name
 		template<typename U> const U& cget() const{return helper<base_resource,U>::get_const(*this);}
+		/*
 		void to_turtle(ostream& os);
 		void to_xml(ostream& os);
 		void to_xml_leaf(ostream& os);
@@ -428,6 +427,7 @@ namespace objrdf{
 		//to use in bash
 		void to_turtle_pretty(ostream& os);
 		void to_rdf_xml_pretty(ostream& os);//the document should not have loops!!!
+		*/
 		//static CONST_RESOURCE_PTR nil;
 		static RESOURCE_PTR nil;
 		int p_to_xml_size(const CONST_PROPERTY_PTR p);
@@ -445,10 +445,10 @@ namespace objrdf{
 	};
 	//to get function pointers
 	namespace f_ptr{
-		template<typename T> base_resource::type_iterator begin(ITERATOR_RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.begin());}
-		template<typename T> base_resource::type_iterator end(ITERATOR_RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.end());}
-		template<typename T> base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,r,T::v.cbegin());}
-		template<typename T> base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,r,T::v.cend());}
+		template<typename T> base_resource::type_iterator begin(RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.begin());}
+		template<typename T> base_resource::type_iterator end(RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.end());}
+		template<typename T> base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,T::v.cbegin());}
+		template<typename T> base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,T::v.cend());}
 	}
 	base_resource::instance_iterator operator+(const base_resource::instance_iterator& a,const unsigned int& b);
 
@@ -508,17 +508,13 @@ namespace objrdf{
 		resource(uri id):SUPERCLASS(id){
 			//risk of recursion!
 			//
-			#ifdef OBJRDF_VERB
-			cerr<<"create resource `"<<id<<"' "<<this<<endl;
-			#endif
+			LOG<<"create resource `"<<NAME<<"' `"<<id<<"' "<<this<<endl;
 		}
 		/*
  		*	all properties must be defined at once
  		*/
 		resource(uri id,PROPERTIES p):SUPERCLASS(id),p(p){
-			#ifdef OBJRDF_VERB
-			cerr<<"create resource `"<<id<<"' "<<this<<endl;
-			#endif
+			LOG<<"create resource `"<<NAME<<"' `"<<id<<"' "<<this<<endl;
 		}
 		~resource(){
 			//to avoid recursion
@@ -749,8 +745,8 @@ namespace objrdf{
  	*	it can only be modified by the application, it would be nice to store the sequence outside of the object so as
  	*	to not modify the class when deciding to use versioning
  	*/ 
-	OBJRDF_PROPERTY(prev,CONST_RESOURCE_PTR);
-	OBJRDF_PROPERTY(next,CONST_RESOURCE_PTR);
+	OBJRDF_PROPERTY(prev,RESOURCE_PTR);
+	OBJRDF_PROPERTY(next,RESOURCE_PTR);
 
 
 	RESOURCE_PTR create_by_type(CONST_CLASS_PTR c,uri id);
@@ -771,29 +767,30 @@ namespace objrdf{
 		typename PROPERTY
 	> struct base_f{
 		typedef PROPERTY PP;
-		static inline PROPERTY& get(ITERATOR_RESOURCE_PTR subject,size_t){return static_cast<SUBJECT*>(subject)->template get<PROPERTY>();}
-		static inline const PROPERTY& get_const(ITERATOR_CONST_RESOURCE_PTR subject,size_t){return static_cast<const SUBJECT*>(subject)->template get_const<PROPERTY>();}
-		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return get_const(subject,0).get_size();}
-		static void add_property(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
+		static inline PROPERTY& get(RESOURCE_PTR subject,size_t){return static_cast<typename SUBJECT::allocator::derived_pointer>(subject)->template get<PROPERTY>();}
+		static inline const PROPERTY& get_const(CONST_RESOURCE_PTR subject,size_t){return static_cast<typename SUBJECT::allocator::const_derived_pointer>(subject)->template cget<PROPERTY>();}
+		static size_t get_size(CONST_RESOURCE_PTR subject){return get_const(subject,0).get_size();}
+		static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
 		struct normal{
-			static void erase(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR alt_subject,size_t first,size_t last){
+			static void erase(RESOURCE_PTR subject,size_t first,size_t last){
 				get(subject,0).erase();
 			}	
 		};
 		struct version{
 			//we should only have one pointer!!!
-			static void erase(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR alt_subject,size_t first,size_t last){
-				RESOURCE_PTR old=clone_and_swap(alt_subject);//now alt_subject points to the cloned resource
+			static void erase(RESOURCE_PTR subject,size_t first,size_t last){
+				RESOURCE_PTR old=clone_and_swap(subject);//now subject points to the cloned resource
 				ostringstream os;
 				old._print(os);
-				old->id=uri(alt_subject->id.ns(),string(alt_subject->id.local)+"."+os.str());
-				static_cast<typename SUBJECT::allocator::derived_pointer>(alt_subject)->template get<objrdf::prev>().set_object(old);
-				static_cast<typename SUBJECT::allocator::derived_pointer>(old)->template get<objrdf::next>().set_object(alt_subject);
+				old->id=uri(subject->id.ns(),string(subject->id.local)+"."+os.str());
+				//inconsistent when more than 2 generations
+				static_cast<typename SUBJECT::allocator::derived_pointer>(subject)->template get<objrdf::prev>().set_object(old);
+				static_cast<typename SUBJECT::allocator::derived_pointer>(old)->template get<objrdf::next>().set_object(subject);
 				get(subject,0).erase();
 			}	
 		};
 		typedef typename IfThenElse<equality<typename SUBJECT::VERSION,PROPERTY>::VALUE,version,normal>::ResultT ERASE;
-		static PROVENANCE get_provenance(ITERATOR_CONST_RESOURCE_PTR subject,size_t){return 0;/*get_const(subject).p;*/}
+		static PROVENANCE get_provenance(CONST_RESOURCE_PTR subject,size_t){return 0;/*get_const(subject).p;*/}
 		static function_table get_table(){
 			function_table t;
 			std::get<6>(t)=get_size;
@@ -809,14 +806,14 @@ namespace objrdf{
 		typename STORE
 	> struct base_f<SUBJECT,array<PROPERTY,STORE>>{
 		typedef PROPERTY PP;
-		static inline array<PROPERTY,STORE>& get(ITERATOR_RESOURCE_PTR subject){return static_cast<SUBJECT*>(subject)->template get<array<PROPERTY,STORE>>();}
-		static inline const array<PROPERTY,STORE>& get_const(ITERATOR_CONST_RESOURCE_PTR subject){return static_cast<const SUBJECT*>(subject)->template get_const<array<PROPERTY,STORE>>();}
-		static inline PROPERTY& get(ITERATOR_RESOURCE_PTR subject,size_t index){return static_cast<SUBJECT*>(subject)->template get<array<PROPERTY,STORE>>()[index];}
-		static inline const PROPERTY& get_const(ITERATOR_CONST_RESOURCE_PTR subject,size_t index){return static_cast<const SUBJECT*>(subject)->template get_const<array<PROPERTY,STORE>>()[index];}
-		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return get_const(subject).size();}
-		static void add_property(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){typedef PROPERTY P;get(subject).push_back(P());}
-		static void erase(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR alt_subject,size_t first,size_t last){get(subject).erase(get(subject).begin()+first,get(subject).begin()+last);}
-		static PROVENANCE get_provenance(ITERATOR_CONST_RESOURCE_PTR subject,size_t index){return 0;}
+		static inline array<PROPERTY,STORE>& get(RESOURCE_PTR subject){return static_cast<typename SUBJECT::allocator::derived_pointer>(subject)->template get<array<PROPERTY,STORE>>();}
+		static inline const array<PROPERTY,STORE>& get_const(CONST_RESOURCE_PTR subject){return static_cast<typename SUBJECT::allocator::const_derived_pointer>(subject)->template get_const<array<PROPERTY,STORE>>();}
+		static inline PROPERTY& get(RESOURCE_PTR subject,size_t index){return static_cast<typename SUBJECT::allocator::derived_pointer>(subject)->template get<array<PROPERTY,STORE>>()[index];}
+		static inline const PROPERTY& get_const(CONST_RESOURCE_PTR subject,size_t index){return static_cast<typename SUBJECT::allocator::const_derived_pointer>(subject)->template get_const<array<PROPERTY,STORE>>()[index];}
+		static size_t get_size(CONST_RESOURCE_PTR subject){return get_const(subject).size();}
+		static void add_property(RESOURCE_PTR subject,PROVENANCE p){typedef PROPERTY P;get(subject).push_back(P());}
+		static void erase(RESOURCE_PTR subject,size_t first,size_t last){get(subject).erase(get(subject).begin()+first,get(subject).begin()+last);}
+		static PROVENANCE get_provenance(CONST_RESOURCE_PTR subject,size_t index){return 0;}
 		static function_table get_table(){
 			function_table t;
 			std::get<6>(t)=get_size;
@@ -831,13 +828,13 @@ namespace objrdf{
 
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONST|LITERAL>:base_f<SUBJECT,PROPERTY>{
 		typedef base_f<SUBJECT,PROPERTY> BASE;
-		static void out(ITERATOR_CONST_RESOURCE_PTR subject,ostream& os,size_t index){
+		static void out(CONST_RESOURCE_PTR subject,ostream& os,size_t index){
 			/*
  			*	at this stage we can detect if out has been overriden in a base class
  			*/ 
 			BASE::get_const(subject,index).out(os);
 		}	
-		static int compare(ITERATOR_CONST_RESOURCE_PTR a,size_t index_a,ITERATOR_CONST_RESOURCE_PTR b,size_t index_b){
+		static int compare(CONST_RESOURCE_PTR a,size_t index_a,CONST_RESOURCE_PTR b,size_t index_b){
 			return BASE::get_const(a,index_a).compare(BASE::get_const(b,index_b));
 		}
 		static function_table get_table(){
@@ -852,15 +849,15 @@ namespace objrdf{
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,LITERAL>:functions<SUBJECT,PROPERTY,CONST|LITERAL>{
 		typedef functions<SUBJECT,PROPERTY,CONST|LITERAL> BASE;
 		struct normal{
-			static void in(ITERATOR_RESOURCE_PTR subject,istream& is,size_t index){
+			static void in(RESOURCE_PTR subject,istream& is,size_t index){
 				BASE::get(subject,index).in(is);
 			}
 		};
 		struct trigger{
-			static void in(ITERATOR_RESOURCE_PTR subject,istream& is,size_t index){
+			static void in(RESOURCE_PTR subject,istream& is,size_t index){
 				PROPERTY tmp;
 				is>>tmp.t;
-				static_cast<SUBJECT*>(subject)->set_p(tmp);
+				static_cast<typename SUBJECT::allocator::derived_pointer>(subject)->set_p(tmp);
 			}
 		};
 		typedef typename IfThenElse<equality<typename SUBJECT::TRIGGER,PROPERTY>::VALUE,trigger,normal>::ResultT TRIGGER;
@@ -872,7 +869,7 @@ namespace objrdf{
 	};
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,STRING|LITERAL>:functions<SUBJECT,PROPERTY,LITERAL>{
 		typedef functions<SUBJECT,PROPERTY,LITERAL> BASE;
-		static void set_string(ITERATOR_RESOURCE_PTR subject,string s,size_t index){BASE::get(subject,index).set_string(s);}
+		static void set_string(RESOURCE_PTR subject,string s,size_t index){BASE::get(subject,index).set_string(s);}
 		static function_table get_table(){
 			auto t=BASE::get_table();
 			std::get<0>(t)=set_string;
@@ -880,10 +877,10 @@ namespace objrdf{
 		}
 	};
 	//what if set_object is invoked on const property?
-	static void set_const_object(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){cerr<<"error: const property"<<endl;}
+	static void set_const_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){cerr<<"error: const property"<<endl;}
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONST>:base_f<SUBJECT,PROPERTY>{
 		typedef base_f<SUBJECT,PROPERTY> BASE;
-		static CONST_RESOURCE_PTR get_const_object(ITERATOR_CONST_RESOURCE_PTR subject,CONST_RESOURCE_PTR alt_subject,size_t index){
+		static CONST_RESOURCE_PTR get_const_object(CONST_RESOURCE_PTR subject,size_t index){
 			return BASE::get_const(subject,index).get_const_object();
 		}
 		static function_table get_table(){
@@ -895,19 +892,17 @@ namespace objrdf{
 	};	
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,0>:functions<SUBJECT,PROPERTY,CONST>{
 		typedef functions<SUBJECT,PROPERTY,CONST> BASE;
-		static RESOURCE_PTR get_object(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR alt_subject,size_t index){return BASE::get(subject,index).get_object();}
+		static RESOURCE_PTR get_object(RESOURCE_PTR subject,size_t index){return BASE::get(subject,index).get_object();}
 		struct normal{
-			static void set_object(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
+			static void set_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
 				BASE::get(subject,index).set_object(object);
 			}
 		};
 		struct trigger{
-			static void set_object(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
+			static void set_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
 				typename BASE::PP tmp;
 				tmp.set_object(object);
-				//we need alt_subject
-				//static_cast<SUBJECT*>(subject)->set_p(tmp,static_cast<typename SUBJECT::allocator::derived_pointer>(subject));//to give information about the type
-				static_cast<SUBJECT*>(subject)->set_p(tmp);//to give information about the type
+				static_cast<typename SUBJECT::allocator::derived_pointer>(subject)->set_p(tmp);//to give information about the type
 			}
 		};
 		typedef typename IfThenElse<equality<typename SUBJECT::TRIGGER,PROPERTY>::VALUE,trigger,normal>::ResultT TRIGGER;
@@ -931,10 +926,10 @@ namespace objrdf{
 		const char* NAME,
 		typename IMPLEMENTATION
 	> struct functions<SUBJECT,property<NAMESPACE,NAME,NIL,IMPLEMENTATION>,LITERAL>{
-		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return 1;}
-		static void out(ITERATOR_CONST_RESOURCE_PTR subject,ostream& os,size_t index){
+		static size_t get_size(CONST_RESOURCE_PTR subject){return 1;}
+		static void out(CONST_RESOURCE_PTR subject,ostream& os,size_t index){
 			property<NAMESPACE,NAME,NIL,IMPLEMENTATION> tmp;
-			static_cast<const SUBJECT*>(subject)->out_p(tmp,os);
+			static_cast<typename SUBJECT::allocator::const_derived_pointer>(subject)->out_p(tmp,os);
 		}
 		static function_table get_table(){
 			function_table t;
@@ -950,21 +945,21 @@ namespace objrdf{
 		const char* NAME,
 		typename RANGE
 	> struct functions<SUBJECT,property<NAMESPACE,NAME,RANGE,NIL>,LITERAL>{
-		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return 1;}
-		/*static void set_string(ITERATOR_RESOURCE_PTR subject,string s,size_t index){
+		static size_t get_size(CONST_RESOURCE_PTR subject){return 1;}
+		/*static void set_string(RESOURCE_PTR subject,string s,size_t index){
 			property<NAMESPACE,NAME,RANGE,NIL> tmp;//very awkward
 			static_cast<SUBJECT*>(subject)->set_string_p(tmp,s);//won't find function if in super-class
 		}*/
-		static void in(ITERATOR_RESOURCE_PTR subject,istream& is,size_t index){
+		static void in(RESOURCE_PTR subject,istream& is,size_t index){
 			property<NAMESPACE,NAME,RANGE,NIL> tmp;//very awkward
-			static_cast<SUBJECT*>(subject)->in_p(tmp,is);//won't find function if in super-class
+			static_cast<typename SUBJECT::allocator::derived_pointer>(subject)->in_p(tmp,is);//won't find function if in super-class
 		}
-		static void out(ITERATOR_CONST_RESOURCE_PTR subject,ostream& os,size_t index){
+		static void out(CONST_RESOURCE_PTR subject,ostream& os,size_t index){
 			property<NAMESPACE,NAME,RANGE,NIL> tmp;//very awkward
-			static_cast<const SUBJECT*>(subject)->out_p(tmp,os);
+			static_cast<typename SUBJECT::allocator::const_derived_pointer>(subject)->out_p(tmp,os);
 		}
-		static void add_property(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
-		static void erase(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR alt_subject,size_t first,size_t last){}//idem
+		static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
+		static void erase(RESOURCE_PTR subject,size_t first,size_t last){}//idem
 		static function_table get_table(){
 			function_table t;
 			//std::get<0>(t)=set_string;
@@ -984,9 +979,9 @@ namespace objrdf{
 		template<typename T> void constructor(void* p,uri u){new(p)T(u);}//a lot simpler
 		template<typename T> void copy_constructor(void* p,CONST_RESOURCE_PTR r){new(p)T(static_cast<const T&>(*r));}
 		template<> void constructor<rdfs::Class>(void* p,uri u);
-		template<> base_resource::type_iterator end<rdfs::Class>(ITERATOR_RESOURCE_PTR r);
+		template<> base_resource::type_iterator end<rdfs::Class>(RESOURCE_PTR r);
+		template<> base_resource::type_iterator end<rdf::Property>(RESOURCE_PTR r);
 		template<> void constructor<rdf::Property>(void* p,uri u);
-		template<> base_resource::type_iterator end<rdf::Property>(ITERATOR_RESOURCE_PTR r);
 	}
 	struct type_p{
 		CONST_CLASS_PTR t;
@@ -1022,19 +1017,19 @@ namespace objrdf{
 	//relies on pointers, not on id
 	OBJRDF_PROPERTY(id,uri);
 	template<typename SUBJECT> struct functions<SUBJECT,objrdf::id,STRING|LITERAL>{
-		static void set_string(ITERATOR_RESOURCE_PTR subject,string s,size_t){
+		static void set_string(RESOURCE_PTR subject,string s,size_t){
 			if(subject->id.is_local()) //only makes sense with local resources
 				subject->id=uri(s);//could add code to detect duplicate id's
 		}
-		static void in(ITERATOR_RESOURCE_PTR subject,istream& is,size_t){
+		static void in(RESOURCE_PTR subject,istream& is,size_t){
 			string tmp;
 			is>>tmp;
 			set_string(subject,tmp,0);
 		}	
-		static void out(ITERATOR_CONST_RESOURCE_PTR subject,ostream& os,size_t){os<<subject->id;}	
-		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return 1;}
-		static void add_property(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
-		static void erase(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR alt_subject,size_t first,size_t last){}	
+		static void out(CONST_RESOURCE_PTR subject,ostream& os,size_t){os<<subject->id;}	
+		static size_t get_size(CONST_RESOURCE_PTR subject){return 1;}
+		static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
+		static void erase(RESOURCE_PTR subject,size_t first,size_t last){}	
 		static function_table get_table(){
 			function_table t;
 			std::get<0>(t)=set_string;
@@ -1053,11 +1048,11 @@ namespace objrdf{
  	*/ 
 	OBJRDF_PROPERTY(self,CONST_RESOURCE_PTR);
 	template<typename SUBJECT> struct functions<SUBJECT,objrdf::self,objrdf::self::TYPE>{
-		static CONST_RESOURCE_PTR get_const_object(ITERATOR_CONST_RESOURCE_PTR subject,CONST_RESOURCE_PTR alt_subject,size_t index){return alt_subject;}
-		static void set_object(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){}
-		static size_t get_size(ITERATOR_CONST_RESOURCE_PTR subject){return 1;}
-		static void add_property(ITERATOR_RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
-		static void erase(ITERATOR_RESOURCE_PTR subject,RESOURCE_PTR alt_subject,size_t first,size_t last){}	
+		static CONST_RESOURCE_PTR get_const_object(CONST_RESOURCE_PTR subject,size_t index){return subject;}
+		static void set_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){}
+		static size_t get_size(CONST_RESOURCE_PTR subject){return 1;}
+		static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
+		static void erase(RESOURCE_PTR subject,size_t first,size_t last){}	
 		static function_table get_table(){
 			function_table t;
 			std::get<4>(t)=get_const_object;
@@ -1328,8 +1323,8 @@ namespace objrdf{
 				f_ptr::begin<TMP>,
 				//if the pool is not writable all instances will be locked
 				TMP::allocator::get_index()->p.writable ? 
-					static_cast<objrdf::base_resource::type_iterator (*)(ITERATOR_RESOURCE_PTR)>(f_ptr::end<TMP>) : 
-					static_cast<objrdf::base_resource::type_iterator (*)(ITERATOR_RESOURCE_PTR)>(f_ptr::begin<TMP>),
+					static_cast<objrdf::base_resource::type_iterator (*)(RESOURCE_PTR)>(f_ptr::end<TMP>) : 
+					static_cast<objrdf::base_resource::type_iterator (*)(RESOURCE_PTR)>(f_ptr::begin<TMP>),
 				f_ptr::cbegin<TMP>,
 				f_ptr::cend<TMP>
 			),
@@ -1350,8 +1345,8 @@ namespace objrdf{
 				f_ptr::begin<TMP>,
 				//if the pool is not writable all instances will be locked
 				TMP::allocator::get_index()->p.writable ? 
-					static_cast<objrdf::base_resource::type_iterator (*)(ITERATOR_RESOURCE_PTR)>(f_ptr::end<TMP>) : 
-					static_cast<objrdf::base_resource::type_iterator (*)(ITERATOR_RESOURCE_PTR)>(f_ptr::begin<TMP>),
+					static_cast<objrdf::base_resource::type_iterator (*)(RESOURCE_PTR)>(f_ptr::end<TMP>) : 
+					static_cast<objrdf::base_resource::type_iterator (*)(RESOURCE_PTR)>(f_ptr::begin<TMP>),
 				f_ptr::cbegin<TMP>,
 				f_ptr::cend<TMP>,
 				f_ptr::copy_constructor<TMP>

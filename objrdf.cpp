@@ -11,17 +11,18 @@ using namespace objrdf;
 
 template<> void f_ptr::constructor<rdfs::Class>(void* p,uri u){assert(0);}
 template<> void f_ptr::constructor<rdf::Property>(void* p,uri u){assert(0);}
-template<> base_resource::type_iterator f_ptr::end<rdfs::Class>(ITERATOR_RESOURCE_PTR r){return base_resource::type_iterator(r,rdfs::Class::v.begin());}
-template<> base_resource::type_iterator f_ptr::end<rdf::Property>(ITERATOR_RESOURCE_PTR r){return base_resource::type_iterator(r,rdf::Property::v.begin());}
+template<> base_resource::type_iterator f_ptr::end<rdfs::Class>(RESOURCE_PTR r){return base_resource::type_iterator(r,rdfs::Class::v.begin());}
+template<> base_resource::type_iterator f_ptr::end<rdf::Property>(RESOURCE_PTR r){return base_resource::type_iterator(r,rdf::Property::v.begin());}
 
 name_p::name_p(uri n):n(n){}
 bool name_p::operator()(const property_info& p) const{return p.p->id==n;}
 bool type_p::operator()(RESOURCE_PTR r) const{return *t<=*r->get_Class();}
-
+/*
 base_resource::type_iterator base_resource::begin(){return base_resource::type_iterator(this,v.begin());}
 base_resource::const_type_iterator base_resource::cbegin() const{return base_resource::const_type_iterator(this,v.cbegin());}
 base_resource::type_iterator base_resource::end(){return base_resource::type_iterator(this,v.end());}
 base_resource::const_type_iterator base_resource::cend() const{return base_resource::const_type_iterator(this,v.cend());}
+*/
 CONST_PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::iterator>(*this)->p;}
 CONST_PROPERTY_PTR base_resource::const_type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}
 size_t base_resource::type_iterator::get_size() const{return std::get<6>(static_cast<V::iterator>(*this)->t)(subject);}//very confusing notation
@@ -30,15 +31,20 @@ bool base_resource::type_iterator::literalp() const{return static_cast<V::iterat
 bool base_resource::const_type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
 bool base_resource::type_iterator::constp() const{return !std::get<7>(static_cast<V::iterator>(*this)->t);}
 bool base_resource::const_type_iterator::constp() const{return !std::get<7>(static_cast<V::const_iterator>(*this)->t);}
-
+void base_resource::do_index(CONST_RESOURCE_PTR p){
+	LOG<<"indexing resource `"<<p->id<<"'"<<endl;
+	//_index_[p->id]=p;
+}
 property_info::property_info(CONST_PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}
 //should be deprecated
+/*
 void base_resource::erase(instance_iterator first,instance_iterator last){
 	std::get<8>(first.i->t)(this,RESOURCE_PTR(),first.index,last.index);
 }
 void base_resource::erase(instance_iterator position){
 	std::get<8>(position.i->t)(this,RESOURCE_PTR(),position.index,position.index+1);
 }
+*/
 void base_resource::get_output(ostream& os) const{
 	//what would be most appropriate HTTP message?	
 }
@@ -193,14 +199,14 @@ void base_resource::instance_iterator::set_string(string s){
 	std::get<0>(i->t)(subject,s,index);
 }
 RESOURCE_PTR base_resource::instance_iterator::get_object() const{
-	return std::get<3>(i->t)(subject,alt_subject,index);
+	return std::get<3>(i->t)(subject,index);
 }
 CONST_RESOURCE_PTR base_resource::instance_iterator::get_const_object() const{
-	return std::get<4>(i->t)(subject,alt_subject,index);
+	return std::get<4>(i->t)(subject,index);
 }
 CONST_RESOURCE_PTR base_resource::const_instance_iterator::get_const_object() const{
 	assert(std::get<4>(i->t));
-	return std::get<4>(i->t)(subject,alt_subject,index);
+	return std::get<4>(i->t)(subject,index);
 }
 void base_resource::instance_iterator::set_object(RESOURCE_PTR r){
 	std::get<5>(i->t)(subject,r,index);
@@ -244,6 +250,7 @@ int base_resource::p_to_xml_size(const CONST_PROPERTY_PTR p){return 1;}
 bool base_resource::is_a(const CONST_CLASS_PTR& c) const{
 	return *c<=*get_Class();
 }
+/*
 void base_resource::to_turtle(ostream& os){
 	os<<id<<" ";
 	base_resource::type_iterator t_begin=begin();
@@ -293,6 +300,7 @@ void base_resource::to_rdf_xml(ostream& os,const PROVENANCE& p) const{
 	}
 	os<<"\n</"<<get_Class()->id<<">";
 }
+*/
 namespace objrdf{
 	CONST_CLASS_PTR get_class(CONST_RESOURCE_PTR r){return CONST_CLASS_PTR(r.pool_ptr.index);}
 	//shall we start with an offset since the first 2 properties are read-only (rdfs::type and objrdf::self)
@@ -307,16 +315,16 @@ namespace objrdf{
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r,CONST_USER_PTR){return std::get<4>(get_class(r)->t)(r);}
 
 	void erase(RESOURCE_PTR r,base_resource::instance_iterator first,base_resource::instance_iterator last){
-		std::get<8>(first.i->t)(r,r,first.index,last.index);
+		std::get<8>(first.i->t)(r,first.index,last.index);
 	}
 	void erase(RESOURCE_PTR r,base_resource::instance_iterator position){
-		std::get<8>(position.i->t)(r,r,position.index,position.index+1);
+		std::get<8>(position.i->t)(r,position.index,position.index+1);
 	}
 	base_resource::const_instance_iterator get_const_self_iterator(CONST_RESOURCE_PTR r){
-		return base_resource::const_instance_iterator(r,r,base_resource::v.cbegin()+1,0);//hard-coded index, careful!
+		return base_resource::const_instance_iterator(r,base_resource::v.cbegin()+1,0);//hard-coded index, careful!
 	}
 	base_resource::instance_iterator get_self_iterator(RESOURCE_PTR r){
-		return base_resource::instance_iterator(r,r,base_resource::v.begin()+1,0);//hard-coded index, careful!
+		return base_resource::instance_iterator(r,base_resource::v.begin()+1,0);//hard-coded index, careful!
 	}
 	void to_rdf_xml(CONST_RESOURCE_PTR r,ostream& os){
 		os<<"\n<"<<get_class(r)->id<<" ";
@@ -350,6 +358,7 @@ namespace objrdf{
 		os<<"\n</"<<get_class(r)->id<<">";
 	}
 }
+#ifdef JJJJJJJ
 void base_resource::to_rdf_xml_pretty(ostream& os){
 	/*
  	*	we can only use rdf:ID if the resource is local, that is if uri::index==0
@@ -407,6 +416,7 @@ void base_resource::to_xml(ostream& os){
 	}
 	os<<"</"<<get_Class()->id<<">";
 }
+#endif
 void objrdf::to_rdf_xml(ostream& os){
 	os<<"<?xml version='1.0'?>\n";
 	os<<"<"<<rdf::_RDF<<"\n";

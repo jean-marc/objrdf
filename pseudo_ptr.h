@@ -559,6 +559,8 @@ struct pseudo_ptr_pool{
 		auto i=find_if(get_pool()->template begin<pseudo_ptr_pool>(),get_pool()->template end<pseudo_ptr_pool>(),pool::match_type_id(get_type_id<typename POINTER::value_type>()));
 		pseudo_ptr_pool p=(i==get_pool()->template end<pseudo_ptr_pool>()) ? allocate() : *i;
 		new(p)POOL(*OTHER_STORE::template go<POINTER>(),destructor<typename POINTER::value_type>,get_type_id<typename POINTER::value_type>());
+		//a this stage we can go through all elements in pool and index them
+		//for(auto i=p->template begin<POINTER>();i!=p->template end<POINTER>();++i) POINTER::value_type::do_index(*i);
 		return p;
 	}
 	template<typename P> static pseudo_ptr_pool help(){
@@ -685,6 +687,7 @@ template<
 	template<typename... Args> static pseudo_ptr construct(Args... args){
 		pseudo_ptr p=allocate();
 		new(p) T(args...);
+		T::do_index(p);//
 		return p;
 	}
 	//void deallocate(){get_pool()->deallocate(index);}
@@ -754,12 +757,14 @@ struct pseudo_ptr<T,_STORE_,true,_INDEX_>{
 	template<typename... Args> static pseudo_ptr construct(Args... args){
 		pseudo_ptr p=allocate();
 		new(p) T(args...);
+		T::do_index(p);
 		return p;
 	}
 	//maybe should only be for pseudo_ptr<const T>
 	template<typename... Args> static pseudo_ptr construct_at(size_t i,Args... args){
 		pseudo_ptr p=allocate_at(i);
 		new(p) T(args...);
+		T::do_index(p);
 		return p;
 	}
 	//check if pool does reference counting
@@ -851,11 +856,13 @@ template<
 	template<typename... Args> static pseudo_ptr construct(Args... args){
 		pseudo_ptr p=allocate();
 		new(p) T(args...);
+		//T::do_index(p);
 		return p;
 	}
 	template<typename... Args> static pseudo_ptr construct_at(size_t i,Args... args){
 		pseudo_ptr p=allocate_at(i);
 		new(p) T(args...);
+		//T::do_index(p);
 		return p;
 	}
 	static T* get_typed_v(){return static_cast<T*>(get_pool()->p.v);} 
@@ -921,12 +928,14 @@ template<
 		pseudo_ptr p=allocate();
 		//problem here p is cast to const void*
 		new(p)T(a);//in-place constructor
+		//T::do_index(p);
 		return p;
 	} 
 	//have to check this	
 	operator T*() {return index ? (T*)pool_ptr->get(index) : 0;}
 	value_type* operator->()const{return (value_type*)pool_ptr->get(index);}
 	reference operator*()const{return *(value_type*)pool_ptr->get(index);}
+	bool operator==(const pseudo_ptr& p)const{return pool_ptr==p.pool_ptr && index==p.index;}
 };
 	
 template<

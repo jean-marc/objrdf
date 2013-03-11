@@ -699,7 +699,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 */
 	//RESOURCE_PTR sub;//subject, could be modified
 	//needs a default value
-	base_resource::type_iterator current_property(0,objrdf::V::iterator());
+	base_resource::type_iterator current_property(RESOURCE_PTR(0),objrdf::V::iterator());
 	//for(auto i=r.v.begin();i<r.v.end();++i){
 	for(auto i=begin;i<end;++i){
 		cerr<<"!!!current:\n"<<*i<<endl;
@@ -873,6 +873,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 								}else{
 									istringstream is(i->v[0].v[0].t.second);
 									current_property->add_property(0)->in(is);
+									//there should not be anything left in the stream
 								}
 							}
 						}else{
@@ -1020,7 +1021,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 ostream& operator<<(ostream& os,const RESULT& r){
 	for(auto i=r.begin();i<r.end();++i){
 		for(auto j=i->cbegin();j<i->cend();++j){
-			if((*j)!=base_resource::nil->cbegin()->cbegin()){
+			if((*j)!=cbegin(base_resource::nil)->cbegin()){
 				if(j->get_Property()->get_const<rdfs::range>()==rdfs::XML_Literal::get_class())
 					os<<"XML_Literal ...\t|";
 				else{
