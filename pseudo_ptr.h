@@ -360,7 +360,6 @@ struct pool_array{
 		static pool_array* p=new pool_array(*STORE::template go<P>(),0,0);
 		return p;
 	}
-
 };
 struct empty_store:public param{//for classes with no instance
 	enum{N=0};
@@ -474,8 +473,6 @@ template<
 	typename _INDEX_=uint16_t	//can address 2^16 objects
 	//,typename CONTAINER=T		//if we want to add reference counting
 > struct pseudo_ptr;
-
-
 template<
 	typename POOL,
 	typename _STORE_,
@@ -559,8 +556,6 @@ struct pseudo_ptr_pool{
 		auto i=find_if(get_pool()->template begin<pseudo_ptr_pool>(),get_pool()->template end<pseudo_ptr_pool>(),pool::match_type_id(get_type_id<typename POINTER::value_type>()));
 		pseudo_ptr_pool p=(i==get_pool()->template end<pseudo_ptr_pool>()) ? allocate() : *i;
 		new(p)POOL(*OTHER_STORE::template go<POINTER>(),destructor<typename POINTER::value_type>,get_type_id<typename POINTER::value_type>());
-		//a this stage we can go through all elements in pool and index them
-		//for(auto i=p->template begin<POINTER>();i!=p->template end<POINTER>();++i) POINTER::value_type::do_index(*i);
 		return p;
 	}
 	template<typename P> static pseudo_ptr_pool help(){
@@ -578,8 +573,6 @@ struct pseudo_ptr_pool{
 	bool operator!=(const pseudo_ptr_pool& p)const{return index!=p.index;}
 	operator value_type*() {return get_typed_v()+index;}
 };
-
-
 typedef pseudo_ptr_pool<
 	pool,
 	persistent_store,//we need to save index for consistency
@@ -632,15 +625,6 @@ template<
 	typename _INDEX_
 > struct pseudo_ptr<T,_STORE_,false,_INDEX_>{
 	typedef _STORE_ STORE;
-	/*
-	* we need to define a unique type to avoid ambiguity between constructors
-	* 	pseudo_ptr(INDEX index)
-	* 	pseudo_ptr(T* p)
-	* e.g:
-	* 	struct unique{
-	* 		INDEX i;
-	* 	};
-	*/
 	typedef _INDEX_ INDEX;
 	typedef random_access_iterator_tag iterator_category;
 	typedef T value_type;
@@ -655,17 +639,6 @@ template<
 	void _print(ostream& os) const{
 		os<<'a'<<hex<<(unsigned int)index;
 	}
-	/*
-	* dangerous, be very careful with this
-	* 	should be used like this:
-	* 	pseudo_ptr a(new(pseudo_ptr::allocate())T(...)
-	* problem: constructors are now ambiguous, would be nice if we could name it
-	*/
-	//explicit pseudo_ptr(T* p):index(((void*)p-get_pool()->p.v)/sizeof(T)){}
-	/*
-	*	only makes sense if S and T are related, not clear if they should use same store
-	*
-	*/
 	template<
 		typename S,
 		typename OTHER_STORE,
@@ -681,16 +654,13 @@ template<
 	~pseudo_ptr(){
 
 	}
-	//static pseudo_ptr allocate(){return pseudo_ptr(get_pool()->allocate());}
 	static pseudo_ptr allocate(){return pseudo_ptr(get_pool()->template allocate_t<T>());}
-	//equivalent to return new T(s), could use variadic template
 	template<typename... Args> static pseudo_ptr construct(Args... args){
 		pseudo_ptr p=allocate();
 		new(p) T(args...);
 		T::do_index(p);//
 		return p;
 	}
-	//void deallocate(){get_pool()->deallocate(index);}
 	void deallocate(){get_pool()->template deallocate_t<T>(index);}
 	void destroy(){
 		(*this)->~T();//in-place destructor
