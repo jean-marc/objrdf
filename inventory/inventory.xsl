@@ -31,7 +31,10 @@ $("#by_site").submit(function(){
 <link rel='alternate stylesheet' type='text/css' href='inventory_print_big.css' title='big'/>
 <link rel='alternate stylesheet' type='text/css' href='inventory_print_medium.css' title='medium'/>
 <link rel='alternate stylesheet' type='text/css' href='inventory_print_small.css' title='small'/>
-<title>UNICEF T4D Inventory</title>
+<!--
+title should give more information
+-->
+<xsl:apply-templates select='/' mode='title'/>
 </head>
 <body>
 <!-- different ways to search db: id, site, type,...-->
@@ -206,5 +209,13 @@ search by site: <form id='by_site'><input type='text'/></form> |
 <!-- specialize for geo -->
 <xsl:template match='geo:lat' mode='property'/>
 <xsl:template match='geo:long' mode='property'/>
-
+<!-- title -->
+<xsl:template match='rdf:RDF' mode='title'>
+<title><xsl:value-of select="concat(substring-after(*/rdf:type/@rdf:resource,'#'),' ',*/@rdf:ID)"/>
+<xsl:if test='*[2]'> ...</xsl:if>
+</title> 
+</xsl:template>
+<xsl:template match='*' mode='title'>
+<title>UNICEF T4D Inventory</title>
+</xsl:template>
 </xsl:stylesheet>
