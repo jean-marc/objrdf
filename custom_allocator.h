@@ -15,6 +15,10 @@
  *
  *
  */
+namespace local{
+	template<typename A,typename B> struct equality{enum{VALUE=0};};
+	template<typename A> struct equality<A,A>{enum{VALUE=1};};
+}
 template<
 	typename VALUE_TYPE,
 	typename _STORE_,
@@ -63,11 +67,21 @@ template<
 		p->~VALUE_TYPE();
 	}
 	//add functions to navigate pool iterators, begin,end,cbegin,cend
-	typedef generic_iterator<const_pointer> const_iterator;
-	const_iterator cbegin(){return const_iterator(get_index(),get_index()->get_size());}
-	const_iterator cend(){return const_iterator(get_index());}
-	//helper function
-	
+	typedef typename pool::iterator<pointer> iterator;
+	iterator begin(){return get_index()->template begin<pointer>();}
+	iterator end(){return get_index()->template end<pointer>();}
+	//should only allocate resources using persistent_store
+	struct persistent{	
+		static int go(){
+			pool_allocator a;
+			for(auto i=a.begin();i!=a.end();++i) value_type::do_index(*i);
+			return 0;
+		}
+	};
+	struct other{
+		static int go(){return 0;}
+	};
+	static int _index(){return IfThenElse<local::equality<STORE,persistent_store>::VALUE,persistent,other>::ResultT::go();}
 };
 
 

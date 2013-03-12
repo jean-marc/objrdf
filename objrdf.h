@@ -206,7 +206,7 @@ namespace objrdf{
 	public:
 		//global index, will be populated by
 		static map<uri,RESOURCE_PTR> _index_;
-		static void do_index(CONST_RESOURCE_PTR p);
+		static void do_index(RESOURCE_PTR p);
 		//could break down in TRIGGER_SET and TRIGGER_GET
 		typedef base_resource TRIGGER;
 		typedef base_resource VERSION;
@@ -777,13 +777,12 @@ namespace objrdf{
 			}	
 		};
 		struct version{
-			//we should only have one pointer!!!
 			static void erase(RESOURCE_PTR subject,size_t first,size_t last){
 				RESOURCE_PTR old=clone_and_swap(subject);//now subject points to the cloned resource
 				ostringstream os;
 				old._print(os);
 				old->id=uri(subject->id.ns(),string(subject->id.local)+"."+os.str());
-				//inconsistent when more than 2 generations
+				//obj::next is wrong when more than 2 generations, should only use obj::prev for now
 				static_cast<typename SUBJECT::allocator::derived_pointer>(subject)->template get<objrdf::prev>().set_object(old);
 				static_cast<typename SUBJECT::allocator::derived_pointer>(old)->template get<objrdf::next>().set_object(subject);
 				get(subject,0).erase();
@@ -1354,6 +1353,8 @@ namespace objrdf{
 			TMP::get_comment!=SUPERCLASS::get_comment ? TMP::get_comment() : "",
 			objrdf::sizeOf(sizeof(TMP))
 		));
+		//is that a good place to generate indexes?
+		static auto tmp=TMP::allocator::_index();
 		return p;
 	}
 	//there should be a cleaner way to do that

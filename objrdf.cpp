@@ -31,9 +31,11 @@ bool base_resource::type_iterator::literalp() const{return static_cast<V::iterat
 bool base_resource::const_type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
 bool base_resource::type_iterator::constp() const{return !std::get<7>(static_cast<V::iterator>(*this)->t);}
 bool base_resource::const_type_iterator::constp() const{return !std::get<7>(static_cast<V::const_iterator>(*this)->t);}
-void base_resource::do_index(CONST_RESOURCE_PTR p){
-	LOG<<"indexing resource `"<<p->id<<"'"<<endl;
-	//_index_[p->id]=p;
+
+map<uri,RESOURCE_PTR> base_resource::_index_;
+void base_resource::do_index(RESOURCE_PTR p){
+	//LOG<<"indexing resource `"<<p->id<<"'"<<endl;
+	_index_[p->id]=p;
 }
 property_info::property_info(CONST_PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}
 //should be deprecated
@@ -440,6 +442,9 @@ void objrdf::to_rdf_xml(ostream& os){
 //dumb scanner
 RESOURCE_PTR objrdf::find(uri u){
 	cerr<<"looking up uri `"<<u<<"'...";
+	auto i=base_resource::_index_.find(u);
+	return i==base_resource::_index_.end() ? RESOURCE_PTR() : i->second;
+	/*
 	for(auto i=objrdf::begin();i<objrdf::end();++i){
 		for(auto j=i.begin();j<i.end();++j){
 			if((*j)->id==u){
@@ -450,6 +455,7 @@ RESOURCE_PTR objrdf::find(uri u){
 	}	
 	cerr<<"not found"<<endl;	
 	return RESOURCE_PTR();
+	*/
 }
 RESOURCE_PTR objrdf::create_by_type(CONST_CLASS_PTR c,uri id){
 	POOL_PTR p(c.index);
