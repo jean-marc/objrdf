@@ -217,7 +217,7 @@ void httpd::get(http_parser& h,iostream& io){
 		ifstream file(path.c_str(),ios_base::binary);
 		if(file){
 			struct stat results;
-			stat(h.current_path.substr(1).c_str(),&results);
+			stat(path.c_str(),&results);
 			http_parser::M::iterator j=h.headers.find("If-Modified-Since");
 			time_t t=0;
 			if(j!=h.headers.end()){
@@ -225,9 +225,9 @@ void httpd::get(http_parser& h,iostream& io){
 				is>>t;
 			}
 			if(t<results.st_mtime){				
-				string::size_type i=h.current_path.find_last_of('.');
+				string::size_type i=path.find_last_of('.');
 				string extension;
-				if(i!=string::npos) extension=h.current_path.substr(i+1);
+				if(i!=string::npos) extension=path.substr(i+1);
 				io<<"HTTP/1.1 200 OK"<<"\r\n";
 				io<<"Content-Type:"<<get_mime(extension)<<"\r\n";
 				io<<"Content-Length:"<<results.st_size<<"\r\n";
