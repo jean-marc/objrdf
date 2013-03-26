@@ -826,13 +826,15 @@ template<
 	template<typename... Args> static pseudo_ptr construct(Args... args){
 		pseudo_ptr p=allocate();
 		new(p) T(args...);
-		//T::do_index(p);
+		//very awkward conversion to non-const pointer
+		T::do_index(pseudo_ptr<T,_STORE_,false,_INDEX_>(p.index));
 		return p;
 	}
 	template<typename... Args> static pseudo_ptr construct_at(size_t i,Args... args){
 		pseudo_ptr p=allocate_at(i);
 		new(p) T(args...);
-		//T::do_index(p);
+		//very awkward conversion to non-const pointer
+		T::do_index(pseudo_ptr<T,_STORE_,false,_INDEX_>(p.index));
 		return p;
 	}
 	static T* get_typed_v(){return static_cast<T*>(get_pool()->p.v);} 
