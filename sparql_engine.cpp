@@ -724,15 +724,23 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 										cerr<<"rdf:type!"<<endl;
 										//the next object will be the rdfs::Class
 										CONST_RESOURCE_PTR r=parse_object((j+1)->v[0]);
-										if(r&&get_class(r)==rdfs::Class::get_class()){
-											cerr<<"rdfs:Class!"<<endl;
-											CONST_CLASS_PTR c(r);
-											sub=create_by_type(c,u);
-											if(!sub){
-												cerr<<"cannot create instances of class `"<<r->id<<"'"<<endl;
-												return false;
+										if(r){
+											if(get_class(r)==rdfs::Class::get_class()){
+												cerr<<"rdfs:Class!"<<endl;
+												CONST_CLASS_PTR c(r);
+												sub=create_by_type(c,u);
+												if(!sub){
+													cerr<<"cannot create instances of class `"<<r->id<<"'"<<endl;
+													return false;
+												}
+												break;	
+											}else{
+												cerr<<"resource is not a rdfs:Class"<<endl;
+												return false;	
 											}
-											break;	
+										}else{
+											cerr<<"resource not found"<<endl;
+											return false;
 										}
 									}	
 								}
