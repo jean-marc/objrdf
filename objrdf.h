@@ -205,7 +205,7 @@ namespace objrdf{
 	class base_resource{
 	public:
 		//global index, will be populated by
-		static map<uri,RESOURCE_PTR> _index_;
+		static map<uri,RESOURCE_PTR>& get_index();
 		static void do_index(RESOURCE_PTR p);
 		//could break down in TRIGGER_SET and TRIGGER_GET
 		typedef base_resource TRIGGER;
@@ -975,6 +975,14 @@ namespace objrdf{
 	//schema
 	typedef base_resource* (*fpt)(uri);
 	namespace f_ptr{
+		//what about packing the allocation in the constructor?
+		/*
+ 		* template<typename T> void constructor(uri u){
+ 		* 	T::allocator a;
+ 		* 	auto p=a.allocate();
+ 		* 	new(p)T(u);
+ 		* }
+ 		*/
 		template<typename T> void constructor(void* p,uri u){new(p)T(u);}//a lot simpler
 		template<typename T> void copy_constructor(void* p,CONST_RESOURCE_PTR r){new(p)T(static_cast<const T&>(*r));}
 		template<> void constructor<rdfs::Class>(void* p,uri u);
