@@ -63,7 +63,7 @@ struct turtle_parser:char_iterator{
 	//template<typename OBJECT> struct blank:seq<char_p<'['>,predicateObjectList<event<OBJECT> >,char_p<']'> >{};
 	template<typename OBJECT> struct blank:seq<
 		char_p<'['>,
-		predicateObjectList<OBJECT>,
+		or_p<predicateObjectList<OBJECT>,true_p>,
 		char_p<']'>
 	>{};
 	
