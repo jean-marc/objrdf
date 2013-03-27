@@ -9,8 +9,8 @@ namespace objrdf{
 }
 using namespace objrdf;
 
-template<> void f_ptr::constructor<rdfs::Class>(void* p,uri u){assert(0);}
-template<> void f_ptr::constructor<rdf::Property>(void* p,uri u){assert(0);}
+template<> void f_ptr::constructor<rdfs::Class>(RESOURCE_PTR p,uri u){assert(0);}
+template<> void f_ptr::constructor<rdf::Property>(RESOURCE_PTR p,uri u){assert(0);}
 template<> base_resource::type_iterator f_ptr::end<rdfs::Class>(RESOURCE_PTR r){return base_resource::type_iterator(r,rdfs::Class::v.begin());}
 template<> base_resource::type_iterator f_ptr::end<rdf::Property>(RESOURCE_PTR r){return base_resource::type_iterator(r,rdf::Property::v.begin());}
 
@@ -32,14 +32,12 @@ bool base_resource::const_type_iterator::literalp() const{return static_cast<V::
 bool base_resource::type_iterator::constp() const{return !std::get<7>(static_cast<V::iterator>(*this)->t);}
 bool base_resource::const_type_iterator::constp() const{return !std::get<7>(static_cast<V::const_iterator>(*this)->t);}
 
-//map<uri,RESOURCE_PTR> base_resource::_index_;
 map<uri,RESOURCE_PTR>& base_resource::get_index(){
 	static map<uri,RESOURCE_PTR> *m=new map<uri,RESOURCE_PTR>();
 	return *m;
 }
 void base_resource::do_index(RESOURCE_PTR p){
-	//LOG<<"indexing resource `"<<p->id<<"'"<<endl;
-	//might not be ready yet
+	LOG<<"indexing resource `"<<p->id<<"'"<<endl;
 	get_index()[p->id]=p;
 }
 property_info::property_info(CONST_PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}

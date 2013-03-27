@@ -399,7 +399,7 @@ namespace objrdf{
 		typedef std::tuple<
 			//do we even need this when using PERSISTENT?
 			//yes when creating new resource in the parser or sparql update query
-			void (*)(void*,uri),	//in-place constructor
+			void (*)(RESOURCE_PTR,uri),	//in-place constructor
 			type_iterator (*)(RESOURCE_PTR),	//begin
 			type_iterator (*)(RESOURCE_PTR),	//end
 			const_type_iterator (*)(CONST_RESOURCE_PTR),//cbegin
@@ -983,12 +983,15 @@ namespace objrdf{
  		* 	new(p)T(u);
  		* }
  		*/
-		template<typename T> void constructor(void* p,uri u){new(p)T(u);}//a lot simpler
+		template<typename T> void constructor(RESOURCE_PTR p,uri u){
+			new(p)T(u);
+			T::do_index(p);
+		}
 		template<typename T> void copy_constructor(void* p,CONST_RESOURCE_PTR r){new(p)T(static_cast<const T&>(*r));}
-		template<> void constructor<rdfs::Class>(void* p,uri u);
+		template<> void constructor<rdfs::Class>(RESOURCE_PTR p,uri u);
 		template<> base_resource::type_iterator end<rdfs::Class>(RESOURCE_PTR r);
 		template<> base_resource::type_iterator end<rdf::Property>(RESOURCE_PTR r);
-		template<> void constructor<rdf::Property>(void* p,uri u);
+		template<> void constructor<rdf::Property>(RESOURCE_PTR p,uri u);
 	}
 	struct type_p{
 		CONST_CLASS_PTR t;
