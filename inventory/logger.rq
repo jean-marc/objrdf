@@ -1,0 +1,4 @@
+prefix :<http://inventory.unicefuganda.org/#> 
+insert {?set :logger [:uptime 100] .}
+where {?x a :Computer;:_mac_ 3018ac5ff7;:partOf ?set .}
+
