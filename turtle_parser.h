@@ -22,6 +22,7 @@ struct turtle_parser:char_iterator{
 	typedef event_1<kleene_p<not_p<or_p<char_p<'>'>,white_space> > >,__COUNTER__> uriref;
 	typedef seq<char_p<'<'>,uriref,char_p<'>'> > _uriref_;
 	typedef event_1<or_p<seq<pn_char_base,name>,true_p>,__COUNTER__> prefixName;
+	//typedef event_1<or_p<name,true_p>,__COUNTER__> prefixName;//to parse blank nodes
 	//[99]    PN_PREFIX     ::=       PN_CHARS_BASE ((PN_CHARS|'.')* PN_CHARS)?
 	typedef seq<prefixName,char_p<':'> > pname_ns;
 	typedef event_1<name,__COUNTER__> pname_local;	
@@ -61,11 +62,15 @@ struct turtle_parser:char_iterator{
 			>,
 		true_p> >{};
 	//template<typename OBJECT> struct blank:seq<char_p<'['>,predicateObjectList<event<OBJECT> >,char_p<']'> >{};
-	template<typename OBJECT> struct blank:seq<
-		char_p<'['>,
-		or_p<predicateObjectList<OBJECT>,true_p>,
-		char_p<']'>
-	>{};
+	typedef event_1<seq<char_p<'_'>,char_p<':'>,pname_local>,__COUNTER__> nodeID;
+	template<typename OBJECT> struct blank:or_p<
+		seq<
+			char_p<'['>,
+			or_p<predicateObjectList<OBJECT>,true_p>,
+			char_p<']'>
+		>,
+		nodeID
+		>{};
 	
 	struct object:event_1<
 		choice<
@@ -75,10 +80,14 @@ struct turtle_parser:char_iterator{
 			variable
 		>,
 	1111>{};
-	//typedef _object_ object;	
-	//typedef event_1<_object_,__COUNTER__> object;
-	//typedef event_1<choice<resource,blank<object>,variable>,__COUNTER__ > subject;
-	typedef event_1<choice<resource,/*blank<object>,*/variable>,__COUNTER__ > subject;
+	typedef event_1<
+		choice<
+			resource,
+			event_1<blank<object>,9999>, //looks a bit suspicious....
+			variable
+		>,
+		__COUNTER__ 
+	> subject;
 	typedef seq<subject,white_space,predicateObjectList<object>> triples;
 	typedef seq<triples,white_space,char_p<'.'>,kleene_p<white_space>> statement;
 	typedef plus_p<statement> turtle_doc;

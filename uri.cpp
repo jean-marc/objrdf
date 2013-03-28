@@ -84,6 +84,11 @@ uri::uri(string ns,string prefix,string local):local(local){
 		index=i-_ns_v_.begin();
 	}
 }
+uri uri::bnode_uri(string s){
+	uri u(s);
+	u.index=1;
+	return u;
+}
 uri uri::hash_uri(string s){
 	/*
  	*	

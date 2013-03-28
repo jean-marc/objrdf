@@ -544,7 +544,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						//SPARQL_RESOURCE_PTR r=find(u);
 						//we should bail out there if not found
 						sbj=new subject(u);
-						index[i->v[0].t.second]=sbj;
+						index[i->v[0].t.second]=sbj; //why do we need that?, only makes sense for variable no?
 						current_sbj=sbj;
 					}
 					break;
@@ -561,6 +561,21 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						}
 					}
 					break;		
+					case 9999:{
+						cerr<<"bnode"<<endl; //could be	nodeID | '[]' | '[' predicateObjectList ']' | collection
+						//only nodeID makes sense
+						if(i->v[0].v[0].t.first==turtle_parser::nodeID::id){
+							//we need to create uri to look up resource
+							cerr<<"nodeID: `"<<i->v[0].v[0].v[0].t.second<<"'"<<endl;
+							uri u=uri::bnode_uri(i->v[0].v[0].v[0].t.second);
+							sbj=new subject(u);
+							current_sbj=sbj;
+						}else{
+							cerr<<"only nodeID can be a subject"<<endl;
+							return false;
+						}
+
+					}break;
 					default:
 						cerr<<"??"<<endl;
 					break;
@@ -650,7 +665,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 CONST_PROPERTY_PTR sparql_parser::parse_property(const PARSE_RES_TREE& r){
 	switch(r.t.first){
 		case turtle_parser::uriref::id:{
-			//return find_t<rdf::Property>(uri::hash_uri(r.t.second));
+			return find_t<CONST_PROPERTY_PTR>(uri::hash_uri(r.t.second));
 		}
 		case turtle_parser::qname::id:{
 			PREFIX_NS::iterator j=prefix_ns.find(r.v[0].t.second);
@@ -742,7 +757,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 											cerr<<"resource not found"<<endl;
 											return false;
 										}
-									}	
+									}
 								}
 								++j;
 							}
@@ -795,6 +810,12 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 							cerr<<"subject variable `"<<i->v[0].t.second<<"' not found"<<endl;	
 							
 					}break;
+					/*
+					case 9999:{
+						cerr<<"bnode!"<<endl;
+
+					}break;
+					*/
 					default:return false;
 				}
 			}
