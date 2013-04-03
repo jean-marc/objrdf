@@ -16,7 +16,8 @@ uint32_t jenkins_one_at_a_time_hash(const char *key, size_t len)
 
 param::param(void* v,size_t n,const size_t cell_size,const size_t max_size,const bool writable):v(v),n(n),cell_size(cell_size),max_size(max_size),writable(writable){}
 void param::resize(size_t n){
-	if(n<max_size)
+	cerr<<"resize:"<<n<<" max_size:"<<max_size<<endl;
+	if(n<=max_size)
 		resize_impl(n);
 	else
 		throw std::runtime_error("maximum pool size reached");
@@ -156,6 +157,7 @@ persistent_store::~persistent_store(){
 	}
 }
 void persistent_store::resize_impl(size_t _n){
+	cerr<<"resizing persistent store "<<_n<<endl;
 	if(_n>n){
 		size_t n_page=max<size_t>(ceil((double)(cell_size*_n)/PAGE_SIZE),1);
 		size_t _file_size=n_page*PAGE_SIZE;
