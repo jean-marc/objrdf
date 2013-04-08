@@ -127,11 +127,11 @@ public:
  	*	COUNT(?v) AS ?n
  	*
  	*/
-	typedef event_1<seqw<ORDER,BY,plus_pw<turtle_parser::variable>>,__COUNTER__> order_by;
-	typedef event_1<seqw<COUNT,char_p<'('>,turtle_parser::variable,char_p<')'>,AS,turtle_parser::variable>,__COUNTER__> counter;
-	typedef event_1<seqw<SELECT,or_p<plus_pw<or_p<turtle_parser::variable,counter>>,char_p<'*'>>,where_statement,or_p<order_by,true_p>>,__COUNTER__> select_query;	
+	typedef event_1<seqw<ORDER,BY,plus_pw<turtle_parser::sparql_variable>>,__COUNTER__> order_by;
+	typedef event_1<seqw<COUNT,char_p<'('>,turtle_parser::sparql_variable,char_p<')'>,AS,turtle_parser::sparql_variable>,__COUNTER__> counter;
+	typedef event_1<seqw<SELECT,or_p<plus_pw<or_p<turtle_parser::sparql_variable,counter>>,char_p<'*'>>,where_statement,or_p<order_by,true_p>>,__COUNTER__> select_query;	
 	typedef event_1<seqw<DESCRIBE,or_p<turtle_parser::_uriref_,turtle_parser::qname>>,__COUNTER__> simple_describe_query;	
-	typedef event_1<seqw<DESCRIBE,or_p<plus_pw<turtle_parser::variable>,char_p<'*'>>,where_statement,or_p<order_by,true_p>>,__COUNTER__> describe_query;	
+	typedef event_1<seqw<DESCRIBE,or_p<plus_pw<turtle_parser::sparql_variable>,char_p<'*'>>,where_statement,or_p<order_by,true_p>>,__COUNTER__> describe_query;	
 	typedef seqw<
 		or_p<base_decl,true_p>,
 		kleene_pw<prefix_decl>,
