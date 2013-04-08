@@ -17,7 +17,7 @@ vector<uri::ns_prefix>& uri::ns_v(){
  	*	v[1] is for blank nodes
  	*/ 
 	//static vector<ns_prefix> *v=new vector<ns_prefix>(2);
-	static vector<ns_prefix> *v=new vector<ns_prefix>({ns_prefix(),ns_prefix("","_:")});
+	static vector<ns_prefix> *v=new vector<ns_prefix>({ns_prefix(),ns_prefix("blank#","_:")});
 	return *v;
 }
 struct match_ns{
@@ -31,6 +31,7 @@ uri::uri():index(0){
 	#endif
 	cerr<<"new uri `"<<local<<"'"<<endl;
 }
+//should not use this!, use blank nodes instead
 string get(void* p){
 	ostringstream os;
 	os<<p;
@@ -199,7 +200,6 @@ void uri::ns_declaration_pretty(ostream& os){
 	}
 }
 void uri::to_uri(ostream& os) const{
-	//for performance
 	static vector<ns_prefix>& _ns_v_=ns_v();
 	os<<_ns_v_[index].first<<local;
 }
