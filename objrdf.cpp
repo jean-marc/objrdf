@@ -37,7 +37,7 @@ map<uri,RESOURCE_PTR>& base_resource::get_index(){
 	return *m;
 }
 void base_resource::do_index(RESOURCE_PTR p){
-	LOG<<"indexing resource `"<<p->id<<"'"<<endl;
+	//LOG<<"indexing resource `"<<p->id<<"'"<<endl;
 	get_index()[p->id]=p;
 }
 property_info::property_info(CONST_PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}
@@ -334,13 +334,10 @@ namespace objrdf{
 	void to_rdf_xml(CONST_RESOURCE_PTR r,ostream& os){
 		os<<"\n<"<<get_class(r)->id<<" ";
 		switch (r->id.index){
-			case 0:os<<rdf::ID;break;
-			case 1:os<<rdf::nodeID;break;
-			default:os<<rdf::about;break;
+			case 0:os<<rdf::ID<<"='"<<r->id.local<<"'>";break;
+			case 1:os<<rdf::nodeID<<"='"<<r->id.local<<"'>";break;
+			default:os<<rdf::about<<"='";r->id.to_uri(os);os<<"'>";break;
 		}
-		os<<"='";
-		r->id.to_uri(os);
-		os<<"'>";
 		for(auto i=cbegin(r);i!=cend(r);++i){
 			if(i->get_Property()!=objrdf::self::get_property()){//let's skip objrdf::self
 				for(base_resource::const_instance_iterator j=i->cbegin();j!=i->cend();++j){
@@ -350,12 +347,10 @@ namespace objrdf{
 					else{
 						os<<"\n\t<"<<i->get_Property()->id<<" ";
 						switch(j->get_const_object()->id.index){
-							case 0:os<<rdf::resource<<"='#";break;
-							case 1:os<<rdf::nodeID<<"='";break;
-							default:os<<rdf::resource<<"='";break;
+							case 0:os<<rdf::resource<<"='#"<<j->get_const_object()->id.local<<"'/>";break;
+							case 1:os<<rdf::nodeID<<"='"<<j->get_const_object()->id.local<<"'/>";break;
+							default:os<<rdf::resource<<"='";j->get_const_object()->id.to_uri(os);os<<"'/>";break;
 						}
-						j->get_const_object()->id.to_uri(os);
-						os<<"'/>";
 					}
 				}
 			}
@@ -427,7 +422,8 @@ void objrdf::to_rdf_xml(ostream& os){
 	os<<"<"<<rdf::_RDF<<"\n";
 	uri::ns_declaration(os);
 	//we need xml:base declaration
-	os<<"xml:base='http://inventory.unicefuganda.org/'"<<endl;
+	//should not be here!!!
+	os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
 	os<<">";
 	for(auto i=objrdf::begin();i<objrdf::end();++i){
 		/*
