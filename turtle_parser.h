@@ -17,40 +17,51 @@ struct turtle_parser:char_iterator{
 	typedef char_p<'\''> sq;
 	typedef char_p<'\"'> dq;
 	typedef or_p<range_p<'a','z'>,range_p<'A','Z'>> pn_char_base;
-	//typedef or_p<char_p<' '>,or_p<char_p<'\t'>,or_p<char_p<'\r'>,char_p<'\n'> > > > white_space;
+	//typedef or_p<char_p<' '>,or_p<char_p<'\t'>,or_p<char_p<'\r'>,char_p<'\n'>>>> white_space;
 	//dangerous! "<aaaa " will cause it to read forever
-	typedef event_1<kleene_p<not_p<or_p<char_p<'>'>,white_space> > >,__COUNTER__> uriref;
-	typedef seq<char_p<'<'>,uriref,char_p<'>'> > _uriref_;
+	typedef event_1<plus_p<not_p<or_p<char_p<'>'>,white_space>>>,__COUNTER__> uriref;
+	typedef seq<char_p<'<'>,uriref,char_p<'>'>> _uriref_;
 	typedef event_1<or_p<seq<pn_char_base,name>,true_p>,__COUNTER__> prefixName;
 	//typedef event_1<or_p<name,true_p>,__COUNTER__> prefixName;//to parse blank nodes
 	//[99]    PN_PREFIX     ::=       PN_CHARS_BASE ((PN_CHARS|'.')* PN_CHARS)?
-	typedef seq<prefixName,char_p<':'> > pname_ns;
+	typedef seq<prefixName,char_p<':'>> pname_ns;
 	typedef event_1<name,__COUNTER__> pname_local;	
 	typedef event_1<seq<pname_ns,pname_local>,__COUNTER__> qname;
 	typedef or_p<_uriref_,qname> resource;
 	//typedef uriref resource;//for now
 	typedef resource predicate;
-	typedef seq<char_p<'#'>,kleene_p<not_p<or_p<char_p<'\r'>,char_p<'\n'> > > > > comment;
-	typedef event_1<kleene_p<not_p<sq> >,__COUNTER__> string_literal_1;
-	typedef event_1<kleene_p<not_p<dq> >,__COUNTER__> string_literal_2;
+	typedef seq<char_p<'#'>,kleene_p<not_p<or_p<char_p<'\r'>,char_p<'\n'>>>>> comment;
+	typedef event_1<kleene_p<not_p<sq>>,__COUNTER__> string_literal_1;
+	typedef event_1<kleene_p<not_p<dq>>,__COUNTER__> string_literal_2;
 	/*
  	*	add support for hex values?
  	*/ 
-	typedef seq_p<choice<char_p<'-'>,char_p<'+'>,true_p>,plus_p<range_p<'0','9'> > > integer;
+	typedef seq_p<choice<char_p<'-'>,char_p<'+'>,true_p>,plus_p<range_p<'0','9'>>> integer;
 	typedef seq<
 			choice<char_p<'-'>,char_p<'+'>,true_p>,
-			plus_p<range_p<'0','9'> >,
+			plus_p<range_p<'0','9'>>,
 			choice<
-				seq<char_p<'.'>,kleene_p<range_p<'0','9'> > >,
+				seq<char_p<'.'>,kleene_p<range_p<'0','9'>>>,
 				true_p
 			>
 		> decimal;
-	typedef event_1<choice<seq<sq,string_literal_1,sq>,seq<dq,string_literal_2,dq>,event_1<decimal,__COUNTER__> >,__COUNTER__> literal;
-	typedef event_1<seq<or_p<char_p<'$'>,char_p<'?'> >,name>,__COUNTER__ > variable;//SPARQL
+	typedef event_1<
+		choice<
+			seq<sq,string_literal_1,sq>,
+			seq<dq,string_literal_2,dq>,
+			event_1<decimal,__COUNTER__>
+		>,
+		__COUNTER__
+	> literal;
+	typedef event_1<seq<or_p<char_p<'$'>,char_p<'?'>>,name>,__COUNTER__ > sparql_variable;//SPARQL
 	typedef event_1<char_p<'a'>,__COUNTER__> is_a;
-	typedef event_1<choice<_uriref_,qname,variable,is_a>,__COUNTER__ > verb;
-	template<typename OBJECT> 
-	struct objectList:seq<OBJECT,or_p<seq<char_p<','>,objectList<OBJECT> >,true_p> >{};
+	typedef event_1<choice<_uriref_,qname,sparql_variable,is_a>,__COUNTER__ > verb;
+	template<typename OBJECT> struct objectList:seq<
+		OBJECT,
+		or_p<
+			seq<char_p<','>,objectList<OBJECT>>,
+			true_p
+		>>{};
 	template<typename OBJECT> struct predicateObjectList:seq<
 		verb,
 		white_space,
@@ -60,15 +71,12 @@ struct turtle_parser:char_iterator{
 				char_p<';'>,
 				predicateObjectList<OBJECT> 
 			>,
-		true_p> >{};
-	//template<typename OBJECT> struct blank:seq<char_p<'['>,predicateObjectList<event<OBJECT> >,char_p<']'> >{};
+		true_p>>{};
 	typedef event_1<seq<char_p<'_'>,char_p<':'>,pname_local>,__COUNTER__> nodeID;
-	template<typename OBJECT> struct blank:or_p<
-		seq<
-			char_p<'['>,
-			or_p<predicateObjectList<OBJECT>,true_p>,
-			char_p<']'>
-		>,
+	typedef event_1<seq<char_p<'['>,char_p<']'>>,__COUNTER__> empty_bnode;
+	template<typename OBJECT> struct blank:choice<
+		empty_bnode,
+		seq<char_p<'['>,predicateObjectList<OBJECT>,char_p<']'>>,
 		nodeID
 		>{};
 	
@@ -77,14 +85,14 @@ struct turtle_parser:char_iterator{
 			resource,
 			event_1<blank<object>,9999>,
 			literal,
-			variable
+			sparql_variable
 		>,
 	1111>{};
 	typedef event_1<
 		choice<
 			resource,
 			event_1<blank<object>,9999>, //looks a bit suspicious....
-			variable
+			sparql_variable
 		>,
 		__COUNTER__ 
 	> subject;
