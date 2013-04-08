@@ -11,7 +11,7 @@
  *	need to be able to dump to RDF anytime for back-up and schema upgrade
  *	need to have generic schema defined in a library
  *
- *	prefix :<http://inventory.unicefuganda.org/#>
+ *	prefix :<http://monitor.unicefuganda.org/#>
  *	select ?type ?model ?equipment ?set ?site ?manufacturer 
  *	where {	?equipment a :Equipment;:partOf ?set;a ?type;:model ?model .
  *		?set :located ?site . 
@@ -20,7 +20,7 @@
  *
  * 	query to get all information about modems at the Warchild sites
  *
-  	prefix :<http://inventory.unicefuganda.org/#> 
+  	prefix :<http://monitor.unicefuganda.org/#> 
   	select * 
   	where{	?modem a :Modem;:sim ?sim . 
   		?sim :number ?number .
@@ -39,8 +39,8 @@
 #include <memory>
 using namespace objrdf;
 //typedef int BASE_CLASS; does not work!
-namespace inventory{
-	RDFS_NAMESPACE("http://inventory.unicefuganda.org/#","inv")
+namespace monitor{
+	RDFS_NAMESPACE("http://monitor.unicefuganda.org/#","mon")//modify the prefix seems to break executable
 	typedef persistent_store STORE;
 
 	/*
@@ -58,6 +58,7 @@ namespace inventory{
 				pseudo_ptr_array<const char,STORE>*/
 			>
 		> my_string;	
+	//how much work to support xhtml?
 	PROPERTY(text,my_string);
 	PROPERTY(time_stamp,time_t);
 	PSEUDO_PROPERTY(date_stamp_v,xsd::date);//[-]CCYY-MM-DD]
@@ -117,7 +118,11 @@ namespace inventory{
 	//people
 	PROPERTY(phone,long);
 	PROPERTY(site,Site::allocator::pointer);
-	PERSISTENT_CLASS(Person,std::tuple<array<phone,STORE>,array<site>>);//same person can be responsible for more than one site
+	PROPERTY(first_name,my_string);
+	PROPERTY(last_name,my_string);
+	PROPERTY(email,my_string);//could define a type instead
+	//store name in ID, not great, should move to blank nodes, 
+	PERSISTENT_CLASS(Person,std::tuple<first_name,last_name,email,array<phone,STORE>,array<site>>);//same person can be responsible for more than one site
 	PROPERTY(status,int);//needs to be developed: working/not working,...history
 	PROPERTY(_mac_,long);//MAC address 48 bytes, there might be multiple adapters, let's pick the smallest mac
 	struct mac:_mac_{
@@ -148,7 +153,7 @@ namespace inventory{
 	 *		number of clients on
 	 *		voltage
 	 *	should use blank nodes so the monitoring module does not have to come up with new id
-	 *	prefix :<http://inventory.unicefuganda.org/#> insert data {
+	 *	prefix :<http://monitor.unicefuganda.org/#> insert data {
 	 *		<test> :logger [
 	 *			:voltage 14.1;
 	 *			:n_client 3;
@@ -267,7 +272,7 @@ namespace inventory{
 		//typedef located TRIGGER;
 		typedef loggers TRIGGER;
 		//typedef located VERSION;
-		Set(uri id):SELF(id),start(time(0)){cerr<<"new Set()"<<endl;}
+		Set(uri id):SELF(id),start(time(0)){}
 		static bool comp(const logger& a,time_t b){return a->cget<time_stamp>().t<b;}
 		static bool comp_data(const logger& a,const logger& b){return a->cget<data>().t<b->cget<data>().t;}
 		void in_p(plot,istream& is){}
@@ -511,14 +516,19 @@ namespace inventory{
 		typedef partOf VERSION;//then objrdf::prev and objrdf::next must be present
 		Equipment(uri u):SELF(u){}
 	};		
-
-
-
-
-	
-	//a digital doorway or a drum could be considered a Set
-	//could also see a set as a Bag of equipment, using RDF semantic
-	//would be nice to have URI for those
+	/* 
+ 	* example of query to track inventory movement:
+ 	
+ 		prefix :<http://monitor.unicefuganda.org/#> 
+ 		select ?x ?from ?to ?date where {
+ 			?x obj:prev ?y . 
+ 			?x :partOf ?_to . 
+ 			?_to :located ?to . 
+ 			?y :partOf ?_from . 
+ 			?_from :located ?from .
+ 			?x :time_stamp_v ?date .
+		}order by ?from 
+	*/
 	DERIVED_CLASS(DDoorway,Set,std::tuple<>);
 	DERIVED_CLASS(DDrum,Set,std::tuple<>);
 	DERIVED_CLASS(Uniport,Set,std::tuple<>);
@@ -543,6 +553,7 @@ namespace inventory{
 	PERSISTENT_CLASS(Version,std::tuple<>);
 	//PROPERTY(version,pseudo_ptr<base_resource>);//most general but problem with persistence
 	PROPERTY(version,pseudo_ptr<Version>);
+	//can we get rid of Drive? they will usually stay attached to computer
 	DERIVED_CLASS(Drive,Equipment,std::tuple<version>);//information about OS/software version
 	//could define versions with some explanations and link to them
 	//eg ubuntu-desktop-11.10-amd64
@@ -567,7 +578,7 @@ namespace inventory{
 	DERIVED_CLASS(Relay_Driver,Equipment,std::tuple<>);
 	DERIVED_CLASS(Inverter,Equipment,std::tuple<>);
 }
-using namespace inventory;
+using namespace monitor;
 int main(int argc,char* argv[]){
 	Site::get_class();
 	Person::get_class();
