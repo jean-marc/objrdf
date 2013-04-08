@@ -427,7 +427,7 @@ bool sparql_parser::callback(PARSE_RES_TREE& r){
 		case select_query::id:{
 			q=select_q;
 			auto i=r.v.begin();
-			while(i!=r.v.end()&& i->t.first==turtle_parser::variable::id){
+			while(i!=r.v.end()&& i->t.first==turtle_parser::sparql_variable::id){
 				variable_set.insert(i->t.second);
 				++i;
 			}
@@ -440,7 +440,7 @@ bool sparql_parser::callback(PARSE_RES_TREE& r){
 		case simple_describe_query::id:{
 			q=simple_describe_q;
 			auto i=r.v.begin();
-			while(i!=r.v.end()&& i->t.first==turtle_parser::variable::id){
+			while(i!=r.v.end()&& i->t.first==turtle_parser::sparql_variable::id){
 				variable_set.insert(i->t.second);
 				++i;
 			}
@@ -450,7 +450,7 @@ bool sparql_parser::callback(PARSE_RES_TREE& r){
 		case describe_query::id:{
 			q=describe_q;
 			auto i=r.v.begin();
-			while(i!=r.v.end()&& i->t.first==turtle_parser::variable::id){
+			while(i!=r.v.end()&& i->t.first==turtle_parser::sparql_variable::id){
 				variable_set.insert(i->t.second);
 				++i;
 			}
@@ -524,7 +524,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 		switch(i->t.first){
 			case turtle_parser::subject::id:{
 				switch(i->v[0].t.first){
-					case turtle_parser::variable::id:{
+					case turtle_parser::sparql_variable::id:{
 						INDEX::iterator j=index.find(i->v[0].t.second);
 						if(j!=index.end()){
 							current_sbj=j->second;
@@ -574,7 +574,6 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 							cerr<<"only nodeID can be a subject"<<endl;
 							return false;
 						}
-
 					}break;
 					default:
 						cerr<<"??"<<endl;
@@ -584,7 +583,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 			break;
 			case turtle_parser::verb::id:{
 				switch(i->v[0].t.first){
-					case turtle_parser::variable::id:{
+					case turtle_parser::sparql_variable::id:{
 						current_sbj->verbs.push_back(verb(CONST_PROPERTY_PTR(),0,user));
 						current_sbj->verbs.back().name=i->v[0].t.second;		
 						current_sbj->verbs.back().is_selected=variable_set.empty()||variable_set.count(i->v[0].t.second);
@@ -616,7 +615,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 			break;
 			case turtle_parser::object::id:{
 				switch(i->v[0].t.first){
-					case turtle_parser::variable::id:{
+					case turtle_parser::sparql_variable::id:{
 						INDEX::iterator j=index.find(i->v[0].t.second);
 						if(j!=index.end()){
 							current_sbj->verbs.back().object=j->second;
@@ -653,6 +652,19 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					break;
 					case turtle_parser::literal::id:{
 						current_sbj->verbs.back().object=new subject(i->v[0].v[0].t.second);
+					}
+					case 9999:{
+						cerr<<"bnode"<<endl; //could be	nodeID | '[]' | '[' predicateObjectList ']' | collection
+						//only nodeID makes sense
+						if(i->v[0].v[0].t.first==turtle_parser::nodeID::id){
+							//we need to create uri to look up resource
+							cerr<<"nodeID: `"<<i->v[0].v[0].v[0].t.second<<"'"<<endl;
+							uri u=uri::bnode_uri(i->v[0].v[0].v[0].t.second);
+							current_sbj->verbs.back().object=new subject(u);
+						}else{
+							cerr<<"only nodeID can be a subject"<<endl;
+							return false;
+						}
 					}
 					break;
 				}
@@ -801,7 +813,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 						}
 					}
 					break;
-					case turtle_parser::variable::id:{
+					case turtle_parser::sparql_variable::id:{
 						auto j=v.find(i->v[0].t.second.substr(1));
 						if(j!=v.end())
 							//we need to cast away constness, ugly but makes it noticeable
@@ -810,22 +822,66 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 							cerr<<"subject variable `"<<i->v[0].t.second<<"' not found"<<endl;	
 							
 					}break;
-					/*
 					case 9999:{
 						cerr<<"bnode!"<<endl;
+						if(i->v[0].v[0].t.first==turtle_parser::nodeID::id){
+							uri u=uri::bnode_uri(i->v[0].v[0].v[0].t.second);
+							sub=find(u);
+							if(!sub){
+								cerr<<"blank node not found"<<endl;
+								return false;
+							}
+						}else{
+							cerr<<"##"<<endl;
+							auto j=i+1;
+							while(j<end&&j->t.first!=turtle_parser::subject::id){
+								if(j->t.first==turtle_parser::verb::id){
+									cerr<<"verb:\n"<<*j<<endl;
+									if(parse_property(j->v[0])==rdf::type::get_property()){
+										cerr<<"rdf:type!"<<endl;
+										//the next object will be the rdfs::Class
+										CONST_RESOURCE_PTR r=parse_object((j+1)->v[0]);
+										if(r){
+											if(get_class(r)==rdfs::Class::get_class()){
+												cerr<<"rdfs:Class!"<<endl;
+												CONST_CLASS_PTR c(r);
+												sub=create_by_type_blank(c);
+												if(!sub){
+													cerr<<"cannot create instances of class `"<<r->id<<"'"<<endl;
+													return false;
+												}
+												break;	
+											}else{
+												cerr<<"resource is not a rdfs:Class"<<endl;
+												return false;	
+											}
+										}else{
+											cerr<<"resource not found"<<endl;
+											return false;
+										}
+									}
+								}
+								++j;
+							}
+							if(!sub) return false;
+							//if(!parse_update_data_statement(i->v[0].v.cbegin(),i->v[0].v.cend(),do_delete,v,sub)) return false;
+						}
 
 					}break;
-					*/
 					default:return false;
 				}
 			}
 			break;
 			case turtle_parser::verb::id:{
 				/*
- 				*	the parser should be more forgiving: if a property does not belong to the resource
- 				*	it should just be ignored
+ 				*	the parser is forgiving: if a property does not belong to the resource it is ignored
+ 				*	we replace unknown property by base_resource::type, not the best solution, we should have a property for that only purpose
  				*/ 
 				cerr<<"verb"<<endl;
+				if(!sub){
+					cerr<<"no subject defined"<<endl;
+					return false;
+				}
 				switch(i->v[0].t.first){
 					case turtle_parser::uriref::id:{ 
 						uri u=uri::hash_uri(i->v[0].t.second);
@@ -864,7 +920,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 					case turtle_parser::is_a::id:{
 						current_property=objrdf::begin(sub,user);//first property is always rdf::type
 					}break;
-					case turtle_parser::variable::id:{
+					case turtle_parser::sparql_variable::id:{
 						cerr<<"property variable: `"<<i->v[0].t.second<<"'"<<endl;
 						auto j=v.find(i->v[0].t.second.substr(1));
 						if(j!=v.end()){
@@ -974,7 +1030,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 					}
 					break;
 					case 9999:{
-						cerr<<"blank node!"<<endl;
+						cerr<<"bnode!"<<endl;
 						//we might have a problem here: if set_object() fails we end up with non-initialized memory, also happens
 						//if the connection is lost,
 						/*
@@ -982,12 +1038,18 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 						o->set_object(create_by_type_blank(current_property->get_Property()->get_const<rdfs::range>()));	
 						parse_update_data_statement(i->v[0].v.cbegin(),i->v[0].v.cend(),do_delete,v,o->get_object());
 						*/
-						RESOURCE_PTR tmp=create_by_type_blank(current_property->get_Property()->get_const<rdfs::range>());	
-						parse_update_data_statement(i->v[0].v.cbegin(),i->v[0].v.cend(),do_delete,v,tmp);
-						current_property->add_property(0)->set_object(tmp);
+						//what if the type is defined inside the predicate list?, it could be a sub-class
+						//in case of an unknown property being replaced by rdfs:type the resource creation will fail
+						if(current_property->get_Property()!=rdf::type::get_property()){
+							RESOURCE_PTR tmp=create_by_type_blank(current_property->get_Property()->get_const<rdfs::range>());	
+							parse_update_data_statement(i->v[0].v.cbegin(),i->v[0].v.cend(),do_delete,v,tmp);
+							current_property->add_property(0)->set_object(tmp);
+						}else{
+							cerr<<"creating new anonymous class not allowed"<<endl;
+						}
 					}
 					break;
-					case turtle_parser::variable::id:{
+					case turtle_parser::sparql_variable::id:{
 						auto j=v.find(i->v[0].t.second.substr(1));
 						if(j!=v.end()){
 							if(current_property.literalp()){
