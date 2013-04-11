@@ -61,6 +61,7 @@ namespace monitor{
 	//how much work to support xhtml?
 	PROPERTY(text,my_string);
 	PROPERTY(time_stamp,time_t);
+	//should move that out of monitor namespace
 	PSEUDO_PROPERTY(date_stamp_v,xsd::date);//[-]CCYY-MM-DD]
 	PSEUDO_PROPERTY(time_stamp_v,xsd::dateTime);//[-]CCYY-MM-DDThh:mm:ss[Z|(+|-)hh:mm]
 	//create generic class to time-stamp resources
@@ -110,9 +111,10 @@ namespace monitor{
 	DERIVED_PERSISTENT_CLASS(Report,Timed,std::tuple<text>);
 	PROPERTY(report,Report::allocator::pointer);//what about const_pointer?
 
+	PROPERTY(name,my_string);
 	PERSISTENT_CLASS(Organization,std::tuple<>);
 	PROPERTY(organization,Organization::allocator::pointer);
-	DERIVED_PERSISTENT_CLASS(Site,geo::Point,std::tuple<organization,array<report>>);
+	DERIVED_PERSISTENT_CLASS(Site,geo::Point,std::tuple<name,organization,array<report>>);
 	PROPERTY(located,Site::allocator::pointer);
 	//maybe should use friend of a friend ontology for people
 	//people
@@ -283,7 +285,7 @@ namespace monitor{
 		*	it might make sense to cache it, but the function is declared const
 		*/ 
 			if(cget<loggers>().size()==0) return;
-			int width=200,label_width=20,height=100;//labels on both side
+			int width=300,label_width=20,height=150;//labels on both side
 			//should be made a parameter
 			time_t duration=10*24*3600;//10 day
 			float scale_x=static_cast<float>(width)/duration;
@@ -292,7 +294,7 @@ namespace monitor{
 			time_t start=stop-duration; 
 			//find the index in get<array>
 			auto j=lower_bound(cget<loggers>().cbegin(),cget<loggers>().cend(),start,Set::comp);
-			os<<"<svg width='"<<label_width+width+label_width<<"' height='"<<height<<"' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'>";
+			os<<"<svg width='"<<label_width+width+label_width<<"' height='"<<height+20<<"' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'>";
 			//voltage
 			//need to distinguish 12V/24V
 			//we could query db or guess from voltage
