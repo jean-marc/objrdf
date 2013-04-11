@@ -41,7 +41,13 @@ vector<string> verb::get_variables() const{
 	return v;	
 }
 RESULT subject::run(size_t n){
-	RESULT r;
+	RESULT res;
+	//obvious optimization if subject bound
+	if(!u.empty()){
+		RESOURCE_PTR rr=find(u);
+		if(rr) return run(get_const_self_iterator(rr),0);
+		return RESULT();
+	}
 	/*
 	* before going through all the resources let's look at the properties bound and un-bound
 	*/
@@ -67,8 +73,8 @@ RESULT subject::run(size_t n){
 		for(auto j=pool_iterator::cell_iterator(p,p->get_size());j<pool_iterator::cell_iterator(p);++j){
 			RESULT tmp=run(get_const_self_iterator(*j),0);
 			if(bound&&tmp.size()) return tmp;
-			r.insert(r.end(),tmp.begin(),tmp.end());
-			if(r.size()>=n) return r;
+			res.insert(res.end(),tmp.begin(),tmp.end());
+			if(res.size()>=n) return res;
 		}
 		//now we have to find all the subclasses: we use superClassOf
 		for(auto k=c->get_const<array<superClassOf>>().begin();k<c->get_const<array<superClassOf>>().end();++k){
@@ -79,8 +85,8 @@ RESULT subject::run(size_t n){
 			for(auto j=pool_iterator::cell_iterator(p,p->get_size());j<pool_iterator::cell_iterator(p);++j){
 				RESULT tmp=run(get_const_self_iterator(*j),0);
 				if(bound&&tmp.size()) return tmp;
-				r.insert(r.end(),tmp.begin(),tmp.end());
-				if(r.size()>=n) return r;
+				res.insert(res.end(),tmp.begin(),tmp.end());
+				if(res.size()>=n) return res;
 			}
 		}
 	}else{
@@ -103,29 +109,30 @@ RESULT subject::run(size_t n){
 			for(auto j=::begin<CONST_PROPERTY_PTR>();j< ::end<CONST_PROPERTY_PTR>();++j){
 				RESULT tmp=run(get_const_self_iterator(*j),0);
 				if(bound&&tmp.size()) return tmp;
-				r.insert(r.end(),tmp.begin(),tmp.end());
-				if(r.size()>=n) return r;
+				res.insert(res.end(),tmp.begin(),tmp.end());
+				if(res.size()>=n) return res;
 			}
 		}else if(is_Class){
 			cerr<<"optimization: Class only"<<endl;
 			for(auto j=::begin<CLASS_PTR>();j< ::end<CLASS_PTR>();++j){
 				RESULT tmp=run(get_const_self_iterator(*j),0);
 				if(bound&&tmp.size()) return tmp;
-				r.insert(r.end(),tmp.begin(),tmp.end());
-				if(r.size()>=n) return r;
+				res.insert(res.end(),tmp.begin(),tmp.end());
+				if(res.size()>=n) return res;
 			}
 		}else{	
+			//go through all resources in all pool!
 			for(auto i=objrdf::begin();i<objrdf::end();++i){
 				for(auto j=i.begin();j<i.end();++j){
 					RESULT tmp=run(get_const_self_iterator(*j),0);
 					if(bound&&tmp.size()) return tmp;
-					r.insert(r.end(),tmp.begin(),tmp.end());
-					if(r.size()>=n) return r;
+					res.insert(res.end(),tmp.begin(),tmp.end());
+					if(res.size()>=n) return res;
 				}
 			}	
 		}
 	}
-	return r;
+	return res;
 }
 RESULT subject::run(base_resource::const_instance_iterator i,CONST_PROPERTY_PTR p){
 	if(i.literalp()){
@@ -382,7 +389,7 @@ void sparql_parser::out(ostream& os){//sparql XML serialization
 			case simple_describe_q:{
 				os<<"<"<<rdf::_RDF<<"\n";
 				uri::ns_declaration(os);
-				os<<"xml:base='http://inventory.unicefuganda.org/'"<<endl;
+				os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
 				os<<">";
 				if(d_resource)
 					to_rdf_xml(d_resource,os);
@@ -392,7 +399,7 @@ void sparql_parser::out(ostream& os){//sparql XML serialization
 				RESULT r=sbj->run();				
 				os<<"<"<<rdf::_RDF<<"\n";
 				uri::ns_declaration(os);
-				os<<"xml:base='http://inventory.unicefuganda.org/'"<<endl;
+				os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
 				os<<">";
 				sort(r,sbj->get_variables(),order_by_variables);
 				for(auto i=r.begin();i<r.end();++i){
@@ -653,6 +660,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					case turtle_parser::literal::id:{
 						current_sbj->verbs.back().object=new subject(i->v[0].v[0].t.second);
 					}
+					break;
 					case 9999:{
 						cerr<<"bnode"<<endl; //could be	nodeID | '[]' | '[' predicateObjectList ']' | collection
 						//only nodeID makes sense
