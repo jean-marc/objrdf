@@ -166,10 +166,10 @@ template<
 	typedef typename pointer::reference reference;
 	typedef typename const_pointer::reference const_reference;
 	//not correct: should use _pointer_::INDEX
-	//typedef std::size_t    size_type;
-	//typedef std::ptrdiff_t difference_type;
-	typedef typename pointer::INDEX size_type;
-	typedef typename pointer::INDEX difference_type;
+	typedef std::size_t    size_type;
+	typedef std::ptrdiff_t difference_type;
+	//typedef typename pointer::INDEX size_type;
+	//typedef typename pointer::INDEX difference_type;
 
 	pointer address(reference value) const{return &value;}
 	/*
@@ -193,7 +193,9 @@ template<
 	* but it requires get_pool()->p.v to be constant which is not guaranteed if the pool has been resized, let's live with that for now
 	*/
 	template<class U> struct rebind{typedef custom_allocator<U,_pointer_,_const_pointer_> other;};//not correct!!!!
-	size_type max_size() const throw() {return pointer::get_pool()->p.n;}
+	size_type max_size() const throw() {
+		return pointer::get_pool()->p.n;//this is not correct!
+	}
 	pointer allocate (size_type num, const void* = 0) {
 		std::cerr << "allocate " << num << " element(s)" << " of size " << sizeof(T) << std::endl;
 		pointer ret(pointer::get_pool()->template allocate_t<T>(num));
@@ -201,7 +203,9 @@ template<
 		return ret;
 	}
 	//void construct(pointer p,T value){new(p)T(value);}
-	void construct(T* p,T value){new(p)T(value);}
+	void construct(T* p,T value){
+		new(p)T(value);
+	}
 	//void destroy (pointer p) {p->~T();}
 	void destroy(T* p){p->~T();}
 	void deallocate (pointer p, size_type num) {
