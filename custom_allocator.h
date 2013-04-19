@@ -197,9 +197,9 @@ template<
 		return pointer::get_pool()->p.n;//this is not correct!
 	}
 	pointer allocate (size_type num, const void* = 0) {
-		std::cerr << "allocate " << num << " element(s)" << " of size " << sizeof(T) << std::endl;
+		std::cerr<<"custom_allocator::allocate "<<num<<" element(s) of size "<<sizeof(T)<<std::endl;
 		pointer ret(pointer::get_pool()->template allocate_t<T>(num));
-		std::cerr << " allocated at: " << ret.operator->() << std::endl;
+		std::cerr<<"custom_allocator allocated at: "<<(void*)ret.operator->()<<std::endl;
 		return ret;
 	}
 	//void construct(pointer p,T value){new(p)T(value);}
@@ -209,7 +209,7 @@ template<
 	//void destroy (pointer p) {p->~T();}
 	void destroy(T* p){p->~T();}
 	void deallocate (pointer p, size_type num) {
-		std::cerr << "deallocate " << num << " element(s)" << " of size " << sizeof(T) << " at: " << p.operator->() << std::endl;
+		std::cerr<<"custom_allocator::deallocate "<<num<<" element(s) of size "<<sizeof(T)<<" at: "<<(void*)p.operator->()<<std::endl;
 		pointer::get_pool()->template deallocate_t<T>(p.index,num);
 	}
 	bool operator==(const custom_allocator& c) const {return true;}
