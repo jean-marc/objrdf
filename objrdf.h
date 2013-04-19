@@ -580,45 +580,74 @@ namespace objrdf{
 		//sometime we want to override those functions, eg:hex type
 		void in(istream& is){is>>t;}
 		void out(ostream& os) const{os<<t;}
-		size_t get_size() const{return 1;}
+		size_t get_size() const{return 1;}//would be nice to have a bit to tell us if it has been set or not
 		int compare(const base_property& a)const{return sgn(t-a.t);}
 		void erase(){t=0;}
+	};
+	template<> struct base_property<string>{
+		enum{TYPE=STRING|LITERAL};
+		string t;
+		base_property(string s=string()):t(s){}
+		void set_string(string s){t=s;}
+		void in(istream& is){is>>t;}
+		void out(ostream& os) const{os<<t;}
+		size_t get_size() const{return !t.empty();}
+		int compare(const base_property& a)const{return t.compare(a.t);}
+		void erase(){t.clear();}
 	};
 	/*
 	*	this does not work: basic_string<> does not use Allocator::pointer
 	*	for its own storage, so the pool is never loaded and it gives segfault
 	*	alternative: store in vector<char>
+	*	we should only specialize when using persistent store
  	*/
 	template< 
-		class CharT,
-		class Traits,
+		//class CharT,
+		class Traits/*,
 		class Allocator
-	> struct base_property<basic_string<CharT,Traits,Allocator>>{
+	> struct base_property<basic_string<CharT,Traits,Allocator>>{*/
+	> struct base_property<
+		basic_string<
+			char,
+			Traits,
+			custom_allocator<
+				char,
+				pseudo_ptr_array<char,persistent_store>
+			>
+		>
+	>{
+		typedef custom_allocator<char,pseudo_ptr_array<char,persistent_store>> ALLOCATOR;	
 		//typedef basic_string<CharT,Traits,Allocator> string;
 		enum{TYPE=STRING|LITERAL};
 		//string t;
-		typedef vector<char,Allocator> pseudo_string;
+		typedef vector<char,ALLOCATOR> pseudo_string;//we use C-string
 		pseudo_string t;
-		base_property(string t=string()):t(t.begin(),t.end()){}
-		void set_string(std::string s){t=pseudo_string(s.begin(),s.end());}
-		//not efficient and should not be used!
+		base_property(string s=string()){
+			set_string(s);
+		}
+		void set_string(std::string s){
+			t.resize(s.size()+1);
+			strcpy(t.data(),s.c_str());
+		}
+		//not very efficient 
 		void in(istream& is){
 			string tmp;
 			is>>tmp;
 			set_string(tmp);
 		}
 		void out(ostream& os) const{
-			string tmp(t.cbegin(),t.cend());
-			os<<tmp;
+			os<<t.data();
 		}
-		size_t get_size() const{return t.size()>0;}
-		int compare(const base_property<basic_string<CharT,Traits,Allocator>>& a)const{
-			//string tmp(t.cbegin(),t.cend());
-			//return tmp.compare(a.t);
-			//must not be used
-			return 0;
+		size_t get_size() const{
+			return strlen(t.data())>0;//we actually know the size, this is not very efficient
 		}
-		void erase(){t.clear();}
+		int compare(const base_property& a)const{
+			return strcmp(t.data(),a.t.data());
+		}
+		void erase(){
+			t.clear();
+			t.push_back(0);//is that ok??, more work needed...
+		}
 	};
 	template<> struct base_property<uri>{
 		typedef persistent_store STORE;
@@ -1187,6 +1216,7 @@ namespace objrdf{
  	*	users have privileges on classes and the associated properties
  	*	user 1 is root
  	*	password is md5sum encrypted for now
+ 	*	when running in a shell or through httpd there could be a pseudo-property that returns the user
  	*/ 
 	/*
 	PROPERTY(on,rdfs::Class::allocator::const_pointer);
@@ -1477,10 +1507,12 @@ namespace objrdf{
 		typename PROPERTY,
 		bool IS_LITERAL=PROPERTY::TYPE&LITERAL
 	> struct help_validate_store:validate_store<typename SUBJECT::allocator::STORE,typename selector<typename PROPERTY::RANGE>::ResultT::allocator::STORE>{};
+	//could still be allocated on the heap: eg. string
 	template<
 		typename SUBJECT,
 		typename PROPERTY
 	> struct help_validate_store<SUBJECT,PROPERTY,true>{enum{value=1};};
+	
 
 	template<typename SUBJECT,typename PROPERTY> property_info get_property_info(){
 		property_info p(PROPERTY::get_property(),functions<SUBJECT,PROPERTY>::get_table());
