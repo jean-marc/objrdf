@@ -95,6 +95,7 @@ class sparql_parser:public char_iterator{
 public:
 	static void sort(RESULT& r,vector<string> variables,vector<string> order_variables);
 	void to_xml(ostream& os,/*const*/ RESULT& r,/*const*/ subject&);
+	void to_csv(ostream& os,/*const*/ RESULT& r,/*const*/ subject&);
 	enum{CASE_INSENSITIVE=true};
 	typedef map<string,subject*> INDEX;
 	INDEX index;
@@ -169,6 +170,7 @@ public:
 		return true;
 	}
 	void out(ostream& os);
+	void out_csv(ostream& os);
 	bool callback(PARSE_RES_TREE& r);
 	bool parse_where_statement(PARSE_RES_TREE& r);
 	bool parse_extra_statement(PARSE_RES_TREE& r);

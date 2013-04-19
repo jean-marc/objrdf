@@ -338,6 +338,12 @@ void sparql_parser::to_xml(ostream& os,/*const*/ RESULT& r,/*const*/ subject& s)
  	*	how do we conserve the original variable order?
  	*	we need an offset array
  	*/
+	/*
+ 	*	if a variable is not displayed it wont be used for sorting eg.:
+	*
+	*	describe ?s where {?s a :Site;:name ?n .} order by ?n
+ 	*
+ 	*/ 
 	vector<string> v=s.get_variables();	
 	sort(r,s.get_variables(),order_by_variables);
 	os<</*"<?xml version=\"1.0\"?>\n*/"<sparql xmlns=\"http://www.w3.org/2005/sparql-results#\">\n<head>\n";
@@ -360,6 +366,23 @@ void sparql_parser::to_xml(ostream& os,/*const*/ RESULT& r,/*const*/ subject& s)
 		os<<"</result>\n";
 	}
 	os<<"</results>\n</sparql>\n";
+}
+void sparql_parser::to_csv(ostream& os,RESULT& r,subject& s){
+	//see http://www.w3.org/TR/2013/REC-sparql11-results-csv-tsv-20130321/
+	vector<string> v=s.get_variables();	
+	sort(r,s.get_variables(),order_by_variables);
+	for(auto i=v.cbegin();i<v.cend();++i) os<<((i>v.cbegin()) ? "," : "")<<*i;
+	os<<"\n";
+	for(auto i=r.begin();i<r.end();++i){
+		for(auto j=i->cbegin();j<i->cend();++j){
+			if(j>i->cbegin()) os<<",";
+			if(j->literalp())
+				os<<*j;
+			else
+				j->get_const_object()->id.to_uri(os);
+		}
+		os<<"\n";
+	}
 
 }
 sparql_parser::sparql_parser(istream& is,PROVENANCE p):char_iterator(is),sbj(0),current_sbj(0),q(no_q),p(p){
@@ -423,6 +446,18 @@ void sparql_parser::out(ostream& os){//sparql XML serialization
 	//}else{
 
 	//}
+}
+void sparql_parser::out_csv(ostream& os){
+	//only make sense with select query
+	switch(q){
+		case select_q:{
+			RESULT r=sbj->run();
+			to_csv(os,r,*sbj);
+		}break;
+		default:{
+			os<<"can only be used with SELECT query"<<endl;
+		}break;
+	}
 }
 bool sparql_parser::callback(PARSE_RES_TREE& r){
 	cerr<<r<<endl;
