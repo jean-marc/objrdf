@@ -11,6 +11,7 @@ string get_mime(string extension){
 	typedef std::pair<string,string> P;
 	static map<string,string> m={	P("html","text/html"),P("xhtml","text/html"),
 					P("xml","text/xml"),P("xsd","text/xml"),P("xsl","text/xml"),
+					P("kml","application/vnd.google-earth.kml+xml"),
 					P("rdf","application/rdf+xml"),
 					P("svg","image/svg+xml"),
 					P("png","image/png"),
@@ -157,19 +158,25 @@ void httpd::get(http_parser& h,iostream& io){
 			if(p._go<seqw<sparql_parser::document,char_p<EOF>>>()){
 				cerr<<"success!"<<endl;
 				io<<"HTTP/1.1 200 OK"<<"\r\n";
-				io<<"Content-Type:"<<get_mime("xml")<<"\r\n";
 				ostringstream out;
-				auto j=h.url_arguments.find("xsl");
-				if(j!=h.url_arguments.end()){
-					//only one xslt parameter for now, see https://developer.mozilla.org/en/XSLT/PI_Parameters
-					//does not work with Chromium
-					auto k=h.url_arguments.find("xslt-param-name");
-					auto l=h.url_arguments.find("xslt-param-value");
-					if((k!=h.url_arguments.end())&&(l!=h.url_arguments.end()))
-						out<<"<?xslt-param name='"<<k->second<<"' value='"<<url_decode(l->second)<<"'?>"<<endl;
-					out<<"<?xml-stylesheet type='text/xsl' href='"<<j->second<<"'?>"<<endl;
+				auto i=h.url_arguments.find("format");
+				if(i->second=="csv"){
+					io<<"Content-Type: "<<"text/plain"<<"\r\n";
+					p.out_csv(out);
+				}else{
+					io<<"Content-Type:"<<get_mime("xml")<<"\r\n";
+					auto j=h.url_arguments.find("xsl");
+					if(j!=h.url_arguments.end()){
+						//only one xslt parameter for now, see https://developer.mozilla.org/en/XSLT/PI_Parameters
+						//does not work with Chromium
+						auto k=h.url_arguments.find("xslt-param-name");
+						auto l=h.url_arguments.find("xslt-param-value");
+						if((k!=h.url_arguments.end())&&(l!=h.url_arguments.end()))
+							out<<"<?xslt-param name='"<<k->second<<"' value='"<<url_decode(l->second)<<"'?>"<<endl;
+						out<<"<?xml-stylesheet type='text/xsl' href='"<<j->second<<"'?>"<<endl;
+					}
+					p.out(out);//this where the processing takes place
 				}
-				p.out(out);//this where the processing takes place
 				io<<"Content-Length:"<<out.str().size()<<"\r\n";
 				io<<"\r\n";
 				io<<out.str();
@@ -286,10 +293,16 @@ void httpd::post(http_parser& h,iostream& io){
 			io<<"HTTP/1.1 200 OK\r\n";
 			//io<<"Content-Type: text/xml\r\n";
 			ostringstream out;
-			p.out(out);
-			//an XML document can not be empty
-			io<<"Content-Type: "<<(out.str().size() ? "text/xml":"text/plain")<<"\r\n";
-			io<<"Content-Length: "<<out.str().size()/*/2*/<<"\r\n";//to force close socket early
+			//check if client want csv format
+			auto i=h.url_arguments.find("format");
+			if(i->second=="csv"){
+				p.out_csv(out);
+				io<<"Content-Type: "<<"text/plain"<<"\r\n";
+			}else{
+				p.out(out);
+				io<<"Content-Type: "<<(out.str().size() ? "text/xml":"text/plain")<<"\r\n";//an XML document can not be empty
+			}
+			io<<"Content-Length: "<<out.str().size()<<"\r\n";
 			io<<"\r\n";
 			io<<out.str();//for some reason throws here and not caught anywhere?
 			io.flush();
@@ -319,8 +332,12 @@ void httpd::post(http_parser& h,iostream& io){
 	}catch(SocketRunTimeException& e){
 		pthread_mutex_unlock(&mutex);
 		cerr<<"http::post "<<e.what()<<endl;
+	}catch(std::exception& e){
+		pthread_mutex_unlock(&mutex);
+		cerr<<"exception: "<<e.what()<<endl;
 	}catch(...){
 		pthread_mutex_unlock(&mutex);
+		cerr<<"unknown exception!!!!!"<<endl;
 	}
 }
 void httpd::put(http_parser& h,iostream& io){}	
