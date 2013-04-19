@@ -100,9 +100,10 @@ pool_array::pool_array(param& p,DESTRUCTOR destructor,size_t type_id):p(p),destr
 	/*
  	*	we might have to modify p.cell_size
  	*/ 
-	cerr<<"cell size:"<<p.cell_size<<endl;
-	p.cell_size=max(p.cell_size,sizeof(pool_array::info));
-	cerr<<"cell size:"<<p.cell_size<<endl;
+	auto _cell_size=p.cell_size;
+	cerr<<"original cell size:"<<_cell_size<<endl;
+	p.cell_size=max(_cell_size,sizeof(pool_array::info));
+	cerr<<"new cell size:"<<p.cell_size<<endl;
 	info& first=*static_cast<info*>(p.v);
 	info& second=*static_cast<info*>(p.v+p.cell_size);
 	cerr<<"initial pool size:"<<first.n_cells<<endl;
@@ -110,7 +111,8 @@ pool_array::pool_array(param& p,DESTRUCTOR destructor,size_t type_id):p(p),destr
 		cerr<<"setting up pool..."<<endl;
 		first.next=1;
 		second.next=0;
-		second.cell_size=p.n-1;	
+		//second.cell_size=p.n-1;//this is wrong when the payload is smaller than pool_array::info
+		second.cell_size=((_cell_size<sizeof(pool_array::info)) ? p.n/sizeof(pool_array::info) : p.n)-1;//this is wrong when the payload is smaller than pool_array::info
 	}
 	cerr<<"new pool_array "<<this<<" "<<(size_t)first.n_cells<<" out of "<<p.n<<" cells used type_id:"<<type_id<<" max_size:"<<p.max_size<<" hash:"<<hash()<<endl;
 }

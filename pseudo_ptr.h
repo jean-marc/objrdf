@@ -241,15 +241,104 @@ struct pool{
 /*
  *	to be used with vector allocator
  */
+/*
+namespace test{
+	struct pool_array{
+		//describe ranges
+		typedef unsigned short FIELD;
+		struct info{
+			FIELD size; //range size or total size used (info[0])
+			FIELD next; //index next range
+		};
+		param& p;
+		typedef void(*DESTRUCTOR)(void*);
+		const DESTRUCTOR destructor; 
+		typedef pool_array SELF;//to get 
+		const size_t type_id;
+		info* _info;
+		pool_array(param& p,DESTRUCTOR destructor,size_t type_id):p(p),destructor(destructor),type_id(type_id),_info((info*)p.v){
+			if(_info[0].size==0){
+				_info[0].size=0;//does not matter
+				_info[0].next=1;
+				_info[1].size=p.n/sizeof(info)-1;
+				_info[1].next=0;
+			}
+			cerr<<"new pool "<<_info[0].size<<" cells out of "<<(p.n/sizeof(info)-1)<<" used ("<<sizeof(info)<<" bytes)"<<endl;
+		}
+		static bool TEST(const pool_array& p){
+			return p.type_id;//good because the type_id can not be 0
+		}
+		FIELD allocate(FIELD n){//n is a multiple of sizeof(info)
+			FIELD prev=0;
+			FIELD current=_info[prev].next;
+			while(current && _info[current].size<n){
+				cout<<"\t"<<current<<endl;
+				prev=current;
+				current=_info[prev].next;
+			}
+			if(current){ //we have found enough contiguous cells
+				_info[0].size
+				if(_info[current].size==n)
+					_info[prev].next=_info[current].next;
+				else{	//create new range
+					FIELD c=current+n;
+					_info[prev].next=c;
+					_info[c].size=_info[current].size-n;
+					_info[c].next=_info[current].next;
+				}
+			}else{
+				//at this stage we may decide to increase the original buffer
+				//we need to create new buffer, copy in the old one
+				cerr<<"pool_array increasing pool size from "<<p.n<<" to "<<2*p.n<<" cells "<<this<<endl;
+				//create new range
+				FIELD c=p.n;	
+				p.resize(2*p.n);
+				_info=(info*)p.v;
+				_info[prev].next=c;
+				_info[c].size=p.n-c;
+				_info[c].next=0;
+				return allocate(n);
+			}
+			return current;
+		}	
+		template<typename T> size_t allocate_t(size_t n){
+			//must return an index consistent with get method, careful with line up 
+			//what if th
+			int n_corrected=max<T>((n*sizeof(T))/sizeof(info),1);
+			cerr<<"n_corrected: "<<n_corrected<<endl;
+			return &_info[allocate(n_corrected)];
+		}
+		template<typename T> void deallocate_t(size_t index,size_t n){
+			int n_corrected=max<T>((n*sizeof(V))/sizeof(info),1);
+			info* tmp=(info*)p;
+			tmp->size=n_corrected;
+			tmp->next=_info[0].next;	
+			_info[0].next=tmp-_info;
+		}
+		void* get(size_t i){
+			return 
+		}
+		size_t get_size()const{
+			return _info[0]
+		}
+		//we need to pass information about the pointer to the store
+		template<typename P> static pool_array* get_instance(){
+			typedef typename P::STORE STORE;
+			static pool_array* p=new pool_array(*STORE::template go<P>(),0,0);
+			return p;
+		}
+	};
+}
+*/
 struct pool_array{
 	struct info{
 		//we are only using one field at a time except for the first cell
 		typedef unsigned short FIELD;
 		//typedef unsigned char FIELD;
-		FIELD next;
+		FIELD next;//index of next cell
 		union{
-			FIELD n_cells;
-			FIELD cell_size;
+			FIELD n_cells;//total number of chars (only used in info[0])
+			FIELD cell_size;//how many chars in the cell
 		};
 	};
 	/*
@@ -280,6 +369,10 @@ struct pool_array{
 		//T might be smaller than info
 		enum{TEST=sizeof(T)<sizeof(info)};
 		typedef typename IfThenElse<TEST,info,T>::ResultT TMP;
+		/*
+ 		*	eg T char, if we need 1 char then n=4
+ 		*	we need 5 chars then n=8
+ 		*/ 
 		n=ceil(float(n*sizeof(T))/sizeof(TMP));
 		auto v=static_cast<helper<TMP>*>(p.v);
 		size_t i=help_allocate_t<TMP>(v[0].next(),n);
@@ -288,19 +381,27 @@ struct pool_array{
 			p.resize(2*p.n);
 			//to be verified!!!!
 			auto v=static_cast<helper<TMP>*>(p.v);
-			v[p.n/2].cell_size()=p.n/2;
-			v[p.n/2].next()=v[0].next();
-			v[0].next()=p.n/2;
+			if(TEST){
+				auto index=p.n/(2*sizeof(info));
+				//create new range
+				v[index].cell_size()=index;
+				v[index].next()=v[0].next();
+				v[0].next()=index;
+			}else{
+				v[p.n/2].cell_size()=p.n/2;
+				v[p.n/2].next()=v[0].next();
+				v[0].next()=p.n/2;
+			}
 			return allocate_t<TMP>(n);//careful with infinite loop!
 		}
-		return i*sizeof(TMP)/sizeof(T);
+		return i*sizeof(TMP)/sizeof(T);//ugly
 	}
 
 	template<typename T> size_t help_allocate_t(info::FIELD& current,size_t n){
 		//we need to go through linked list until we find enough contiguous free cells
 		auto v=static_cast<helper<T>*>(p.v);
-		cerr<<"helper size:"<<sizeof(helper<T>)<<endl;
-		cerr<<"attempting to allocate "<<n<<" cells in pool "<<this<<" address:"<<current<<" size:"<<v[current].cell_size()<<" next cell:"<<v[current].next()<<" "<<v[0].next()<<endl;
+		cerr<<"pool_array helper size:"<<sizeof(helper<T>)<<endl;
+		cerr<<"pool_array attempting to allocate "<<n<<" cells in pool "<<this<<" address:"<<current<<" size:"<<v[current].cell_size()<<" next cell:"<<v[current].next()<<" "<<v[0].next()<<endl;
 		if(current==0){
 			//no more memory
 			cerr<<"allocate "<<n<<" cells at index failed in pool "<<this<<endl;
@@ -324,7 +425,7 @@ struct pool_array{
 				return tmp;
 			}else{
 				//create new cell but should test if merge possible
-				v[current+n].cell_size()=v[current].cell_size()-n;
+				v[current+n].cell_size()=v[current].cell_size()-n;//problem here: 
 				v[current+n].next()=v[current].next();
 				cerr<<current+n<<" size:"<<v[current+n].cell_size()<<" next:"<<v[current+n].next()<<endl;	
 				size_t tmp=current;
