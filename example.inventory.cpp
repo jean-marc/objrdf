@@ -114,6 +114,7 @@ namespace monitor{
 	PROPERTY(name,my_string);
 	PERSISTENT_CLASS(Organization,std::tuple<>);
 	PROPERTY(organization,Organization::allocator::pointer);
+	//Site could be a sub class of Timed
 	DERIVED_PERSISTENT_CLASS(Site,geo::Point,std::tuple<name,organization,array<report>>);
 	PROPERTY(located,Site::allocator::pointer);
 	//maybe should use friend of a friend ontology for people
@@ -239,6 +240,7 @@ namespace monitor{
 	PROPERTY(used_data,unsigned int);
 	PROPERTY(available_data,unsigned int);
 	PROPERTY(reserved_data,unsigned int);
+	PROPERTY(ip_add,my_string);//would be better as unsigned int but then parsing needed
 	/*
 	 *	how do we track changes: eg new location
 	 *
@@ -249,6 +251,7 @@ namespace monitor{
 		_Set,
 		std::tuple<
 			located,
+			ip_add,
 			on,
 			/*uptime*/
 			array<logger>,
@@ -295,6 +298,7 @@ namespace monitor{
 			//find the index in get<array>
 			auto j=lower_bound(cget<loggers>().cbegin(),cget<loggers>().cend(),start,Set::comp);
 			os<<"<svg width='"<<label_width+width+label_width<<"' height='"<<height+20<<"' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'>";
+			os<<"<g transform='translate(0,10)'>";
 			//voltage
 			//need to distinguish 12V/24V
 			//we could query db or guess from voltage
@@ -346,6 +350,7 @@ namespace monitor{
 				os<<"</g>"<<endl;
 				//change the reference but messes up text display (mirror image)
 				os<<"<g transform='scale(1,-1) translate("<<label_width<<","<<-height<<")'>"<<endl;;
+				os<<"<rect class='frame' x='0' y='0' width='"<<width<<"' height='"<<height<<"'/>";
 				for(;mn>start;mn-=24*3600){
 					int wday=localtime(&mn)->tm_wday;
 					//buggy here...
@@ -424,7 +429,8 @@ namespace monitor{
 					os<<"'/>"<<endl;
 				}
 			}
-			os<<"<rect class='frame' x='0' y='0' width='"<<width<<"' height='"<<height<<"'/>";
+			//os<<"<rect class='frame' x='0' y='0' width='"<<width<<"' height='"<<height<<"'/>";
+			os<<"</g>";
 			os<<"</g>";
 			os<<"</svg>";
 		}
