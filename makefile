@@ -18,8 +18,8 @@ test%:test%.cpp $(OBJ1) $(OBJ8) objrdf.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) -o $@ 
 examples/%:examples/%.cpp $(OBJ1) $(OBJ8) objrdf.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) -o $@ 
-#example.%:example.%.cpp libobjrdf.so
-	#$(CC) $(CFLAGS) $< libobjrdf.so -o $@ 
+_example.%:example.%.cpp libobjrdf.so
+	$(CC) $(CFLAGS) $< -lpthread libobjrdf.so -o $@ 
 #example%:example%.cpp $(OBJ1) $(OBJ8) objrdf.h rdf_xml_parser.h
 example%:example%.cpp $(OBJ1) $(OBJ6) $(OBJ7) $(OBJ8) $(OBJ9) objrdf.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ6) $(OBJ7) $(OBJ8) $(OBJ9) -lpthread -o $@ 
@@ -73,8 +73,16 @@ persistence.objrdf: persistence.objrdf.cpp objrdf.o uri.o rdf_xml_parser.o ebnf.
 	$(CC) $(CFLAGS) persistence.objrdf.cpp objrdf.o uri.o rdf_xml_parser.o -o persistence.objrdf
 %.pic.o:%.cpp %.h
 	$(CC) -c $(CFLAGS) -fpic $< -o $@
-libobjrdf.so:objrdf.pic.o uri.pic.o
-	$(CC) $(CFLAGS) objrdf.pic.o uri.pic.o -shared -o libobjrdf.so 
+
+#shared library experiment, total size is 25% bigger, could be improved
+#	ls -l libobjrdf.so example.inventory _example.inventory 
+#	-rwxrwxr-x 1 user user 1557269 Apr 18 10:56 _example.inventory
+#	-rwxrwxr-x 1 user user 1946582 Apr 18 10:21 example.inventory
+#	-rwxrwxr-x 1 user user  939032 Apr 18 10:55 libobjrdf.so
+#	run with /lib64/ld-linux-x86-64.so.2 --library-path /home/user/projects/objrdf/ _example.inventory
+
+libobjrdf.so:objrdf.pic.o uri.pic.o pseudo_ptr.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o
+	$(CC) $(CFLAGS) objrdf.pic.o uri.pic.o pseudo_ptr.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o -shared -o libobjrdf.so 
 %.schema.so:%.schema.pic.o objrdf.o
 	$(CC) $(CFLAGS) $< -shared -o $@ 
 clean:
