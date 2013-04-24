@@ -142,6 +142,16 @@ RESULT subject::run(base_resource::const_instance_iterator i,CONST_PROPERTY_PTR 
 			if(verbs.size()) return RESULT(0);
 			if(s.size()){
 				LOG<<"bound\tR "<<this<<" to `"<<s<<"'"<<endl;
+				//a bit more complicated, the type does matter: we should create a property and compare properties instead of strings
+				//ad-hoc fix, a bit awkward, will remove trailing zeroes
+				if(i.get_Property()->cget<rdfs::range>()==xsd::Int::get_class()){
+					int tmp;
+					istringstream is(s);
+					is>>tmp;		
+					ostringstream os;
+					os<<tmp;
+					s=os.str();
+				}
 				return (i.str()==s) ? RESULT(1) : RESULT(0);
 			}else{
 				if(i.get_Property()->get_const<rdfs::range>()==rdfs::XML_Literal::get_class()){
@@ -438,6 +448,16 @@ void sparql_parser::out(ostream& os){//sparql XML serialization
 				os<<"\n</"<<rdf::_RDF<<">\n";
 			}break;
 			case insert_data_q:{
+				/*
+ 				*	if subject blank node returns a description of it
+ 				*/
+				os<<"<"<<rdf::_RDF<<"\n";
+				uri::ns_declaration(os);
+				os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
+				os<<">";
+				if(bnode_subject_resource)
+					to_rdf_xml(bnode_subject_resource,os);
+				os<<"\n</"<<rdf::_RDF<<">\n";
 			}break;
 			case delete_data_q:{
 			}break;
@@ -889,6 +909,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 												cerr<<"rdfs:Class!"<<endl;
 												CONST_CLASS_PTR c(r);
 												sub=create_by_type_blank(c);
+												bnode_subject_resource=sub;
 												if(!sub){
 													cerr<<"cannot create instances of class `"<<r->id<<"'"<<endl;
 													return false;

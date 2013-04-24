@@ -149,7 +149,7 @@ public:
 		*/
 	> document;
 	typedef map<string,base_resource::const_instance_iterator> VARIABLES;
-	SPARQL_RESOURCE_PTR d_resource;
+	SPARQL_RESOURCE_PTR d_resource,bnode_subject_resource;
 	subject *sbj,*current_sbj,*where_s,*delete_s,*insert_s;
 	typedef enum{no_q,select_q,simple_describe_q,describe_q,insert_data_q,delete_data_q} query_type;
 	query_type q;
