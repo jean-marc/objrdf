@@ -143,15 +143,18 @@ RESULT subject::run(base_resource::const_instance_iterator i,CONST_PROPERTY_PTR 
 			if(s.size()){
 				LOG<<"bound\tR "<<this<<" to `"<<s<<"'"<<endl;
 				//a bit more complicated, the type does matter: we should create a property and compare properties instead of strings
+				//but to create property we need to create a resource
 				//ad-hoc fix, a bit awkward, will remove trailing zeroes
-				if(i.get_Property()->cget<rdfs::range>()==xsd::Int::get_class()){
+				//still does not work because hex!
+				/*if(i.get_Property()->cget<rdfs::range>()==xsd::Int::get_class()){
 					int tmp;
 					istringstream is(s);
 					is>>tmp;		
 					ostringstream os;
 					os<<tmp;
 					s=os.str();
-				}
+				}*/
+				
 				return (i.str()==s) ? RESULT(1) : RESULT(0);
 			}else{
 				if(i.get_Property()->get_const<rdfs::range>()==rdfs::XML_Literal::get_class()){
