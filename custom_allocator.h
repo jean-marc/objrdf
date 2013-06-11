@@ -83,7 +83,17 @@ template<
 	};
 	static int _index(){return IfThenElse<local::equality<STORE,persistent_store>::VALUE,persistent,other>::ResultT::go();}
 };
-
+template<typename VALUE_TYPE> struct singleton_allocator:pool_allocator<VALUE_TYPE,free_store,uint16_t>{
+	typedef pool_allocator<VALUE_TYPE,free_store,uint16_t> BASE;
+	typename BASE::pointer allocate(typename BASE::size_type n){
+		cerr<<"singleton_allocator::allocate"<<endl;
+		//static auto p=this->BASE::allocate(n);//what about this?
+		static auto p=BASE::pointer::get_pool()->template allocate_t<VALUE_TYPE>();
+		return p;//always the same pointer
+	}
+	void deallocate(typename BASE::pointer p, typename BASE::size_type n){
+	}
+};
 
 
 #ifdef JJJJJJJJJ

@@ -407,6 +407,8 @@ namespace objrdf{
 			//shall we add a clone function?
 			,void (*)(void*,CONST_RESOURCE_PTR) //copy constructor
 			/* add more functions here ... */
+			//access the allocator
+			,RESOURCE_PTR (*)()
 		> class_function_table;
 		/*
  		* 	we add information about the class to get rid of vtable	
@@ -449,6 +451,10 @@ namespace objrdf{
 		template<typename T> base_resource::type_iterator end(RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.end());}
 		template<typename T> base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,T::v.cbegin());}
 		template<typename T> base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,T::v.cend());}
+		template<typename T> RESOURCE_PTR allocate(){
+			typename T::allocator a;
+			return a.allocate(1);
+		}
 	}
 	base_resource::instance_iterator operator+(const base_resource::instance_iterator& a,const unsigned int& b);
 
@@ -482,6 +488,12 @@ namespace objrdf{
 		typename INDEX
 	> struct replace<REAL_VALUE_TYPE,pool_allocator<VALUE_TYPE,STORE,INDEX>>{
 		typedef pool_allocator<REAL_VALUE_TYPE,STORE,INDEX> ResultT;
+	};
+	template<
+		typename REAL_VALUE_TYPE,
+		typename VALUE_TYPE
+	> struct replace<REAL_VALUE_TYPE,singleton_allocator<VALUE_TYPE>>{
+		typedef singleton_allocator<REAL_VALUE_TYPE> ResultT;
 	};
 }
 //typedef objrdf::base_resource BASE_CLASS;	
@@ -1390,6 +1402,7 @@ namespace objrdf{
 				f_ptr::cbegin<TMP>,
 				f_ptr::cend<TMP>,
 				f_ptr::copy_constructor<TMP>
+				,f_ptr::allocate<TMP>
 			),
 			TMP::get_comment!=SUPERCLASS::get_comment ? TMP::get_comment() : "",
 			objrdf::sizeOf(sizeof(TMP))

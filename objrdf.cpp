@@ -135,6 +135,7 @@ CONST_CLASS_PTR base_resource::get_class(){
 			f_ptr::cbegin<base_resource>,
 			f_ptr::cend<base_resource>
 			,f_ptr::copy_constructor<base_resource>
+			,f_ptr::allocate<base_resource>
 		)			
 		,get_comment()
 		,objrdf::sizeOf(sizeof(base_resource))
@@ -184,7 +185,7 @@ string base_resource::const_instance_iterator::str() const{
 }
 int base_resource::instance_iterator::compare(const base_resource::instance_iterator& j) const{
 	if(literalp()&&j.literalp()){
-		//for now only compare same literal properties, not all properties define a comparison operator
+		//for now only compare same literal properties, not all properties define a comparison operator, actually only range matters
 		if((get_Property()==j.get_Property())&&std::get<10>(i->t)) return std::get<10>(i->t)(subject,index,j.subject,j.index);
 		return str().compare(j.str());//not very efficient and not always correct, eg: time formatting 
 	}
@@ -481,7 +482,8 @@ RESOURCE_PTR objrdf::create_by_type(CONST_CLASS_PTR c,uri id){
 	//get a generic pointer
 	//should not allocate if constructor not defined???
 	//constructor always defined, just does not do anything sometime
-	RESOURCE_PTR rp(p->allocate(),p);
+	//RESOURCE_PTR rp(p->allocate(),p);
+	RESOURCE_PTR rp(std::get<6>(c->t)(),p);
 	//invoke constructor
 	std::get<0>(c->t)(rp,id);
 	return rp;
@@ -491,9 +493,12 @@ RESOURCE_PTR objrdf::create_by_type(uri type,uri id){
 	return c ? objrdf::create_by_type(c,id) : RESOURCE_PTR();
 }
 RESOURCE_PTR objrdf::create_by_type_blank(CONST_CLASS_PTR c){
+	//we need to use the object's allocator instead of the pointer...
+	//the problem is that we don't know how to access it, we would have to store it in function pointer
 	LOG<<"creating blank instance of `"<<c->id<<"'"<<endl;
 	POOL_PTR p(c.index);
-	RESOURCE_PTR rp(p->allocate(),p);
+	//RESOURCE_PTR rp(p->allocate(),p);
+	RESOURCE_PTR rp(std::get<6>(c->t)(),p);
 	ostringstream os;
 	rp._print(os);
 	uri u(os.str());
@@ -505,7 +510,8 @@ RESOURCE_PTR objrdf::clone(CONST_RESOURCE_PTR r){
 	LOG<<"cloning resource `"<<r->id<<"'"<<endl;
 	CONST_CLASS_PTR c=get_class(r);
 	POOL_PTR p(c.index);
-	RESOURCE_PTR rp(p->allocate(),p);
+	//RESOURCE_PTR rp(p->allocate(),p);
+	RESOURCE_PTR rp(std::get<6>(c->t)(),p);
 	std::get<5>(c->t)(rp,r);
 	return rp;
 }
@@ -513,7 +519,8 @@ RESOURCE_PTR objrdf::clone_and_swap(CONST_RESOURCE_PTR r){
 	LOG<<"cloning resource `"<<r->id<<"'"<<endl;
 	CONST_CLASS_PTR c=get_class(r);
 	POOL_PTR p(c.index);
-	RESOURCE_PTR rp(p->allocate(),p);
+	//RESOURCE_PTR rp(p->allocate(),p);
+	RESOURCE_PTR rp(std::get<6>(c->t)(),p);
 	memcpy(rp,r,c->cget<sizeOf>().t);//this could go very wrong if we don't have the right size
 	std::get<5>(c->t)(r,rp);
 	return rp;
