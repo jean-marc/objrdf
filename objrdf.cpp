@@ -483,7 +483,7 @@ RESOURCE_PTR objrdf::create_by_type(CONST_CLASS_PTR c,uri id){
 	//should not allocate if constructor not defined???
 	//constructor always defined, just does not do anything sometime
 	//RESOURCE_PTR rp(p->allocate(),p);
-	RESOURCE_PTR rp(std::get<6>(c->t)(),p);
+	RESOURCE_PTR rp(std::get<6>(c->t)());
 	//invoke constructor
 	std::get<0>(c->t)(rp,id);
 	return rp;
@@ -498,7 +498,7 @@ RESOURCE_PTR objrdf::create_by_type_blank(CONST_CLASS_PTR c){
 	LOG<<"creating blank instance of `"<<c->id<<"'"<<endl;
 	POOL_PTR p(c.index);
 	//RESOURCE_PTR rp(p->allocate(),p);
-	RESOURCE_PTR rp(std::get<6>(c->t)(),p);
+	RESOURCE_PTR rp(std::get<6>(c->t)());
 	ostringstream os;
 	rp._print(os);
 	uri u(os.str());
@@ -511,7 +511,7 @@ RESOURCE_PTR objrdf::clone(CONST_RESOURCE_PTR r){
 	CONST_CLASS_PTR c=get_class(r);
 	POOL_PTR p(c.index);
 	//RESOURCE_PTR rp(p->allocate(),p);
-	RESOURCE_PTR rp(std::get<6>(c->t)(),p);
+	RESOURCE_PTR rp(std::get<6>(c->t)());
 	std::get<5>(c->t)(rp,r);
 	return rp;
 }
@@ -520,7 +520,7 @@ RESOURCE_PTR objrdf::clone_and_swap(CONST_RESOURCE_PTR r){
 	CONST_CLASS_PTR c=get_class(r);
 	POOL_PTR p(c.index);
 	//RESOURCE_PTR rp(p->allocate(),p);
-	RESOURCE_PTR rp(std::get<6>(c->t)(),p);
+	RESOURCE_PTR rp(std::get<6>(c->t)());
 	memcpy(rp,r,c->cget<sizeOf>().t);//this could go very wrong if we don't have the right size
 	std::get<5>(c->t)(r,rp);
 	return rp;
