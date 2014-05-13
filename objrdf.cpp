@@ -38,7 +38,7 @@ map<uri,RESOURCE_PTR>& base_resource::get_index(){
 }
 void base_resource::do_index(RESOURCE_PTR p){
 	//LOG<<"indexing resource `"<<p->id<<"'"<<endl;
-	get_index()[p->id]=p;
+	//get_index()[p->id]=p;
 }
 property_info::property_info(CONST_PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}
 //should be deprecated
@@ -63,7 +63,7 @@ struct cmp_uri{
 	cmp_uri(uri u):u(u){}
 	bool operator()(CONST_CLASS_PTR s)const{return s->id==u;}
 };
-rdfs::Class::Class(objrdf::uri id,rdfs::subClassOf s,objrdf::base_resource::class_function_table t,string comment_str,objrdf::sizeOf size):SELF(id),t(t){
+rdfs::Class::Class(objrdf::uri id,rdfs::subClassOf s,objrdf::base_resource::class_function_table t,string comment_str,objrdf::sizeOf size,objrdf::hashOf h):SELF(id),t(t){
 	/*objrdf::Test_class::allocator a;
 	auto ptr=a.allocate(1);
 	a.construct(ptr,id);
@@ -79,22 +79,23 @@ rdfs::Class::Class(objrdf::uri id,rdfs::subClassOf s,objrdf::base_resource::clas
 	#endif
 	get<comment>().set_string(comment_str);
 	get<objrdf::sizeOf>()=size;
+	get<objrdf::hashOf>()=h;
 	if(s){
-		get<array<subClassOf>>().push_back(s);
-		get<array<subClassOf>>().insert(
-			get<array<subClassOf>>().end(),
-			s->get_const<array<subClassOf>>().cbegin(),
-			s->get_const<array<subClassOf>>().cend()
+		//what if we change allocators??
+		get<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().push_back(s);
+		get<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().insert(
+			get<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().end(),
+			s->get_const<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().cbegin(),
+			s->get_const<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().cend()
 		);
 	}
-	n=1;//otherwise crash when deleting
 }
 bool rdfs::Class::operator==(const rdfs::Class& c) const{
 	return this==&c;	
 }
 bool rdfs::Class::operator<(const rdfs::Class& c) const{//is c subClass of this?
-	auto i=find(c.get_const<array<subClassOf>>().cbegin(),c.get_const<array<subClassOf>>().cend(),this);
-	return i!=c.get_const<array<subClassOf>>().cend();
+	auto i=find(c.get_const<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().cbegin(),c.get_const<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().cend(),this);
+	return i!=c.get_const<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().cend();
 }
 bool rdfs::Class::operator<=(const rdfs::Class& c) const{
 	return (*this==c)||(*this<c);
@@ -107,25 +108,8 @@ bool rdfs::Class::literalp() const{
 }
 void rdfs::Class::analyze(){};
 CONST_CLASS_PTR base_resource::get_class(){
-	/*
-	rdfs::Class::allocator a;
-	static CONST_CLASS_PTR p=a.construct_r(CLASS_PTR(allocator::get_index().index),
-		objrdf::get_uri<rdfs::rdfs_namespace>("Resource"),
-		rdfs::subClassOf(),
-		objrdf::base_resource::class_function_table(
-			f_ptr::constructor<base_resource>,
-			f_ptr::begin<base_resource>,
-			f_ptr::end<base_resource>,
-			f_ptr::cbegin<base_resource>,
-			f_ptr::cend<base_resource>
-		)			
-		,get_comment()
-		,objrdf::sizeOf(sizeof(base_resource))
-	);
-	*/
-	static CONST_CLASS_PTR p=CONST_CLASS_PTR::construct_at(
-		//POOL_PTR::help<base_resource>().index,
-		allocator::get_index().index,
+	static CONST_CLASS_PTR p=rdfs::Class::allocator_type::construct_allocate_at(
+		allocator_type::get_pool().index,
 		objrdf::get_uri<rdfs::rdfs_namespace>("Resource"),
 		rdfs::subClassOf(),
 		objrdf::base_resource::class_function_table(
@@ -139,6 +123,7 @@ CONST_CLASS_PTR base_resource::get_class(){
 		)			
 		,get_comment()
 		,objrdf::sizeOf(sizeof(base_resource))
+		,objrdf::hashOf(pool::get_hash<base_resource>())
 	);
 	return p;
 }
@@ -157,7 +142,8 @@ rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp,rdfs::s
  */
 
 //CONST_RESOURCE_PTR base_resource::nil=CONST_RESOURCE_PTR::construct(uri("nil"));
-RESOURCE_PTR base_resource::nil=RESOURCE_PTR::construct(uri("nil"));
+//RESOURCE_PTR base_resource::nil=RESOURCE_PTR::construct(uri("nil"));
+RESOURCE_PTR base_resource::nil=base_resource::allocator_type::construct_allocate(uri("nil"));
 V base_resource::v=get_generic_property<base_resource>::go();
 CONST_PROPERTY_PTR base_resource::instance_iterator::get_Property() const{return i->p;}
 CONST_PROPERTY_PTR base_resource::const_instance_iterator::get_Property() const{return i->p;}
@@ -424,18 +410,14 @@ void objrdf::to_rdf_xml(ostream& os){
 	uri::ns_declaration(os);
 	//we need xml:base declaration
 	//should not be here!!!
-	os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
+	//os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
 	os<<">";
-	for(auto i=objrdf::begin();i<objrdf::end();++i){
-		/*
-		*	should throw if the class is not defined
-		*/ 
-		cerr<<"reading pool `"<<CONST_CLASS_PTR(i.index)->id<<"'"<<endl;
-		assert(CONST_CLASS_PTR(i.index)->id.local[0]);
-		for(auto j=i.begin();j<i.end();++j){
-			to_rdf_xml(*j,os);
+	rdfs::Class::allocator_type a;
+	for(auto i=a.cbegin();i!=a.cend();++i){
+		pool::POOL_PTR p(i.index); //there is a mapping between Class and pools
+		for(auto j=pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
+			to_rdf_xml(j,cout);
 		}
-		os<<endl;
 	}
 	os<<"\n</"<<rdf::_RDF<<">\n";
 }
@@ -445,7 +427,7 @@ RESOURCE_PTR objrdf::find(uri u){
 	auto i=base_resource::get_index().find(u);
 	if(i==base_resource::get_index().end()){
 		cerr<<"not found"<<endl;
-		return RESOURCE_PTR();
+		return RESOURCE_PTR(0,0);
 	}
 	cerr<<"found"<<endl;
 	return i->second;
@@ -464,7 +446,7 @@ RESOURCE_PTR objrdf::find(uri u){
 	*/
 }
 RESOURCE_PTR objrdf::create_by_type(CONST_CLASS_PTR c,uri id){
-	POOL_PTR p(c.index);
+	//POOL_PTR p(c.index);
 	/*
 	* we have to make sure it points to a valid pool
 	* is there anyway we could construct the pool on the fly?
@@ -478,7 +460,7 @@ RESOURCE_PTR objrdf::create_by_type(CONST_CLASS_PTR c,uri id){
 	* currently the Class only contains reference to the constructor, no information about allocator
 	*/
 	//can get rid of that now
-	assert(p->type_id);
+	//assert(p->type_id);
 	//get a generic pointer
 	//should not allocate if constructor not defined???
 	//constructor always defined, just does not do anything sometime
@@ -489,14 +471,14 @@ RESOURCE_PTR objrdf::create_by_type(CONST_CLASS_PTR c,uri id){
 	return rp;
 }
 RESOURCE_PTR objrdf::create_by_type(uri type,uri id){
-	CONST_CLASS_PTR c=find_t<CONST_CLASS_PTR>(type);
-	return c ? objrdf::create_by_type(c,id) : RESOURCE_PTR();
+	CONST_CLASS_PTR c=find_t<rdfs::Class>(type);
+	return c ? objrdf::create_by_type(c,id) : RESOURCE_PTR(0,0);
 }
 RESOURCE_PTR objrdf::create_by_type_blank(CONST_CLASS_PTR c){
 	//we need to use the object's allocator instead of the pointer...
 	//the problem is that we don't know how to access it, we would have to store it in function pointer
-	LOG<<"creating blank instance of `"<<c->id<<"'"<<endl;
-	POOL_PTR p(c.index);
+	//LOG<<"creating blank instance of `"<<c->id<<"'"<<endl;
+	//POOL_PTR p(c.index);
 	//RESOURCE_PTR rp(p->allocate(),p);
 	RESOURCE_PTR rp(std::get<6>(c->t)());
 	ostringstream os;
@@ -509,30 +491,27 @@ RESOURCE_PTR objrdf::create_by_type_blank(CONST_CLASS_PTR c){
 RESOURCE_PTR objrdf::clone(CONST_RESOURCE_PTR r){
 	LOG<<"cloning resource `"<<r->id<<"'"<<endl;
 	CONST_CLASS_PTR c=get_class(r);
-	POOL_PTR p(c.index);
+	//POOL_PTR p(c.index);
 	//RESOURCE_PTR rp(p->allocate(),p);
 	RESOURCE_PTR rp(std::get<6>(c->t)());
 	std::get<5>(c->t)(rp,r);
 	return rp;
 }
-RESOURCE_PTR objrdf::clone_and_swap(CONST_RESOURCE_PTR r){
+//RESOURCE_PTR objrdf::clone_and_swap(CONST_RESOURCE_PTR r){
+RESOURCE_PTR objrdf::clone_and_swap(RESOURCE_PTR r){
 	LOG<<"cloning resource `"<<r->id<<"'"<<endl;
 	CONST_CLASS_PTR c=get_class(r);
-	POOL_PTR p(c.index);
-	//RESOURCE_PTR rp(p->allocate(),p);
 	RESOURCE_PTR rp(std::get<6>(c->t)());
 	memcpy(rp,r,c->cget<sizeOf>().t);//this could go very wrong if we don't have the right size
+	//void (*)(void*,CONST_RESOURCE_PTR) //copy constructor
+	//template<typename T> void copy_constructor(void* p,CONST_RESOURCE_PTR r){new(p)T(static_cast<const T&>(*r));}
 	std::get<5>(c->t)(r,rp);
 	return rp;
 }
 RESOURCE_PTR objrdf::create_by_type_blank(uri type){
-	CONST_CLASS_PTR c=find_t<CONST_CLASS_PTR>(type);
-	return c ? objrdf::create_by_type_blank(c) : RESOURCE_PTR();
+	CONST_CLASS_PTR c=find_t<rdfs::Class>(type);
+	return c ? objrdf::create_by_type_blank(c) : RESOURCE_PTR(0,0);
 }
-pool_iterator objrdf::begin(){return pool_iterator(::begin<POOL_PTR>());}
-pool_iterator objrdf::end(){return pool_iterator(::end<POOL_PTR>());}
-
-
 
 /*
 int main(){
