@@ -37,7 +37,7 @@ Once classes and members are defined in code by specializing templates any new o
 
 Persistence
 
-When allocating an object on the persistent store guarantees that the pointer will always be valid, including between runs of the programs.
+Allocating an object on the persistent store guarantees that the pointer will always be valid, including between runs of the programs.
 The only way the pointer would become invalid is if the program is recompiled and causes the pool index to change, obviously changing the pointed-to class will also cause problems.
 Safeguards mechanisms can be put in place to prevent strange behaviours (hashing the file, ...).
 Modifying the class is a normal evolution of a program and updating the database can be done through RDF dumps and -possibly- XML transformations (XSLT).
@@ -91,4 +91,9 @@ Any modification to the document through SPARQL or RDF parsing is done through t
 * create pseudo-properties (e.g: rdf:type)
 * obfuscate/encrypt properties
 Rather than modify the existing table we can extend it and use offset based on user, 'root' has access to the original table and can do anything, other users will use a filtered copy of the original.  
+
+## Data structure alignment
+Alignment requirements might necessitate padding between members, this will increase the memory usage (bigger database files), the framework offers some information about members (RDF properties) offset and size and can help reorder to limit the padding. Note that data mis-alignment results in slower memory access (more pointer operation) and could be a problem in CPU intensive operation (see here for instance)
+
+
 

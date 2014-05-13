@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+
+
+<!-- 
+     main page 
+
+	sites	Set	Contact
+
+	1	[]	1	
+	2	[]	2
+	3	Reports	...
+	...	~~
+		~~
+-->
+<html>
+<head>
+<title>UNICEF kiosk monitoring</title>
+<script src="jquery.js"></script>
+<script src="main.js"></script>
+<link rel='stylesheet' type='text/css' href='inventory.css' media='all'/>
+<style>
+
+</style>
+</head>
+<body onload='start()'>
+<div id='wrap'>
+<div id='left'>
+	<h2>Sites</h2>
+	<p>left</p>
+</div>
+<div id='main'>
+	<div id='current_site'>
+		<h1>--</h1>
+		<p>site description</p>
+	</div>
+	<div id='main_top'>
+		<h2>Sets</h2>
+		<p>main top</p>
+	</div>
+	<div id='main_middle'>
+		<h2>Reports</h2>
+		<p>main bottom</p> <!-- will be replaced -->
+	</div>
+	<div id='main_bottom'>
+		<form name="add">
+			<table>
+			<tr><textarea name="http://monitor.unicefuganda.org/#text" value=""></textarea></tr>
+			<tr><input type="submit" value="add report"/></tr>
+			</table>
+		</form>
+	</div>
+</div>
+<div id='right'>
+	<h2>Contacts</h2>
+	<div class='payload'><p>right</p></div>
+	<div id='add_contact'><p>add contact</p></div>
+</div>
+</div>
+</body>
+</html>
+

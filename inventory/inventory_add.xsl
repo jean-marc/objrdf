@@ -10,7 +10,8 @@
 	should be applied to result of
 
 	SELECT * WHERE {?p rdfs:domain <type>; . ?p rdfs:range ?r .}
-	problem: we don't know the type, and we need it
+	problem: we don't know the type, and we need it, we can use xslt-parameter but not supported by Chrome
+	could use URL parameter
 
 -->
 <xsl:param name='type'/>
@@ -29,7 +30,7 @@
 </head>
 <body>
 <div id='top'>
-<a href="/sparql?query=select * where %7B?x a rdfs:Class .%7D&amp;xsl=inventory.xsl">home</a> | 
+<a href="/sparql?query=select * where %7B?x a rdfs:Class .%7D order by ?x&amp;xsl=inventory.xsl">home</a> | 
 search by id: <form id='by_id'><input type='text'/></form> |
 search by site: <form id='by_site'><input type='text'/></form> |
 </div>
@@ -47,10 +48,16 @@ search by site: <form id='by_site'><input type='text'/></form> |
 <!--
 	insert data {<id> a <some_type>;<p_0> <v_0>;... .}
 	need to go through all the input
+	if id is not defined we have to use blank node, often we don't want to create new id
 -->
 <script type="text/javascript">
 $("form").submit(function(){
-	var s='insert data {&lt;'+$('.jm form input:first').val()+'&gt; a &lt;<xsl:value-of select='$type'/>&gt;'
+	id=$('.jm form input:first').val();
+	var s;
+	if(id)
+		s='insert data {&lt;'+id+'&gt; a &lt;<xsl:value-of select='$type'/>&gt;';
+	else
+		s='insert data {[] a &lt;<xsl:value-of select='$type'/>&gt;';
 	$('.jm form input[type!=submit][name!=ID]').each(function(){
 		if($(this).attr('value')!=$(this).val())
 			s+=';&lt;'+$(this).attr('name')+'&gt; "'+$(this).val()+'"';
@@ -60,8 +67,12 @@ $("form").submit(function(){
 			s+=';&lt;'+$(this).attr('name')+'&gt; &lt;'+$(this).val()+'&gt;';
 	});
 	s+=' .}'
-	//alert(s)
-	$.post('/',s,function(){})
+	alert(s);
+	$.post('/',s,function(data,status){
+		//what would be the right thing to do after creating new resource?
+		//we could do a describe unless it is blank node: we don't know the ID
+		alert(status);
+	})
 })
 </script>
 </body>

@@ -1,0 +1,5 @@
+prefix :<http://monitor.unicefuganda.org/#> 
+select * where {
+	?x a :Computer;:_mac_ "c89cdc870cb1";:partOf ?set .
+	?set :located ?site .
+} _buggy_

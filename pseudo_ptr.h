@@ -109,7 +109,8 @@ struct pool{
  	*/ 
 	struct info{
 		//we are only using one field at a time except for the first cell
-		typedef unsigned short FIELD;
+		//typedef unsigned short FIELD;
+		typedef uint32_t FIELD;
 		FIELD next;
 		FIELD n_cells;
 		info();//:next(0),n_cells(0){}
@@ -333,12 +334,13 @@ namespace test{
 struct pool_array{
 	struct info{
 		//we are only using one field at a time except for the first cell
-		typedef unsigned short FIELD;
 		//typedef unsigned char FIELD;
-		FIELD next;//index of next cell
+		//typedef unsigned short FIELD;//16 bits, 
+		typedef uint32_t FIELD;
+		FIELD next;//index of next available range
 		union{
-			FIELD n_cells;//total number of chars (only used in info[0])
-			FIELD cell_size;//how many chars in the cell
+			FIELD n_cells;//total number of cells (only used in info[0])
+			FIELD range_size;//how many cells in current range
 		};
 	};
 	/*
@@ -350,7 +352,7 @@ struct pool_array{
 		char t[sizeof(T)];
 		inline info::FIELD& next(){return static_cast<info*>((void*)this)->next;}
 		inline info::FIELD& n_cells(){return static_cast<info*>((void*)this)->n_cells;}
-		inline info::FIELD& cell_size(){return static_cast<info*>((void*)this)->cell_size;}
+		inline info::FIELD& range_size(){return static_cast<info*>((void*)this)->range_size;}
 	};
 	param& p;
 	typedef void(*DESTRUCTOR)(void*);
@@ -384,11 +386,11 @@ struct pool_array{
 			if(TEST){
 				auto index=p.n/(2*sizeof(info));
 				//create new range
-				v[index].cell_size()=index;
+				v[index].range_size()=index;
 				v[index].next()=v[0].next();
 				v[0].next()=index;
 			}else{
-				v[p.n/2].cell_size()=p.n/2;
+				v[p.n/2].range_size()=p.n/2;
 				v[p.n/2].next()=v[0].next();
 				v[0].next()=p.n/2;
 			}
@@ -401,14 +403,14 @@ struct pool_array{
 		//we need to go through linked list until we find enough contiguous free cells
 		auto v=static_cast<helper<T>*>(p.v);
 		cerr<<"pool_array helper size:"<<sizeof(helper<T>)<<endl;
-		cerr<<"pool_array attempting to allocate "<<n<<" cells in pool "<<this<<" address:"<<current<<" size:"<<v[current].cell_size()<<" next cell:"<<v[current].next()<<" "<<v[0].next()<<endl;
+		cerr<<"pool_array attempting to allocate "<<n<<" cells in pool "<<this<<" address:"<<current<<" size:"<<v[current].range_size()<<" next range:"<<v[current].next()<<endl;
 		if(current==0){
 			//no more memory
 			cerr<<"allocate "<<n<<" cells at index failed in pool "<<this<<endl;
 			//throw std::runtime_error("pool full");
 			return 0;
 		}else{
-			if(v[current].cell_size()<n){
+			if(v[current].range_size()<n){
 				//infinite loop if v[current].next=current
 				//return help_allocate_t<T>(v[current].next(),n);
 				if(v[current].next()==current) {
@@ -416,7 +418,7 @@ struct pool_array{
 					//exit(1);
 				}
 				return v[current].next()==current ? 0 : help_allocate_t<T>(v[current].next(),n);
-			}else if(v[current].cell_size()==n){
+			}else if(v[current].range_size()==n){
 				size_t tmp=current;
 				//something fishy here
 				current=v[current].next();//cell is destroyed
@@ -425,9 +427,9 @@ struct pool_array{
 				return tmp;
 			}else{
 				//create new cell but should test if merge possible
-				v[current+n].cell_size()=v[current].cell_size()-n;//problem here: 
+				v[current+n].range_size()=v[current].range_size()-n;//problem here: 
 				v[current+n].next()=v[current].next();
-				cerr<<current+n<<" size:"<<v[current+n].cell_size()<<" next:"<<v[current+n].next()<<endl;	
+				cerr<<current+n<<" size:"<<v[current+n].range_size()<<" next:"<<v[current+n].next()<<endl;	
 				size_t tmp=current;
 				current=current+n;//cell is destroyed
 				v[0].n_cells()+=n;
@@ -447,10 +449,10 @@ struct pool_array{
 		//easy way
 		//create cell
 		v[index].next()=v[0].next();
-		v[index].cell_size()=n;
+		v[index].range_size()=n;
 		v[0].next()=index;
 		v[0].n_cells()-=n;
-		//v[0].n_cells()-=v[index].cell_size();
+		//v[0].n_cells()-=v[index].range_size();
 	}
 	void* get(size_t i);
 	//could use function pointer:allocate, deallocate,...
@@ -745,7 +747,7 @@ template<
 		typename OTHER_STORE,
 		typename OTHER_INDEX
 	> pseudo_ptr(const pseudo_ptr<S,OTHER_STORE,true,OTHER_INDEX>& p):index(p.index){
-		static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
+		//static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
 		value_type *a;
 		S *b;
 		a=static_cast<value_type*>(b);	
@@ -854,7 +856,7 @@ struct pseudo_ptr<T,_STORE_,true,_INDEX_>{
 		typename OTHER_INDEX
 	> 
 	pseudo_ptr(const pseudo_ptr<S,OTHER_STORE,false,OTHER_INDEX>& p):pool_ptr(p.get_pool()),index(p.index){
-		static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
+		//static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
 		//enforce standard C pointer conversion rules
 		value_type *a;
 		S *b;
@@ -866,7 +868,7 @@ struct pseudo_ptr<T,_STORE_,true,_INDEX_>{
 		typename OTHER_INDEX
 	> 
 	pseudo_ptr(const pseudo_ptr<S,OTHER_STORE,true,OTHER_INDEX>& p):pool_ptr(p.pool_ptr),index(p.index){
-		static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
+		//static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
 		//enforce standard C pointer conversion rules
 		value_type *a;
 		S *b;
@@ -974,7 +976,7 @@ template<
 		typename OTHER_INDEX
 	> 
 	pseudo_ptr(const pseudo_ptr<S,OTHER_STORE,true,OTHER_INDEX>& p):pool_ptr(p.pool_ptr),index(p.index){
-		static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
+		//static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
 		enum{a=is_derived<typename S::SELF,typename T::SELF>::value};
 		enum{b=is_derived<typename T::SELF,typename S::SELF>::value};
 		//so we get explicit error message
@@ -988,7 +990,7 @@ template<
 		typename OTHER_INDEX
 	> 
 	pseudo_ptr(const pseudo_ptr<S,OTHER_STORE,false,OTHER_INDEX>& p):pool_ptr(pseudo_ptr<S,OTHER_STORE,false,OTHER_INDEX>::get_pool()),index(p.index){
-		static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
+		//static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
 		enum{a=is_derived<typename S::SELF,typename T::SELF>::value};
 		enum{b=is_derived<typename T::SELF,typename S::SELF>::value};
 		//so we get explicit error message
@@ -1045,7 +1047,7 @@ template<
 	*
 	*/
 	template<typename S,typename OTHER_STORE,typename OTHER_INDEX> pseudo_ptr_array(const pseudo_ptr_array<S,OTHER_STORE,true,OTHER_INDEX>& p):index(p.index){
-		static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
+		//static_assert(sizeof(INDEX)>=sizeof(OTHER_INDEX),"cast to a smaller type");
 		//we can make it safe but should be optional 
 		static_assert(is_derived<S,T>::value||is_derived<T,S>::value,"types are not related");
 		assert(p.pool_ptr==get_pool());

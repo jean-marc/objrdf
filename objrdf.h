@@ -101,14 +101,19 @@ namespace objrdf{
  	* but any pseudo_ptr<T> can be cast to a CONST_RESOURCE_PTR
  	* this is confusing because each type should define its own typedef STORE
  	*/
-	typedef pseudo_ptr<base_resource,free_store,true> RESOURCE_PTR;
+	/*
+ 	* all resource pointers will be cast to this type, so it must be able to handle any pointer size, let's
+ 	* set it to uint32_t for now, the problem is that the back conversion will cause problem
+ 	*/ 
+	//how can we remove dependency on allocator?
+	typedef pseudo_ptr<base_resource,free_store,true,uint32_t> RESOURCE_PTR;
 	/*
  	*	this is our generic reference, the problem is that we lose information about resource's constness eg:
  	*	pseudo_ptr<const C> a;
  	*	CONST_RESOURCE_PTR p=a;//ok, always allowed
  	*	RESOURCE_PTR pp=p;//is that ok?????
  	*/
-	typedef pseudo_ptr<const base_resource,free_store,true> CONST_RESOURCE_PTR;
+	typedef pseudo_ptr<const base_resource,free_store,true,uint32_t> CONST_RESOURCE_PTR;
 	typedef pseudo_ptr<rdfs::Class,free_store,false,uint16_t> CLASS_PTR;
 	typedef pseudo_ptr<const rdfs::Class,free_store,false,uint16_t> CONST_CLASS_PTR;
 	typedef pseudo_ptr<rdf::Property,free_store,false,uint16_t> PROPERTY_PTR;
@@ -180,13 +185,16 @@ namespace objrdf{
  	*/ 	
 	template<
 		typename PROPERTY,
-		typename STORE=typename get_store<typename PROPERTY::PTR>::value
+		//could we use the allocator as the template parameter instead?, so we can decide on the size of pointer
+		typename STORE=typename get_store<typename PROPERTY::PTR>::value//this is a bit stupid the store should be similar to the 
+		,typename INDEX=uint16_t
+		//typename ALLOCATOR//=custom_allocator<PROPERTY,pseudo_ptr_array<PROPERTY,
 	> class array:public vector<
 		PROPERTY,
+		//ALLOCATOR
 		custom_allocator<
 			PROPERTY,
-			pseudo_ptr_array<PROPERTY,STORE,false>/*,
-			pseudo_ptr_array<const PROPERTY,STORE,false>*/
+			pseudo_ptr_array<PROPERTY,STORE,false,INDEX>
 		>
 	>{
 	public:
@@ -364,7 +372,8 @@ namespace objrdf{
 		* could also be made a constant property so can be published for debugging
  		*/
 		//short n;
-		int n;//use 4 bytes to mask pool::info
+		//int n;//use 4 bytes to mask pool::info
+		uint64_t n;//use 8 bytes!
 		base_resource(uri id):n(0),id(id){
 			#ifdef OBJRDF_VERB
 			cerr<<"create base_resource `"<<id<<"' "<<this<<endl;
@@ -746,7 +755,7 @@ namespace objrdf{
 		typename IMPLEMENTATION=base_property<_RANGE_>
 	> class property:public IMPLEMENTATION{
 	public:
-		PROVENANCE p;
+		PROVENANCE p;//let's get rid of that
 		typedef _RANGE_ RANGE;//not the range
 		typedef property SELF;
 		//template<typename S> property(S s):base_property<RANGE>(s){}
@@ -843,13 +852,14 @@ namespace objrdf{
 	template<
 		typename SUBJECT,
 		typename PROPERTY,
-		typename STORE
-	> struct base_f<SUBJECT,array<PROPERTY,STORE>>{
+		typename STORE,
+		typename INDEX
+	> struct base_f<SUBJECT,array<PROPERTY,STORE,INDEX>>{
 		typedef PROPERTY PP;
-		static inline array<PROPERTY,STORE>& get(RESOURCE_PTR subject){return static_cast<typename SUBJECT::allocator::derived_pointer>(subject)->template get<array<PROPERTY,STORE>>();}
-		static inline const array<PROPERTY,STORE>& get_const(CONST_RESOURCE_PTR subject){return static_cast<typename SUBJECT::allocator::const_derived_pointer>(subject)->template get_const<array<PROPERTY,STORE>>();}
-		static inline PROPERTY& get(RESOURCE_PTR subject,size_t index){return static_cast<typename SUBJECT::allocator::derived_pointer>(subject)->template get<array<PROPERTY,STORE>>()[index];}
-		static inline const PROPERTY& get_const(CONST_RESOURCE_PTR subject,size_t index){return static_cast<typename SUBJECT::allocator::const_derived_pointer>(subject)->template get_const<array<PROPERTY,STORE>>()[index];}
+		static inline array<PROPERTY,STORE,INDEX>& get(RESOURCE_PTR subject){return static_cast<typename SUBJECT::allocator::derived_pointer>(subject)->template get<array<PROPERTY,STORE,INDEX>>();}
+		static inline const array<PROPERTY,STORE,INDEX>& get_const(CONST_RESOURCE_PTR subject){return static_cast<typename SUBJECT::allocator::const_derived_pointer>(subject)->template get_const<array<PROPERTY,STORE,INDEX>>();}
+		static inline PROPERTY& get(RESOURCE_PTR subject,size_t index){return static_cast<typename SUBJECT::allocator::derived_pointer>(subject)->template get<array<PROPERTY,STORE,INDEX>>()[index];}
+		static inline const PROPERTY& get_const(CONST_RESOURCE_PTR subject,size_t index){return static_cast<typename SUBJECT::allocator::const_derived_pointer>(subject)->template get_const<array<PROPERTY,STORE,INDEX>>()[index];}
 		static size_t get_size(CONST_RESOURCE_PTR subject){return get_const(subject).size();}
 		static void add_property(RESOURCE_PTR subject,PROVENANCE p){typedef PROPERTY P;get(subject).push_back(P());}
 		static void erase(RESOURCE_PTR subject,size_t first,size_t last){get(subject).erase(get(subject).begin()+first,get(subject).begin()+last);}
@@ -1494,8 +1504,9 @@ namespace objrdf{
 	}
 	template<
 		typename PROPERTY,
-		typename STORE
-	> CONST_PROPERTY_PTR array<PROPERTY,STORE>::get_property(){
+		typename STORE,
+		typename INDEX
+	> CONST_PROPERTY_PTR array<PROPERTY,STORE,INDEX>::get_property(){
 		return PROPERTY::get_property_array();
 	}
 	struct name_p{

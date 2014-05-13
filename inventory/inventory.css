@@ -1,18 +1,14 @@
 @media screen{
+/* plot related */
 svg{
 	fill:none;
 	stroke:black;
+	padding:10px;
 }
-.report{
-	width:500px;
-	background-color:#eeeeee;
-	padding:1px;
-	margin:4px;
-
+/*.svg_div{
+	padding:10px;
 }
-/*.text{
-	background-color:white;
-}*/
+*/
 .uptime{
 	stroke:none;
 	fill:#66cc00;
@@ -40,7 +36,7 @@ svg{
 }
 .label{
 	dominant-baseline:central;
-	font-size:6px;
+	font-size:8px;
 	stroke:none;
 	fill:black;
 }
@@ -53,21 +49,115 @@ svg{
 .frame{
 	stroke-width:0.5;
 }
-.client_0{
-	fill:black;
+.on .frame{
+	stroke-width:0.5;
+	stroke:lime;
+	stroke-opacity:1;
 }
-.client_1{
-	fill:green;
+#left .on{
+	background-color:#99ff33;
 }
-.client_2{
-	fill:lime;
+
+ul{
+	list-style-type:none;
+	padding-left:5px;
 }
-.client_3{
-	fill:red;
+/* reports */
+
+.report{
+	padding:10px;
+	margin:4px;
+	border-bottom-style:solid;
+	border-width:1px;
+	border-color:grey;
 }
+a{
+	text-decoration:none;
+}
+#wrap{
+	margin:40px;		
+}
+#left{
+	float:left;
+	width:200px;
+}
+#main{
+	float:left;
+	width:500px;
+	/*border-right-style:solid;
+	border-width:1px;
+	border-color:black;
+	padding-right:40px;
+	*/
+}
+#right{
+	float:left;
+}
+
+#main_bottom{
+	padding:10px;
+}
+#main_bottom textarea{
+	width:100%;
+	height:100px;
+}
+.hh{
+}
+.phone{
+	margin-top:-10px;
+	font-family:monospace;
+}
+.jm{
+	padding-top:10px;
+	border-top-style:solid;
+	border-width:1px;
+	border-color:grey;
+}
+h1{
+	font-family:Verdana;
+	font-size:18px;
+	color:#33cc33;
+}
+h2{
+	font-family:Verdana;
+	font-size:13px;
+	color:#33cc33;
+}
+
+.text{
+	//background-color:#eeeeee;
+	white-space:pre-wrap;
+}
+.time{
+	padding:2px;
+}
+.sites{
+	padding:2px;
+	font-weight:bold;
+}
+/*
+.report input{
+}
+.report .edit{
+	float:right;
+	padding:2px;
+}
+*/
 body{
-	font-family:helvetica;
+	font-family:arial;
 	font-size:12px;
+}
+form{
+	//background-color:green;
+}
+form td{
+	font-size:10px;
+}
+form input,select{
+	font-size:10px;
+}
+form textarea{
+	width:300px;
 }
 a{
 	text-decoration:none;
@@ -75,7 +165,11 @@ a{
 a:hover{
 	color:#0f0;
 }
-.jm{
+.header{
+	background-color:#ddd;
+}
+/*
+ .jm{
 	//width:165px;
 	margin:2px;
 	padding:1px;
@@ -84,9 +178,7 @@ a:hover{
 	//max-height:300px;
 	//overflow:auto;
 }
-.header{
-	background-color:#ddd;
-}
+
 .jm ul{
 	list-style-type:none;
 	padding:1px;
@@ -108,6 +200,7 @@ a:hover{
 	width:500px;	
 	height:200px;
 }
+*/
 #top{
 	margin:2px;
 	margin-bottom:6px;
