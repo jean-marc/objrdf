@@ -7,7 +7,13 @@ using namespace objrdf;
  *
  *
  */
-rdf_xml_parser::rdf_xml_parser(std::istream& is,PROVENANCE p):xml_parser<rdf_xml_parser>(is),placeholder(RESOURCE_PTR::construct(uri("??"))/* base_resource(uri("??"))*/),current_property(end(placeholder)),p(p){
+RESOURCE_PTR construct(uri u){
+	base_resource::allocator_type a;
+	auto p=a.allocate(1);
+	a.construct(p,u);
+	return p;
+}
+rdf_xml_parser::rdf_xml_parser(std::istream& is,PROVENANCE p):xml_parser<rdf_xml_parser>(is),placeholder(construct(uri("??"))),current_property(end(placeholder)),p(p){
 	string_property=false;
 	st.push(placeholder);
 }
@@ -67,14 +73,14 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 					placeholder->id=uri::hash_uri(i->second);
 					st.push(placeholder);
 					*/
-					st.push(RESOURCE_PTR::construct(uri::hash_uri(i->second)));
+					st.push(construct(uri::hash_uri(i->second)));
 					
 				}
 				
 			}else{
 				ATTRIBUTES::iterator i=att.find(rdf::ID);
 				if(i!=att.end()){
-					st.push(RESOURCE_PTR::construct(uri(i->second)));
+					st.push(construct(uri(i->second)));
 				}else{
 					ERROR_PARSER<<"anonymous resource"<<endl;
 					st.push(placeholder);
@@ -154,14 +160,14 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 					ERROR_PARSER<<"un-typed resource"<<endl;
 					//placeholder->id=uri::hash_uri(i->second);
 					//st.push(placeholder);
-					st.push(RESOURCE_PTR::construct(uri::hash_uri(i->second)));
+					st.push(construct(uri::hash_uri(i->second)));
 				}
 				
 			}else{
 				//placeholder->id=uri();//reset
 				ATTRIBUTES::iterator i=att.find(rdf::ID);
 				if(i!=att.end()){
-					st.push(RESOURCE_PTR::construct(uri(i->second)));
+					st.push(construct(uri(i->second)));
 					//placeholder->id=uri::hash_uri(i->second);
 					//placeholder->id=uri(i->second);
 				}else{
@@ -194,7 +200,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 						}
 					}
 				}else{
-					CONST_CLASS_PTR r=find_t<CONST_CLASS_PTR>(name);
+					CONST_CLASS_PTR r=find_t<rdfs::Class>(name);
 					if(r){
 						RESOURCE_PTR subject=create_by_type(r,uri::hash_uri(i->second));
 						set_missing_object(subject);
@@ -208,13 +214,13 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 						}
 					}else{
 						ERROR_PARSER<<"Class `"<<name<<"' not found"<<endl;
-						st.push(RESOURCE_PTR::construct(uri::hash_uri(i->second)));
+						st.push(construct(uri::hash_uri(i->second)));
 					}
 				}
 			}else{
 				//ATTRIBUTES::iterator i=att.find(rdf::ID);
 				//if(i!=att.end()){
-					CONST_CLASS_PTR r=find_t<CONST_CLASS_PTR>(name);
+					CONST_CLASS_PTR r=find_t<rdfs::Class>(name);
 					if(r){
 						ATTRIBUTES::iterator i=att.find(rdf::ID);
 						RESOURCE_PTR subject=(i!=att.end()) ? create_by_type(r,uri::hash_uri(i->second)) : create_by_type_blank(r);

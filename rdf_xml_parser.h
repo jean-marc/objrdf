@@ -36,6 +36,7 @@ namespace objrdf{
 		/*
  		*	placeholder when a resource can not be created for any reason (eg: the rdfs:type
  		*	is not known yet) so that the parsing can go on.
+ 		*	could it be allocated on the stack?, no because we need a pointer to it
  		*/ 
 		RESOURCE_PTR placeholder;
 		base_resource::type_iterator current_property;
