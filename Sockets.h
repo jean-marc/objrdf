@@ -2,12 +2,12 @@
 // Sockets.h
 //
 // this file contains the wrappers that can be used
-// as a iostream-compatible TCP/IP sockets
+// as an IOStream-compatible TCP/IP or Unix sockets
 //
 // on Windows the program that uses this utility
 // should be linked with Ws2_32.lib
 //
-// Copyright (C) 2001 Maciej Sobczak
+// Copyright (C) 2001-2008 Maciej Sobczak
 //
 // you can use this code for any purpose without limitations
 // (and for your own risk) as long as this notice remains
@@ -15,351 +15,473 @@
 
 #ifndef INCLUDED_SOCKETS_H
 #define INCLUDED_SOCKETS_H
-
-#ifdef WIN32
+#include <iostream>
+#if defined(WIN32) || defined(_WIN64)
 // this is for MS Windows
 #include <winsock2.h>
-//#include <streambuf>
 typedef int socklen_t;
-#endif
-
-#ifndef WIN32
-// this is for Linux
-#include <unistd.h>
+#else
+// this is for Linux/Unix
 #include <sys/types.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
-#include <cerrno>
-#include <netdb.h>
-#include <arpa/inet.h>
-#define INVALID_SOCKET -1
-#define SOCKET_ERROR -1
-
-
-
+#include <sys/un.h>
 #endif
 
-#include <streambuf>
 #include <string>
-#include <iostream>
+#include <streambuf>
+#include <ostream>
 #include <stdexcept>
-using namespace std;
-
 
 // exception class which designates errors from socket functions
 class SocketRunTimeException : public std::runtime_error
 {
 public:
-	explicit SocketRunTimeException(const std::string &what);
-	virtual const char * what() const throw();
-	int errornumber() const throw() { return errnum; }
-	~SocketRunTimeException() throw () { }
+    explicit SocketRunTimeException(const std::string &what);
+    virtual const char * what() const throw();
+    int errornumber() const throw() { return errnum_; }
+    ~SocketRunTimeException() throw () { }
 private:
-	// this will serve as a message returned from what()
-	mutable std::string msg;
-	int errnum;
+    // this will serve as a message returned from what()
+    mutable std::string msg_;
+    int errnum_;
 };
 
 // exception class which designates logic (programming) errors with sockets
 class SocketLogicException : public std::logic_error
 {
 public:
-	explicit SocketLogicException(const std::string &what)
-		: std::logic_error(what)
-	{
-	}
+    explicit SocketLogicException(const std::string &what)
+        : std::logic_error(what)
+    {
+    }
+};
+
+// this class is a base class for both TCP and Unix sockets
+class BaseSocketWrapper
+{
+public:
+#if defined(WIN32) || defined(_WIN64)
+    // on Windows, socket is represented by the opaque handler
+    typedef SOCKET socket_type;
+#else
+    // on Linux, socket is just a descriptor number
+    typedef int socket_type;
+#endif
+
+    enum sockstate_type { CLOSED, LISTENING, ACCEPTED, CONNECTED };
+
+    BaseSocketWrapper() : sockstate_(CLOSED) {}
+    ~BaseSocketWrapper();
+
+    // general methods
+
+    // get the current state of the socket wrapper
+    sockstate_type state() const { return sockstate_; }
+
+    // write data to the socket
+    void write(const void *buf, size_t len);
+
+    // read data from the socket
+    // returns the number of bytes read
+    size_t read(void *buf, size_t len);
+
+    void close();
+
+protected:
+
+    // proxy helper for syntax:
+    // Sock s2(s1.accept());
+    template <class AddressType, class SocketWrapper>
+    class AcceptedSocket
+    {
+    public:
+        // only copy constructor provided for the proxy
+        // so that the SocketWrapper::accept can
+        // successfully return by value
+        AcceptedSocket(const AcceptedSocket &a)
+            : sock_(a.sock_), addr_(a.addr_)
+        {
+        }
+
+        AcceptedSocket(socket_type s, AddressType a)
+            : sock_(s), addr_(a)
+        {
+        }
+
+        // assignment not provided
+        void operator=(const AcceptedSocket &);
+
+        socket_type sock_;
+        AddressType addr_;
+    };
+
+    template <class AddressType, class SocketWrapper>
+    BaseSocketWrapper(const AcceptedSocket<AddressType, SocketWrapper> &as)
+        : sock_(as.sock_), sockstate_(ACCEPTED)
+    {
+    }
+
+    socket_type sock_;
+    sockstate_type sockstate_;
+
+private:
+    // not for user
+    BaseSocketWrapper(const BaseSocketWrapper &);
+    void operator=(const BaseSocketWrapper &);
 };
 
 // this class serves as a socket wrapper
-class TCPSocketWrapper
+class TCPSocketWrapper : public BaseSocketWrapper
 {
-#ifdef WIN32
-	// on Windows, socket is represented by the opaque handler
-	typedef SOCKET socket_type;
-#else
-	// on Linux, socket is just a descriptor number
-	typedef int socket_type;
-#endif
+    typedef BaseSocketWrapper::AcceptedSocket<sockaddr_in, TCPSocketWrapper>
+    TCPAcceptedSocket;
 
-	// proxy helper for syntax:
-	// Sock s2(s1.accept());
 public:
-	class TCPAcceptedSocket
-	{
-//	private:
-	public:
-		TCPAcceptedSocket(socket_type s, sockaddr_in a);
 
-		// copy not provided for the proxy
-		//TCPAcceptedSocket(const TCPAcceptedSocket &);
-		TCPAcceptedSocket& operator=(const TCPAcceptedSocket &);
+    TCPSocketWrapper() {}
 
-		socket_type sock;
-		sockaddr_in addr;
+    // this is provided for syntax
+    // TCPSocketWrapper s2(s2.accept());
+    TCPSocketWrapper(const TCPAcceptedSocket &as);
 
-		friend class TCPSocketWrapper;
-	};
+    // server methods
 
-//public:
+    // binds and listens on a given port number
+    void listen(int port, int backlog = 100);
+    
+    // accepts the new connection
+    // it requires the earlier call to listen
+    TCPAcceptedSocket accept();
 
-	enum sockstate_type { CLOSED, LISTENING, ACCEPTED, CONNECTED };
+    // client methods
 
-	TCPSocketWrapper();
-	~TCPSocketWrapper();
+    // creates the new connection
+    void connect(std::string const &address, int port);
 
-	// this is provided for syntax
-	// TCPSocketWrapper s2(s2.accept());
-	TCPSocketWrapper(const TCPAcceptedSocket &as);
+    // general methods
 
-	// server methods
+    // get the network address and port number of the socket
+    std::string address() const;
+    int port() const;
 
-	// binds and listens on a given port number
-	void listen(int port, int backlog = 100);
-	
-	// accepts the new connection
-	// it requires the earlier call to listen
-	TCPAcceptedSocket accept();
-
-	// client methods
-
-	// creates the new connection
-	void connect(const char *address, int port);
-
-	// general methods
-
-	// get the current state of the socket wrapper
-	sockstate_type state() const { return sockstate; }
-
-	// get the network address and port number of the socket
-	const char * address() const;
-	int port() const;
-
-	// write data to the socket
-	void write(const void *buf, int len);
-
-	// read data from the socket
-	// returns the number of bytes read
-	int read(void *buf, int len);
-
-	void close();
-	socket_type& get_sock(){return sock;}
 private:
-	// not for use
-	TCPSocketWrapper(const TCPSocketWrapper&);
-	TCPSocketWrapper& operator=(const TCPSocketWrapper&);
+    // not for use
+    TCPSocketWrapper(const TCPSocketWrapper&);
+    void operator=(const TCPSocketWrapper&);
 
-	socket_type sock;
-	sockaddr_in sockaddress;
-	sockstate_type sockstate;
+    sockaddr_in sockaddress_;
 };
-// this class is supposed to serve as a stream buffer associated with a socket
-//template <class charT, class traits = string_char_traits<charT> >
 
-template< class charT, class traits = std::char_traits<charT> >
-//class TCPStreamBuffer : public std::streambuf<charT, traits>
-class TCPStreamBuffer : public std::basic_streambuf<charT, traits>
+#ifndef WIN32
+
+// this class serves as a Unix socket wrapper
+// (obviously, available only on Linux/Unix systems)
+class UnixSocketWrapper : public BaseSocketWrapper
 {
-	typedef std::basic_streambuf<charT, traits>	sbuftype;
-	typedef typename sbuftype::int_type		int_type;
-	typedef charT					char_type;
+    typedef BaseSocketWrapper::AcceptedSocket<sockaddr_un, UnixSocketWrapper>
+    UnixAcceptedSocket;
 
 public:
 
-	// the buffer will take ownership of the socket (ie. it will close it
-	// in the destructor) if takeowner == true
-	explicit TCPStreamBuffer(TCPSocketWrapper &sock, bool takeowner = false, std::streamsize bufsize = 10000): rsocket_(sock){
-		ownsocket_=takeowner;
-		inbuf_=NULL;
-		outbuf_=NULL;
-		ownbuffers_=false;
-		bufsize_=bufsize;
-		remained_=0;
-	}
+    UnixSocketWrapper() {}
 
-	~TCPStreamBuffer()
-	{
-		if (rsocket_.state() == TCPSocketWrapper::CONNECTED ||
-			rsocket_.state() == TCPSocketWrapper::ACCEPTED)
-			_flush();
+    // this is provided for syntax
+    // UnixSocketWrapper s2(s2.accept());
+    UnixSocketWrapper(const UnixAcceptedSocket &as);
 
-		if (ownbuffers_)
-		{
-			delete [] inbuf_;
-			delete [] outbuf_;
-		}
+    // server methods
 
-		if (ownsocket_ == true)
-			rsocket_.close();
-	}
+    // binds and listens on a given socket path
+    void listen(const std::string &path, int backlog = 100);
+    
+    // accepts the new connection
+    // it requires the earlier call to listen
+    UnixAcceptedSocket accept();
+
+    // client methods
+
+    // creates the new connection
+    void connect(const std::string &path);
+
+    // general methods
+
+    // get the socket path
+    std::string path() const;
+
+private:
+    // not for use
+    UnixSocketWrapper(const UnixSocketWrapper&);
+    void operator=(const UnixSocketWrapper&);
+
+    sockaddr_un sockaddress_;
+};
+
+#endif // WIN32
+
+// this class is supposed to serve as a stream buffer associated with a socket
+template <class SocketWrapper,
+          class charT, class traits = std::char_traits<charT> >
+class SocketStreamBuffer : public std::basic_streambuf<charT, traits>
+{
+    typedef std::basic_streambuf<charT, traits> sbuftype;
+    typedef typename sbuftype::int_type         int_type;
+    typedef charT                               char_type;
+
+public:
+
+    // the buffer will take ownership of the socket (ie. it will close it
+    // in the destructor) if takeowner == true
+    explicit SocketStreamBuffer(SocketWrapper &sock,
+        bool takeowner = false, std::streamsize bufsize = 512)
+        : rsocket_(sock), ownsocket_(takeowner),
+          inbuf_(NULL), outbuf_(NULL), bufsize_(bufsize),
+          remained_(0), ownbuffers_(false)
+    {
+    }
+
+    ~SocketStreamBuffer()
+    {
+        try
+        {
+            if (rsocket_.state() == SocketWrapper::CONNECTED ||
+                rsocket_.state() == SocketWrapper::ACCEPTED)
+            {
+                _flush();
+            }
+
+            if (ownsocket_ == true)
+            {
+                rsocket_.close();
+            }
+        }
+        catch (...)
+        {
+            // we don't want exceptions to fly out of here
+            // and there is not much we can do with errors
+            // in this context anyway
+        }
+
+        if (ownbuffers_)
+        {
+            delete [] inbuf_;
+            delete [] outbuf_;
+        }
+    }
 
 protected:
-	sbuftype * setbuf(char_type *s, std::streamsize n)
-	{
-		if (basic_streambuf<charT,traits>::gptr() == NULL)
-		{
-			setg(s, s + n, s + n);
-			setp(s, s + n);
-			inbuf_ = s;
-			outbuf_ = s;
-			bufsize_ = n;
-			ownbuffers_ = false;
-		}
+    sbuftype * setbuf(char_type *s, std::streamsize n)
+    {
+        if (this->gptr() == NULL)
+        {
+            this->setg(s, s + n, s + n);
+            this->setp(s, s + n);
+            inbuf_ = s;
+            outbuf_ = s;
+            bufsize_ = n;
+            ownbuffers_ = false;
+        }
 
-		return this;
-	}
+        return this;
+    }
 
-	void _flush()
-	{
-		rsocket_.write(outbuf_, (basic_streambuf<charT,traits>::pptr() - outbuf_) * sizeof(char_type));
-	}
+    void _flush()
+    {
+        rsocket_.write(outbuf_,
+            (this->pptr() - outbuf_) * sizeof(char_type));
+    }
 
-	int_type overflow(int_type c = traits::eof())
-	{
-		// this method is supposed to flush the put area of the buffer
-		// to the I/O device
+    int_type overflow(int_type c = traits::eof())
+    {
+        // this method is supposed to flush the put area of the buffer
+        // to the I/O device
 
-		// if the buffer was not already allocated nor set by user,
-		// do it just now
-		if (basic_streambuf<charT,traits>::pptr() == NULL)
-		{
-			outbuf_ = new char_type[bufsize_];
-			ownbuffers_ = true;
-		}
-		else
-		{
-			_flush();
-		}
-		setp(outbuf_, outbuf_ + bufsize_);
-		if (c != traits::eof())
-			sputc(traits::to_char_type(c));
-		return 0;
-	}
+        // if the buffer was not already allocated nor set by user,
+        // do it just now
+        if (this->pptr() == NULL)
+        {
+            outbuf_ = new char_type[bufsize_];
+            ownbuffers_ = true;
+        }
+        else
+        {
+            _flush();
+        }
 
-	int sync()
-	{
-		// just flush the put area
-		_flush();
-		setp(outbuf_, outbuf_ + bufsize_);
-		return 0;
-	}
+        this->setp(outbuf_, outbuf_ + bufsize_);
 
-	int_type underflow()
-	{
-		// this method is supposed to read some bytes from the I/O device
+        if (c != traits::eof())
+        {
+            this->sputc(traits::to_char_type(c));
+        }
 
-		// if the buffer was not already allocated nor set by user,
-		// do it just now
-		if (basic_streambuf<charT,traits>::gptr() == NULL)
-		{
-			inbuf_ = new char_type[bufsize_];
-			ownbuffers_ = true;
-		}
+        return 0;
+    }
 
-		if (remained_ != 0)
-			inbuf_[0] = remainedchar_;
+    int sync()
+    {
+        // just flush the put area
+        _flush();
+        this->setp(outbuf_, outbuf_ + bufsize_);
+        return 0;
+    }
 
-		int readn = rsocket_.read(static_cast<char*>(inbuf_) + remained_,
-			bufsize_ * sizeof(char_type) - remained_);
+    int_type underflow()
+    {
+        // this method is supposed to read some bytes from the I/O device
 
-		// if (readn == 0 && remained_ != 0)
-		// error - there is not enough bytes for completing
-		// the last character before the end of the stream
-		// - this can mean error on the remote end
+        // if the buffer was not already allocated nor set by user,
+        // do it just now
+        if (this->gptr() == NULL)
+        {
+            inbuf_ = new char_type[bufsize_];
+            ownbuffers_ = true;
+        }
 
-		if (readn == 0)
-			return traits::eof();
+        if (remained_ != 0)
+        {
+            inbuf_[0] = remainedchar_;
+        }
 
-		int totalbytes = readn + remained_;
-		setg(inbuf_, inbuf_,
-			inbuf_ + totalbytes / sizeof(char_type));
+        size_t readn = rsocket_.read(static_cast<char*>(inbuf_) + remained_,
+            bufsize_ * sizeof(char_type) - remained_);
 
-		remained_ = totalbytes % sizeof(char_type);
-		if (remained_ != 0)
-			remainedchar_ = inbuf_[totalbytes / sizeof(char_type)];
+        // if (readn == 0 && remained_ != 0)
+        // error - there is not enough bytes for completing
+        // the last character before the end of the stream
+        // - this can mean error on the remote end
 
-		return basic_streambuf<charT,traits>::sgetc();
-	}
+        if (readn == 0)
+        {
+            return traits::eof();
+        }
+
+        size_t totalbytes = readn + remained_;
+        this->setg(inbuf_, inbuf_,
+            inbuf_ + totalbytes / sizeof(char_type));
+
+        remained_ = totalbytes % sizeof(char_type);
+        if (remained_ != 0)
+        {
+            remainedchar_ = inbuf_[totalbytes / sizeof(char_type)];
+        }
+
+        return this->sgetc();
+    }
 
 private:
 
-	// not for use
-	TCPStreamBuffer(const TCPStreamBuffer&);
-	TCPStreamBuffer& operator=(const TCPStreamBuffer&);
+    // not for use
+    SocketStreamBuffer(const SocketStreamBuffer&);
+    void operator=(const SocketStreamBuffer&);
 
-	TCPSocketWrapper &rsocket_;
-	bool ownsocket_;
-	std::streamsize bufsize_;
-	char_type *inbuf_;
-	char_type *outbuf_;
-	int remained_;
-	char_type remainedchar_;
-	bool ownbuffers_;
+    SocketWrapper &rsocket_;
+    bool ownsocket_;
+    char_type *inbuf_;
+    char_type *outbuf_;
+    std::streamsize bufsize_;
+    size_t remained_;
+    char_type remainedchar_;
+    bool ownbuffers_;
 };
+
 
 // this class is an ultimate stream associated with a socket
-template <class charT, class traits = std::char_traits<charT> >
-class TCPGenericStream :
-	private TCPStreamBuffer<charT, traits>,
-	public std::basic_iostream<charT, traits>
+template <class SocketWrapper,
+          class charT, class traits = std::char_traits<charT> >
+class SocketGenericStream :
+    private SocketStreamBuffer<SocketWrapper, charT, traits>,
+    public std::basic_iostream<charT, traits>
 {
 public:
 
-	// this constructor takes 'ownership' of the socket wrapper if btakeowner == true,
-	// so that the socket will be closed in the destructor of the
-	// TCPStreamBuffer object
-	explicit TCPGenericStream(TCPSocketWrapper &sock, bool takeowner = false)
-		: TCPStreamBuffer<charT, traits>(sock, takeowner),
-		std::basic_iostream<charT, traits>(this)
-	{
-	}
+    // this constructor takes 'ownership' of the socket wrapper if btakeowner == true,
+    // so that the socket will be closed in the destructor of the
+    // TCPStreamBuffer object
+    explicit SocketGenericStream(SocketWrapper &sock, bool takeowner = false)
+        : SocketStreamBuffer<SocketWrapper, charT, traits>(sock, takeowner),
+          std::basic_iostream<charT, traits>(this)
+    {
+    }
 
 private:
-	// not for use
-	TCPGenericStream(const TCPGenericStream&);
-	TCPGenericStream& operator=(const TCPGenericStream&);
+    // not for use
+    SocketGenericStream(const SocketGenericStream&);
+    void operator=(const SocketGenericStream&);
 };
 
-// this is even more specialized for use as a client
+namespace SocketsDetails
+{
+
+// helper type for hiding conflicting names
+    template <class Isolated>
+    struct BaseClassIsolator
+    {
+        Isolated isedmember_;
+    };
+
+} // namespace SocketsDetails
+
+// specialized for use as a TCP client
 template <class charT, class traits = std::char_traits<charT> >
 class TCPGenericClientStream :
-	//private TCPSocketWrapper,
-	public TCPSocketWrapper,
-	public TCPGenericStream<charT, traits>
+    private SocketsDetails::BaseClassIsolator<TCPSocketWrapper>,
+    public SocketGenericStream<TCPSocketWrapper, charT, traits>
 {
 public:
-	//time_out in milliseconds
-	TCPGenericClientStream(const char *address, int port,int time_out=0): TCPGenericStream<charT, traits>(*this, true)
-	{
-		TCPSocketWrapper::connect(address, port);
-#ifdef WIN32
-		int  nRet = setsockopt(get_sock(), SOL_SOCKET, SO_RCVTIMEO, (char*)&time_out, sizeof(int));
-		
-#else
-		timeval t;
-		t.tv_sec=time_out/1000;
-		t.tv_usec=1000*(time_out%1000);
-		int  nRet = setsockopt(get_sock(), SOL_SOCKET, SO_RCVTIMEO, (char*)&t, sizeof(t));
-#endif	
-		if(nRet==-1){
-			cerr<<"Socket setsockopt: "<<nRet<<" "<<errno<<endl;
-		}
-	}
+
+    TCPGenericClientStream(const std::string &address, int port)
+        : SocketGenericStream<TCPSocketWrapper, charT, traits>(isedmember_, false)
+    {
+		std::cerr<<"connect to `"<<address<<"' port "<<port<<std::endl;
+        isedmember_.connect(address, port);
+    }
 
 private:
-	// not for use
-	TCPGenericClientStream(const TCPGenericClientStream&);
-	TCPGenericClientStream& operator=(const TCPGenericClientStream&);
+    // not for use
+    TCPGenericClientStream(const TCPGenericClientStream&);
+    TCPGenericClientStream& operator=(const TCPGenericClientStream&);
 };
 
+#ifndef WIN32
+
+// specialized for use as a Unix socket client
+template <class charT, class traits = std::char_traits<charT> >
+class UnixGenericClientStream :
+    private SocketsDetails::BaseClassIsolator<UnixSocketWrapper>,
+    public SocketGenericStream<UnixSocketWrapper, charT, traits>
+{
+public:
+
+    UnixGenericClientStream(const std::string &path)
+        : SocketGenericStream<UnixSocketWrapper, charT, traits>(isedmember_, false)
+    {
+        isedmember_.connect(path);
+    }
+
+private:
+    // not for use
+    UnixGenericClientStream(const UnixGenericClientStream&);
+    void operator=(const UnixGenericClientStream&);
+};
+
+#endif // WIN32
+
 // helper declarations for narrow and wide streams
-typedef TCPGenericStream<char> TCPStream;
-typedef TCPGenericStream<wchar_t> TCPWStream;
+typedef SocketGenericStream<TCPSocketWrapper, char> TCPStream;
+typedef SocketGenericStream<TCPSocketWrapper, wchar_t> TCPWStream;
 typedef TCPGenericClientStream<char> TCPClientStream;
 typedef TCPGenericClientStream<wchar_t> TCPWClientStream;
 
+#ifndef WIN32
+typedef SocketGenericStream<UnixSocketWrapper, char> UnixStream;
+typedef SocketGenericStream<UnixSocketWrapper, wchar_t> UnixWStream;
+typedef UnixGenericClientStream<char> UnixClientStream;
+typedef UnixGenericClientStream<wchar_t> UnixWClientStream;
+#endif // WIN32
+
 // 'portable' code should call those on the beginning and end of the program
 // (Linux/Unix code does not require any initialization and cleanup)
-bool socketsInit();	// returns true in success
+bool socketsInit(); // returns true in success
 void socketsEnd();
 
 #endif
