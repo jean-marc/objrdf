@@ -54,7 +54,7 @@ RESULT subject::run(size_t n){
 	auto i=find_if(verbs.begin(),verbs.end(),match_property(rdf::type::get_property()));	
 	if(i!=verbs.end()&&i->object&&i->object->bound){
 		if(!i->object->r){
-			i->object->r=find_t<CLASS_PTR>(i->object->u);
+			i->object->r=find_t<rdfs::Class>(i->object->u);
 
 		}	
 		//we should remove the rdf:type from the graph otherwise we are going to check the type again in run
@@ -65,25 +65,27 @@ RESULT subject::run(size_t n){
 		if(get_class(i->object->r)!=rdfs::Class::get_class()) return RESULT();
 		CONST_CLASS_PTR c(static_cast<CONST_CLASS_PTR>(i->object->r));
 		//check if the pool exists
-		POOL_PTR p(c.index);
+		pool::POOL_PTR p(c.index);
 		//not needed anymore
 		cerr<<"assert pool `"<<c->id<<"'..."<<endl;
 		assert(p->type_id);
 		//iterate through the cells
-		for(auto j=pool_iterator::cell_iterator(p,p->get_size());j<pool_iterator::cell_iterator(p);++j){
-			RESULT tmp=run(get_const_self_iterator(*j),0);
+		for(auto j=pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
+		//for(auto j=pool_iterator::cell_iterator(p,p->get_size());j<pool_iterator::cell_iterator(p);++j){
+			RESULT tmp=run(get_const_self_iterator(j),0);
 			if(bound&&tmp.size()) return tmp;
 			res.insert(res.end(),tmp.begin(),tmp.end());
 			if(res.size()>=n) return res;
 		}
 		//now we have to find all the subclasses: we use superClassOf
-		for(auto k=c->get_const<array<superClassOf>>().begin();k<c->get_const<array<superClassOf>>().end();++k){
-			POOL_PTR p((*k).index);
+		for(auto k=c->get_const<rdfs::Class::array_superClassOf>().begin();k<c->get_const<rdfs::Class::array_superClassOf>().end();++k){
+			pool::POOL_PTR p((*k).index);
 			cerr<<"assert pool `"<<(*k)->id<<"'..."<<endl;
 			assert(p->type_id);
 			//iterate through the cells
-			for(auto j=pool_iterator::cell_iterator(p,p->get_size());j<pool_iterator::cell_iterator(p);++j){
-				RESULT tmp=run(get_const_self_iterator(*j),0);
+			for(auto j=pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
+			//for(auto j=pool_iterator::cell_iterator(p,p->get_size());j<pool_iterator::cell_iterator(p);++j){
+				RESULT tmp=run(get_const_self_iterator(j),0);
 				if(bound&&tmp.size()) return tmp;
 				res.insert(res.end(),tmp.begin(),tmp.end());
 				if(res.size()>=n) return res;
@@ -102,29 +104,37 @@ RESULT subject::run(size_t n){
 			cerr<<"current property: `"<<i->p->id<<"'"<<endl;
 			is_Property|=(i->p==rdfs::domain::get_property())||(i->p==rdfs::range::get_property());
 			//ugly but problem with array of properties
-			is_Class|=(i->p==objrdf::array<rdfs::subClassOf>::get_property());
+			is_Class|=(i->p==rdfs::Class::array_subClassOf::get_property());
 		}
 		if(is_Property){
 			cerr<<"optimization: Property only"<<endl;
-			for(auto j=::begin<CONST_PROPERTY_PTR>();j< ::end<CONST_PROPERTY_PTR>();++j){
-				RESULT tmp=run(get_const_self_iterator(*j),0);
+			rdf::Property::allocator_type a;
+			for(auto j=a.cbegin();j!=a.cend();++j){
+			//for(auto j=::begin<CONST_PROPERTY_PTR>();j< ::end<CONST_PROPERTY_PTR>();++j){
+				RESULT tmp=run(get_const_self_iterator(j),0);
 				if(bound&&tmp.size()) return tmp;
 				res.insert(res.end(),tmp.begin(),tmp.end());
 				if(res.size()>=n) return res;
 			}
 		}else if(is_Class){
 			cerr<<"optimization: Class only"<<endl;
-			for(auto j=::begin<CLASS_PTR>();j< ::end<CLASS_PTR>();++j){
-				RESULT tmp=run(get_const_self_iterator(*j),0);
+			rdfs::Class::allocator_type a;
+			for(auto j=a.cbegin();j!=a.cend();++j){
+			//for(auto j=::begin<CLASS_PTR>();j< ::end<CLASS_PTR>();++j){
+				RESULT tmp=run(get_const_self_iterator(j),0);
 				if(bound&&tmp.size()) return tmp;
 				res.insert(res.end(),tmp.begin(),tmp.end());
 				if(res.size()>=n) return res;
 			}
 		}else{	
 			//go through all resources in all pool!
-			for(auto i=objrdf::begin();i<objrdf::end();++i){
-				for(auto j=i.begin();j<i.end();++j){
-					RESULT tmp=run(get_const_self_iterator(*j),0);
+			//for(auto i=objrdf::begin();i<objrdf::end();++i){
+			//	for(auto j=i.begin();j<i.end();++j){
+			rdfs::Class::allocator_type a;
+			for(auto i=a.cbegin();i!=a.cend();++i){
+				pool::POOL_PTR p(i.index); //there is a mapping between Class and pools
+				for(auto j=pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
+					RESULT tmp=run(get_const_self_iterator(j),0);
 					if(bound&&tmp.size()) return tmp;
 					res.insert(res.end(),tmp.begin(),tmp.end());
 					if(res.size()>=n) return res;
@@ -202,7 +212,7 @@ RESULT subject::run(base_resource::const_instance_iterator i,CONST_PROPERTY_PTR 
 				result=true;
 			}else if(get_class(_r)==rdfs::Class::get_class()){
 				//now we have to look up the resource but we know it is a Class
-				CONST_CLASS_PTR a(find_t<CONST_CLASS_PTR>(u)),b(static_cast<CONST_CLASS_PTR>(_r));
+				CONST_CLASS_PTR a(find_t<rdfs::Class>(u)),b(static_cast<CONST_CLASS_PTR>(_r));
 				if(a){
 					r=a;//bind!
 					CONST_PROPERTY_PTR p=i->get_Property();
@@ -655,16 +665,14 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					}
 					break;
 					case turtle_parser::uriref::id:{
-						CONST_PROPERTY_PTR r=find_t<CONST_PROPERTY_PTR>(uri::hash_uri(i->v[0].t.second));
-						current_sbj->verbs.push_back(verb(r,0,user));
+						CONST_PROPERTY_PTR r=find_t<rdf::Property>(uri::hash_uri(i->v[0].t.second));
 					}
 					break;
 					case turtle_parser::qname::id:{
 						PREFIX_NS::iterator j=prefix_ns.find(i->v[0].v[0].t.second);
 						if(j!=prefix_ns.end()){
 							uri u(j->second,i->v[0].v[1].t.second);
-							CONST_PROPERTY_PTR r=find_t<CONST_PROPERTY_PTR>(u);
-							current_sbj->verbs.push_back(verb(r,0,user));
+							CONST_PROPERTY_PTR r=find_t<rdf::Property>(u);
 						}else{
 							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
 							return false;
@@ -743,13 +751,13 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 CONST_PROPERTY_PTR sparql_parser::parse_property(const PARSE_RES_TREE& r){
 	switch(r.t.first){
 		case turtle_parser::uriref::id:{
-			return find_t<CONST_PROPERTY_PTR>(uri::hash_uri(r.t.second));
+			return find_t<rdf::Property>(uri::hash_uri(r.t.second));
 		}
 		case turtle_parser::qname::id:{
 			PREFIX_NS::iterator j=prefix_ns.find(r.v[0].t.second);
 			if(j!=prefix_ns.end()){
 				uri u(j->second,r.v[1].t.second);
-				return find_t<CONST_PROPERTY_PTR>(u);
+				return find_t<rdf::Property>(u);
 			}else{
 				cerr<<"prefix `"<<r.v[0].t.second<<"' not associated with any namespace"<<endl;
 				return CONST_PROPERTY_PTR();
@@ -883,7 +891,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 						auto j=v.find(i->v[0].t.second.substr(1));
 						if(j!=v.end())
 							//we need to cast away constness, ugly but makes it noticeable
-							sub=RESOURCE_PTR(j->second->get_const_object().index,j->second->get_const_object().pool_ptr);
+							sub=RESOURCE_PTR(j->second->get_const_object().index,j->second->get_const_object().pool_ptr.index);
 						else
 							cerr<<"subject variable `"<<i->v[0].t.second<<"' not found"<<endl;	
 							
@@ -1056,7 +1064,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 								SPARQL_RESOURCE_PTR r=find(u);
 								if(r){
 									//cast away constness
-									current_property->add_property(0)->set_object(RESOURCE_PTR(r.index,r.pool_ptr));
+									current_property->add_property(0)->set_object(RESOURCE_PTR(r.index,r.pool_ptr.index));
 								}else{
 									cerr<<"resource `"<<u<<"' not found"<<endl;
 								}
@@ -1084,7 +1092,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 									SPARQL_RESOURCE_PTR r=find(u);
 									if(r){
 										//cast away constness
-										current_property->add_property(0)->set_object(RESOURCE_PTR(r.index,r.pool_ptr));
+										current_property->add_property(0)->set_object(RESOURCE_PTR(r.index,r.pool_ptr.index));
 									}else{
 										cerr<<"resource `"<<u<<"' not found"<<endl;
 									}
@@ -1161,7 +1169,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 										}
 									}else{
 										//cast away constness
-										current_property->add_property(0)->set_object(RESOURCE_PTR(obj.index,obj.pool_ptr));
+										current_property->add_property(0)->set_object(RESOURCE_PTR(obj.index,obj.pool_ptr.index));
 									}
 								}
 							}
