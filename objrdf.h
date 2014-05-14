@@ -1302,6 +1302,9 @@ namespace rdfs{
 			objrdf::hashOf
 		>,
 		Class>{
+			//convenience typedef to retrieve properties
+			typedef objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>  array_subClassOf;
+			typedef objrdf::array<objrdf::superClassOf,volatile_allocator_unmanaged<objrdf::superClassOf>> array_superClassOf;
 		/*
  		*	should store all the information about the resources including function pointers, the only problem with that
  		*	is the user might want to add his own function pointer (unless he decides to use virtual functions) and that
