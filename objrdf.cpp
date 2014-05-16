@@ -37,8 +37,8 @@ map<uri,RESOURCE_PTR>& base_resource::get_index(){
 	return *m;
 }
 void base_resource::do_index(RESOURCE_PTR p){
-	//LOG<<"indexing resource `"<<p->id<<"'"<<endl;
-	//get_index()[p->id]=p;
+	LOG<<"indexing resource `"<<p->id<<"'"<<endl;
+	get_index()[p->id]=p;
 }
 property_info::property_info(CONST_PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}
 //should be deprecated
@@ -444,6 +444,15 @@ RESOURCE_PTR objrdf::find(uri u){
 	cerr<<"not found"<<endl;	
 	return RESOURCE_PTR();
 	*/
+}
+void objrdf::generate_index(){
+	rdfs::Class::allocator_type a;
+	for(auto i=a.cbegin();i!=a.cend();++i){
+		pool::POOL_PTR p(i.index); //there is a mapping between Class and pools
+		for(auto j=pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
+			base_resource::get_index()[j->id]=j;
+		}
+	}
 }
 RESOURCE_PTR objrdf::create_by_type(CONST_CLASS_PTR c,uri id){
 	//POOL_PTR p(c.index);

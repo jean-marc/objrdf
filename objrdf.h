@@ -95,22 +95,9 @@ namespace objrdf{
 namespace objrdf{
 	enum{TEST=0};
 	/*
- 	* it means that CONST_RESOURCE_PTR::construct will allocate on the free_store
- 	* but any pseudo_ptr<T> can be cast to a CONST_RESOURCE_PTR
- 	* this is confusing because each type should define its own typedef STORE
- 	*/
-	/*
  	* all resource pointers will be cast to this type, so it must be able to handle any pointer size, let's
  	* set it to uint32_t for now, the problem is that the back conversion will cause problem
  	*/ 
-	//typedef pool_allocator<uint32_t,base_resource,pool::POOL_ALLOCATOR,std::allocator<char>>::derived_pointer RESOURCE_PTR;
-	//typedef pseudo_ptr<base_resource,free_store,true,uint32_t> RESOURCE_PTR;
-	/*
- 	*	this is our generic reference, the problem is that we lose information about resource's constness eg:
- 	*	pseudo_ptr<const C> a;
- 	*	CONST_RESOURCE_PTR p=a;//ok, always allowed
- 	*	RESOURCE_PTR pp=p;//is that ok?????
- 	*/
 	//typedef volatile_allocator_unmanaged<base_resource,uint32_t>::derived_pointer RESOURCE_PTR;
 	//typedef volatile_allocator_unmanaged<base_resource,uint32_t>::const_derived_pointer CONST_RESOURCE_PTR;
 	typedef volatile_allocator_managed<base_resource,uint32_t>::derived_pointer RESOURCE_PTR;
@@ -120,14 +107,11 @@ namespace objrdf{
 	typedef volatile_allocator_managed<rdfs::Class,uint8_t>::const_pointer CONST_CLASS_PTR;
 	typedef volatile_allocator_managed<rdf::Property,uint8_t>::pointer PROPERTY_PTR;
 	typedef volatile_allocator_managed<rdf::Property,uint8_t>::const_pointer CONST_PROPERTY_PTR;
-	//does not compile:
-	//typedef pseudo_ptr<const rdf::Property,rdf::Property::STORE,false,uint16_t> PROPERTY_PTR;
 	typedef char PROVENANCE;
 	/*
  	*	can we define default functions that will give a helpful error message when called?
  	*	this function table can be used to modify privileges
  	*/ 
-
 	struct _function_table{
 		//decltype(void f(ITERATOR_RESOURCE_PTR,string,size_t)) set_string;
 		
@@ -547,58 +531,7 @@ namespace objrdf{
 	*	alternative: store in vector<char>
 	*	we should only specialize when using persistent store
  	*/
-	/*
-	template< 
-		//class CharT,
-		class Traits//,
-		//class Allocator
-	//> struct base_property<basic_string<CharT,Traits,Allocator>>{
-	> struct base_property<
-		basic_string<
-			char,
-			Traits,
-			custom_allocator<
-				char,
-				pseudo_ptr_array<char,persistent_store>
-			>
-		>
-	>{
-		typedef custom_allocator<char,pseudo_ptr_array<char,persistent_store>> ALLOCATOR;	
-		//typedef basic_string<CharT,Traits,Allocator> string;
-		enum{TYPE=STRING|LITERAL};
-		//string t;
-		typedef vector<char,ALLOCATOR> pseudo_string;//we use C-string
-		pseudo_string t;
-		base_property(string s=string()){
-			set_string(s);
-		}
-		void set_string(std::string s){
-			t.resize(s.size()+1);
-			strcpy(t.data(),s.c_str());
-		}
-		//not very efficient 
-		void in(istream& is){
-			string tmp;
-			is>>tmp;
-			set_string(tmp);
-		}
-		void out(ostream& os) const{
-			os<<t.data();
-		}
-		size_t get_size() const{
-			return strlen(t.data())>0;//we actually know the size, this is not very efficient
-		}
-		int compare(const base_property& a)const{
-			return strcmp(t.data(),a.t.data());
-		}
-		void erase(){
-			t.clear();
-			t.push_back(0);//is that ok??, more work needed...
-		}
-	};
-	*/
 	template<> struct base_property<uri>{
-		//typedef persistent_store STORE;
 		enum{TYPE=STRING|LITERAL};
 	};
 	/*
@@ -608,7 +541,6 @@ namespace objrdf{
  	* should be set programmatically anyway, ... not sure)
  	*/
 	template<typename RANGE> struct base_property<const RANGE>{
-		//typedef persistent_store STORE;
 		enum{TYPE=CONST|LITERAL};
 		const RANGE t;
 		base_property(const RANGE t=0):t(t){}
@@ -618,7 +550,6 @@ namespace objrdf{
 		void erase(){}
 	};
 	template<int N> struct base_property<char[N]>{
-		//typedef persistent_store STORE;
 		enum{TYPE=STRING|LITERAL};
 		char t[N];
 		base_property(){t[0]=0;}
@@ -722,73 +653,6 @@ namespace objrdf{
 		}
 		void erase(){set_object(PTR(0,0));}
 	};
-
-	/*
-	template<
-		typename T,
-		typename STORE,
-		bool POLYMORPHISM,
-		typename INDEX
-	>
-	class base_property<pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX>>:public pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX>{
-	public:
-		enum{TYPE=CONST};
-		typedef pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX> PTR;
-		base_property(){}
-		base_property(const PTR& s):PTR(s){}
-		size_t get_size() const{return (bool)PTR(*this);}
-		CONST_RESOURCE_PTR get_const_object() const{return (PTR)*this;}
-		void set_object(RESOURCE_PTR object){
-			//downcasting from RESOURCE_PTR to base_property	
-			*this=static_cast<PTR>(object);
-		}
-		void erase(){set_object(RESOURCE_PTR());}
-	};
-	*/
-	/*
-	template<
-		typename T,
-		typename STORE,
-		bool POLYMORPHISM,
-		typename INDEX
-	>
-	class base_property<pseudo_ptr<T,STORE,POLYMORPHISM,INDEX>>:public pseudo_ptr<T,STORE,POLYMORPHISM,INDEX>{
-	public:
-		enum{TYPE=0};
-		typedef pseudo_ptr<T,STORE,POLYMORPHISM,INDEX> PTR;
-		base_property(){}
-		base_property(const PTR& s):PTR(s){}
-		size_t get_size() const{return (bool)PTR(*this);}//dangerous notation
-		RESOURCE_PTR get_object() const{return *this;}
-		CONST_RESOURCE_PTR get_const_object() const{return *this;}
-		void set_object(RESOURCE_PTR object){
-			//downcasting from RESOURCE_PTR to base_property	
-			*this=static_cast<PTR>(object);
-		}
-		void erase(){set_object(RESOURCE_PTR());}
-	};
-
-	template<
-		typename T,
-		typename STORE,
-		bool POLYMORPHISM,
-		typename INDEX
-	>
-	class base_property<pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX>>:public pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX>{
-	public:
-		enum{TYPE=CONST};
-		typedef pseudo_ptr<const T,STORE,POLYMORPHISM,INDEX> PTR;
-		base_property(){}
-		base_property(const PTR& s):PTR(s){}
-		size_t get_size() const{return (bool)PTR(*this);}
-		CONST_RESOURCE_PTR get_const_object() const{return (PTR)*this;}
-		void set_object(RESOURCE_PTR object){
-			//downcasting from RESOURCE_PTR to base_property	
-			*this=static_cast<PTR>(object);
-		}
-		void erase(){set_object(RESOURCE_PTR());}
-	};
-	*/
 	template<
 		typename NAMESPACE,
 		const char* NAME,
@@ -1634,6 +1498,7 @@ namespace objrdf{
 	void to_rdf_xml(ostream& os);
 	//dumb scanner
 	RESOURCE_PTR find(uri u);
+	void generate_index();
 	//not as dumb because uses a single pool
 	//could be specialized for rdfs::Class and rdf::Property and use map<> index
 	template<typename T> typename T::allocator_type::pointer find_t(uri u){
