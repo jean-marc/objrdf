@@ -36,7 +36,7 @@ namespace objrdf{
 		#ifdef PERSISTENT
 		uri(const uri& u);
 		uri& operator=(const uri& u);
-		enum{STR_SIZE=22};
+		enum{STR_SIZE=32};
 		char local[STR_SIZE];	
 		#else
 		const string local;
