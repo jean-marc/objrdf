@@ -175,6 +175,13 @@ void httpd::get(http_parser& h,iostream& io){
 							out<<"<?xslt-param name='"<<k->second<<"' value='"<<url_decode(l->second)<<"'?>"<<endl;
 						out<<"<?xml-stylesheet type='text/xsl' href='"<<j->second<<"'?>"<<endl;
 					}
+					//add support for css
+					{
+						auto j=h.url_arguments.find("css");
+						if(j!=h.url_arguments.end()){
+							out<<"<?xml-stylesheet type='text/css' href='"<<j->second<<"'?>"<<endl;
+						}
+					}
 					p.out(out);//this where the processing takes place
 				}
 				io<<"Content-Length:"<<out.str().size()<<"\r\n";
@@ -231,7 +238,9 @@ void httpd::get(http_parser& h,iostream& io){
 				istringstream is(j->second);
 				is>>t;
 			}
+			/*
 			if(t<results.st_mtime){				
+			*/
 				string::size_type i=path.find_last_of('.');
 				string extension;
 				if(i!=string::npos) extension=path.substr(i+1);
@@ -250,11 +259,13 @@ void httpd::get(http_parser& h,iostream& io){
 				io<<"Last-Modified:"<<results.st_mtime<<"\r\n";
 				io<<"\r\n";
 				io<<file.rdbuf();
+			/*
 			}else{
 				cerr<<"cached!"<<endl;
 				io<<"HTTP/1.1 304"<<"\r\n";
 				io<<"\r\n";
 			}
+			*/
 			io.flush();
 		}else{
 			io<<http_404;
