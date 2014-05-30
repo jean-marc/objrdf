@@ -1,8 +1,8 @@
-CC = g++ -std=c++0x -I . -O3 
+CC = g++ -O3 
 #CFLAGS = -Wall -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB
-CFLAGS = -w -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB -DPERSISTENT #-DTEST_STRING
+CFLAGS = -std=c++0x -I. -I../pool_allocator -w -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB -DPERSISTENT #-DTEST_STRING
 #CFLAGS = -w -Wno-invalid-offsetof -DOBJRDF_VERB -DPERSISTENT
-OBJ1 = objrdf.o uri.o pseudo_ptr.o
+OBJ1 = objrdf.o uri.o
 OBJ5 = Sockets.o
 OBJ7 = sparql_engine.o
 OBJ6 = httpd.o $(OBJ5) $(OBJ7)
@@ -20,15 +20,14 @@ examples/%:examples/%.cpp $(OBJ1) $(OBJ8) objrdf.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) -o $@ 
 _example.%:example.%.cpp libobjrdf.so
 	$(CC) $(CFLAGS) $< libobjrdf.so -o $@ 
-#example%:example%.cpp $(OBJ1) $(OBJ8) objrdf.h rdf_xml_parser.h
-example%:example%.cpp $(OBJ1) $(OBJ6) $(OBJ7) $(OBJ8) $(OBJ9) objrdf.h
-	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ6) $(OBJ7) $(OBJ8) $(OBJ9) -lpthread -o $@ 
+example%:example%.cpp $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) objrdf.h
+	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) -lpthread -o $@ 
 tests = $(basename $(wildcard test*.cpp))
 examples = $(basename $(wildcard example.*.cpp))
 
-dump:dump.cpp $(OBJ1) pseudo_ptr.h
+dump:dump.cpp $(OBJ1)
 	$(CC) $(CFLAGS) dump.cpp $(OBJ1) schema.so -o dump
-dump_schema:dump_schema.cpp $(OBJ1) pseudo_ptr.h
+dump_schema:dump_schema.cpp $(OBJ1)
 	$(CC) $(CFLAGS) dump_schema.cpp $(OBJ1) schema.so -o dump_schema
 objrdf_ctl:objrdf_ctl.cpp $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) 
 	#$(CC) $(CFLAGS) objrdf_ctl.cpp $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) schema.so -lpthread -o objrdf_ctl
@@ -81,12 +80,12 @@ persistence.objrdf: persistence.objrdf.cpp objrdf.o uri.o rdf_xml_parser.o ebnf.
 #	-rwxrwxr-x 1 user user  939032 Apr 18 10:55 libobjrdf.so
 #	run with /lib64/ld-linux-x86-64.so.2 --library-path /home/user/projects/objrdf/ _example.inventory
 
-libobjrdf.so:objrdf.pic.o uri.pic.o pseudo_ptr.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o
-	$(CC) $(CFLAGS) objrdf.pic.o uri.pic.o pseudo_ptr.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o -lpthread -shared -o libobjrdf.so 
+libobjrdf.so:objrdf.pic.o uri.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o ../pool_allocator/pool_allocator.h
+	$(CC) $(CFLAGS) objrdf.pic.o uri.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o -lpthread -shared -o libobjrdf.so 
 #too many include files, need to reorganize the code
 install:libobjrdf.so
 	cp libobjrdf.so /usr/local/lib/
-	cp char_iterator.h http_parser.h result.h turtle_parser.h custom_allocator.h ifthenelse.hpp shared_ptr.h uri.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h pseudo_ptr.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h /usr/local/include/objrdf/
+	cp char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h /usr/local/include/objrdf/
 
 %.schema.so:%.schema.pic.o objrdf.o
 	$(CC) $(CFLAGS) $< -shared -o $@ 
