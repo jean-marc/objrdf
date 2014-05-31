@@ -112,27 +112,33 @@ namespace objrdf{
  	*	can we define default functions that will give a helpful error message when called?
  	*	this function table can be used to modify privileges
  	*/ 
-	struct _function_table{
-		//decltype(void f(ITERATOR_RESOURCE_PTR,string,size_t)) set_string;
+	struct function_table{
+		typedef void (*set_string_f)(RESOURCE_PTR,string,size_t);
+		typedef void (*in_f)(RESOURCE_PTR,istream&,size_t);
+		typedef void (*out_f)(CONST_RESOURCE_PTR,ostream&,size_t);
+		typedef RESOURCE_PTR (*get_object_f)(RESOURCE_PTR,size_t);//could we use CONST_RESOURCE_PTR?
+		typedef CONST_RESOURCE_PTR (*cget_object_f)(CONST_RESOURCE_PTR,size_t);
+		typedef void (*set_object_f)(RESOURCE_PTR,RESOURCE_PTR,size_t);
+		typedef size_t (*get_size_f)(CONST_RESOURCE_PTR);
+		typedef void (*add_property_f)(RESOURCE_PTR,PROVENANCE);
+		typedef void (*erase_f)(RESOURCE_PTR,size_t,size_t);
+		typedef PROVENANCE (*get_provenance_f)(CONST_RESOURCE_PTR,size_t);
+		typedef int (*compare_f)(CONST_RESOURCE_PTR,size_t,CONST_RESOURCE_PTR,size_t);//should be with literal but we are still using indices 
+		set_string_f set_string;
+		in_f in;
+		out_f out;
+		get_object_f get_object;
+		cget_object_f cget_object;
+		set_object_f set_object;
+		get_size_f get_size;
+		add_property_f add_property;
+		erase_f erase;
+		get_provenance_f get_provenance;
+		compare_f compare;
+		//we can have different constructors depending on type
+		function_table():set_string(0),in(0),out(0),get_object(0),cget_object(0),set_object(0),get_size(0),add_property(0),erase(0),get_provenance(0),compare(0){}
 		
 	};
-	typedef std::tuple<
-		/*literal*/
-		void (*)(RESOURCE_PTR,string,size_t),	/* 0	set_string */
-		void (*)(RESOURCE_PTR,istream&,size_t),//1 in
-		void (*)(CONST_RESOURCE_PTR,ostream&,size_t),//2 out
-		/*non-literal*/
-		RESOURCE_PTR (*)(RESOURCE_PTR,size_t),//3 get_object
-		CONST_RESOURCE_PTR (*)(CONST_RESOURCE_PTR,size_t),//4 get_const_object
-		void (*)(RESOURCE_PTR,RESOURCE_PTR,size_t),//5 set_object
-		/*common*/
-		size_t  (*)(CONST_RESOURCE_PTR),//6 get_size
-		void (*)(RESOURCE_PTR,PROVENANCE),//7 add_property	
-		void (*)(RESOURCE_PTR,size_t,size_t),//8 erase
-		PROVENANCE (*)(CONST_RESOURCE_PTR,size_t),//9 get_provenance
-		/*comparison*/
-		int (*)(CONST_RESOURCE_PTR,size_t,CONST_RESOURCE_PTR,size_t)//10 compare, should be with literal but we are still using indices 
-	> function_table;
 	struct property_info{
 		//because now stored in vector<property_info>
 		/*const*/ CONST_PROPERTY_PTR p;
@@ -141,6 +147,9 @@ namespace objrdf{
 		property_info(CONST_PROPERTY_PTR p,function_table t);
 	};
 	typedef vector<property_info> V;
+	/*
+ 	*	C++14 support this: http://en.cppreference.com/w/cpp/utility/tuple/get
+ 	*/ 
 	template<
 		typename SUBJECT,
 		typename PROPERTY,
@@ -428,7 +437,8 @@ namespace objrdf{
 		typedef _PROPERTIES_ PROPERTIES;
 		typedef _SUPERCLASS_ SUPERCLASS;
 		typedef resource SELF;
-		typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,resource,SUBCLASS>::ResultT TMP;
+		//typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,resource,SUBCLASS>::ResultT TMP;
+		typedef typename IfThenElse<is_same<SUBCLASS,NIL>::value,resource,SUBCLASS>::ResultT TMP;
 		/*
  		*	by default allocator should be the same as base class's 
  		*/ 
@@ -750,14 +760,15 @@ namespace objrdf{
 				get(subject,0).erase();
 			}	
 		};
-		typedef typename IfThenElse<equality<typename SUBJECT::VERSION,PROPERTY>::VALUE,version,normal>::ResultT ERASE;
+		//typedef typename IfThenElse<equality<typename SUBJECT::VERSION,PROPERTY>::VALUE,version,normal>::ResultT ERASE;
+		typedef typename IfThenElse<std::is_same<typename SUBJECT::VERSION,PROPERTY>::value,version,normal>::ResultT ERASE;
 		static PROVENANCE get_provenance(CONST_RESOURCE_PTR subject,size_t){return 0;/*get_const(subject).p;*/}
 		static function_table get_table(){
 			function_table t;
-			std::get<6>(t)=get_size;
-			std::get<7>(t)=add_property;
-			std::get<8>(t)=ERASE::erase;
-			std::get<9>(t)=get_provenance;
+			t.get_size=get_size;
+			t.add_property=add_property;
+			t.erase=ERASE::erase;
+			t.get_provenance=get_provenance;
 			return t;	
 		}
 	};
@@ -779,10 +790,10 @@ namespace objrdf{
 		static PROVENANCE get_provenance(CONST_RESOURCE_PTR subject,size_t index){return 0;}
 		static function_table get_table(){
 			function_table t;
-			std::get<6>(t)=get_size;
-			std::get<7>(t)=add_property;
-			std::get<8>(t)=erase;
-			std::get<9>(t)=get_provenance;
+			t.get_size=get_size;
+			t.add_property=add_property;
+			t.erase=erase;
+			t.get_provenance=get_provenance;
 			return t;	
 		}
 	};
@@ -802,8 +813,8 @@ namespace objrdf{
 		}
 		static function_table get_table(){
 			auto t=BASE::get_table();
-			std::get<2>(t)=out;
-			std::get<10>(t)=compare;
+			t.out=out;
+			t.compare=compare;
 			return t;
 			//std::tuple does not like 0 for function pointer
 			//return function_table(0,0,out,0,0,0,BASE::get_size,BASE::add_property,BASE::erase,BASE::get_provenance);
@@ -823,10 +834,11 @@ namespace objrdf{
 				static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->set_p(tmp);
 			}
 		};
-		typedef typename IfThenElse<equality<typename SUBJECT::TRIGGER,PROPERTY>::VALUE,trigger,normal>::ResultT TRIGGER;
+		//typedef typename IfThenElse<equality<typename SUBJECT::TRIGGER,PROPERTY>::VALUE,trigger,normal>::ResultT TRIGGER;
+		typedef typename IfThenElse<is_same<typename SUBJECT::TRIGGER,PROPERTY>::value,trigger,normal>::ResultT TRIGGER;
 		static function_table get_table(){
 			auto t=BASE::get_table();
-			std::get<1>(t)=TRIGGER::in;
+			t.in=TRIGGER::in;
 			return t;	
 		}
 	};
@@ -835,7 +847,7 @@ namespace objrdf{
 		static void set_string(RESOURCE_PTR subject,string s,size_t index){BASE::get(subject,index).set_string(s);}
 		static function_table get_table(){
 			auto t=BASE::get_table();
-			std::get<0>(t)=set_string;
+			t.set_string=set_string;
 			return t;	
 		}
 	};
@@ -848,8 +860,8 @@ namespace objrdf{
 		}
 		static function_table get_table(){
 			auto t=BASE::get_table();
-			std::get<4>(t)=get_const_object;
-			std::get<5>(t)=set_const_object;
+			t.cget_object=get_const_object;
+			t.set_object=set_const_object;//???
 			return t;	
 		}
 	};	
@@ -868,11 +880,12 @@ namespace objrdf{
 				static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->set_p(tmp);//to give information about the type
 			}
 		};
-		typedef typename IfThenElse<equality<typename SUBJECT::TRIGGER,PROPERTY>::VALUE,trigger,normal>::ResultT TRIGGER;
+		//typedef typename IfThenElse<equality<typename SUBJECT::TRIGGER,PROPERTY>::VALUE,trigger,normal>::ResultT TRIGGER;
+		typedef typename IfThenElse<is_same<typename SUBJECT::TRIGGER,PROPERTY>::value,trigger,normal>::ResultT TRIGGER;
 		static function_table get_table(){
 			auto t=BASE::get_table();
-			std::get<3>(t)=get_object;
-			std::get<5>(t)=TRIGGER::set_object;
+			t.get_object=get_object;
+			t.set_object=TRIGGER::set_object;
 			return t;	
 		}
 	};
@@ -896,9 +909,9 @@ namespace objrdf{
 		}
 		static function_table get_table(){
 			function_table t;
-			std::get<2>(t)=out;
-			std::get<5>(t)=set_const_object;
-			std::get<6>(t)=get_size;
+			t.out=out;
+			t.set_object=set_const_object;
+			t.get_size=get_size;
 			return t;
 		}
 	};
@@ -926,12 +939,12 @@ namespace objrdf{
 		static function_table get_table(){
 			function_table t;
 			//std::get<0>(t)=set_string;
-			std::get<1>(t)=in;
-			std::get<2>(t)=out;
-			//std::get<5>(t)=set_const_object;
-			std::get<6>(t)=get_size;
-			std::get<7>(t)=add_property;
-			std::get<8>(t)=erase;
+			t.in=in;
+			t.out=out;
+			//t.set_object=set_const_object;
+			t.get_size=get_size;
+			t.add_property=add_property;
+			t.erase=erase;
 			return t;
 		}
 	};
@@ -978,12 +991,12 @@ namespace objrdf{
 		static void erase(RESOURCE_PTR subject,size_t first,size_t last){}	
 		static function_table get_table(){
 			function_table t;
-			std::get<0>(t)=set_string;
-			std::get<1>(t)=in;
-			std::get<2>(t)=out;
-			std::get<6>(t)=get_size;
-			std::get<7>(t)=add_property;
-			std::get<8>(t)=erase;
+			t.set_string=set_string;
+			t.in=in;
+			t.out=out;
+			t.get_size=get_size;
+			t.add_property=add_property;
+			t.erase=erase;
 			return t;
 		}
 	};
@@ -1001,11 +1014,11 @@ namespace objrdf{
 		static void erase(RESOURCE_PTR subject,size_t first,size_t last){}	
 		static function_table get_table(){
 			function_table t;
-			std::get<4>(t)=get_const_object;
-			std::get<5>(t)=set_object;//why do we need this????
-			std::get<6>(t)=get_size;
-			std::get<7>(t)=add_property;
-			std::get<8>(t)=erase;
+			t.cget_object=get_const_object;
+			t.set_object=set_object;//why do we need this????
+			t.get_size=get_size;
+			t.add_property=add_property;
+			t.erase=erase;
 			return t;
 		}
 
@@ -1021,7 +1034,7 @@ namespace objrdf{
 	> struct helper<SUBJECT,rdf::type,INDEX,false>{
 		static rdf::type& get(SUBJECT&){
 			static rdf::type t(SUBJECT::get_class());
-			return t;
+			return t;//that's not good: reference to local variable, could define a static member but confusing
 		}
 		static const rdf::type& get_const(const SUBJECT&){
 			static rdf::type t(SUBJECT::get_class());
@@ -1258,7 +1271,8 @@ namespace objrdf{
 		typename ALLOCATOR
 	>
 	CONST_CLASS_PTR resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,ALLOCATOR>::get_class(){
-		typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,resource,SUBCLASS>::ResultT TMP;
+		//typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,resource,SUBCLASS>::ResultT TMP;
+		typedef typename IfThenElse<std::is_same<SUBCLASS,NIL>::value,resource,SUBCLASS>::ResultT TMP;
 		//we can chain a function to add superClassOf
 		static CONST_CLASS_PTR p=rdfs::Class::super(rdfs::Class::allocator_type::construct_allocate_at(
 			//in case of persistent storage we will override old version and refresh pointers and function pointers
@@ -1448,7 +1462,8 @@ namespace objrdf{
 		typename ALLOCATOR 
 	> struct get_generic_property<resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,ALLOCATOR>>{
 		typedef resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,ALLOCATOR> RESOURCE;
-		typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,RESOURCE,SUBCLASS>::ResultT TMP;
+		//typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,RESOURCE,SUBCLASS>::ResultT TMP;
+		typedef typename IfThenElse<is_same<SUBCLASS,NIL>::value,RESOURCE,SUBCLASS>::ResultT TMP;
 		static V go(){
 			LOG<<"get_generic_property:`"<<NAME<<"'"<<endl;
 			V v=get_generic_property<typename SUPERCLASS::SELF>::go();
@@ -1460,10 +1475,10 @@ namespace objrdf{
 			v.front()=get_property_info<RESOURCE,rdf::type>();//will override SUPERCLASS's rdf::type
 			//problem with derived classes
 			typedef typename IfThenElse<
-				equality<
+				std::is_same<
 					typename TMP::PSEUDO_PROPERTIES,
 					typename SUPERCLASS::PSEUDO_PROPERTIES
-				>::VALUE,
+				>::value,
 				NIL,
 				typename TMP::PSEUDO_PROPERTIES
 			>::ResultT PP;
@@ -1472,23 +1487,6 @@ namespace objrdf{
 			return concat(v,std::static_for_each<PROPERTIES>(_meta_<TMP>()).v);
 		}
 	};
-	//would be nice to put it inside a class or namespace
-	//iterators to navigate the pools, it won't allow modification of the resources
-	//create index per pool? save the index or not?  we want to avoid `table scan'
-	//could we use pointer instead
-	/*
-	struct pool_iterator:pool::iterator<POOL_PTR>{
-		pool_iterator(pool::iterator<POOL_PTR> i):pool::iterator<POOL_PTR>(i){}
-		typedef generic_iterator<RESOURCE_PTR> cell_iterator;
-		cell_iterator begin(){return cell_iterator(**this,(**this)->get_size());}
-		cell_iterator end(){return cell_iterator(**this);}
-		//typedef generic_iterator<CONST_RESOURCE_PTR> const_cell_iterator;
-		//const_cell_iterator cbegin(){return const_cell_iterator(**this,(**this)->get_size());}
-		//const_cell_iterator cend(){return const_cell_iterator(**this);}
-	};
-	pool_iterator begin();
-	pool_iterator end();
-	*/
 	struct test_by_uri{
 		const uri u;
 		test_by_uri(const uri& u):u(u){}

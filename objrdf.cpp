@@ -25,12 +25,12 @@ base_resource::const_type_iterator base_resource::cend() const{return base_resou
 */
 CONST_PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::iterator>(*this)->p;}
 CONST_PROPERTY_PTR base_resource::const_type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}
-size_t base_resource::type_iterator::get_size() const{return std::get<6>(static_cast<V::iterator>(*this)->t)(subject);}//very confusing notation
-size_t base_resource::const_type_iterator::get_size() const{return std::get<6>(static_cast<V::const_iterator>(*this)->t)(subject);}//very confusing notation
+size_t base_resource::type_iterator::get_size() const{return static_cast<V::iterator>(*this)->t.get_size(subject);}//very confusing notation
+size_t base_resource::const_type_iterator::get_size() const{return static_cast<V::const_iterator>(*this)->t.get_size(subject);}//very confusing notation
 bool base_resource::type_iterator::literalp() const{return static_cast<V::iterator>(*this)->literalp;}
 bool base_resource::const_type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
-bool base_resource::type_iterator::constp() const{return !std::get<7>(static_cast<V::iterator>(*this)->t);}
-bool base_resource::const_type_iterator::constp() const{return !std::get<7>(static_cast<V::const_iterator>(*this)->t);}
+bool base_resource::type_iterator::constp() const{return !static_cast<V::iterator>(*this)->t.add_property;}
+bool base_resource::const_type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property;}
 
 map<uri,RESOURCE_PTR>& base_resource::get_index(){
 	static map<uri,RESOURCE_PTR> *m=new map<uri,RESOURCE_PTR>();
@@ -151,13 +151,13 @@ CONST_PROPERTY_PTR base_resource::const_instance_iterator::get_Property() const{
 bool base_resource::instance_iterator::literalp() const{return i->literalp;}
 bool base_resource::const_instance_iterator::literalp() const{return i->literalp;}
 void base_resource::instance_iterator::in(istream& is){
-	std::get<1>(i->t)(subject,is,index);
+	i->t.in(subject,is,index);
 }
 void base_resource::instance_iterator::out(ostream& os) const{
-	std::get<2>(i->t)(subject,os,index);
+	i->t.out(subject,os,index);
 }
 void base_resource::const_instance_iterator::out(ostream& os) const{
-	std::get<2>(i->t)(subject,os,index);
+	i->t.out(subject,os,index);
 }
 string base_resource::instance_iterator::str() const{
 	ostringstream os;
@@ -172,7 +172,7 @@ string base_resource::const_instance_iterator::str() const{
 int base_resource::instance_iterator::compare(const base_resource::instance_iterator& j) const{
 	if(literalp()&&j.literalp()){
 		//for now only compare same literal properties, not all properties define a comparison operator, actually only range matters
-		if((get_Property()==j.get_Property())&&std::get<10>(i->t)) return std::get<10>(i->t)(subject,index,j.subject,j.index);
+		if((get_Property()==j.get_Property())&&i->t.compare) return i->t.compare(subject,index,j.subject,j.index);
 		return str().compare(j.str());//not very efficient and not always correct, eg: time formatting 
 	}
 	if(!literalp()&&!j.literalp()) return get_const_object()->id.compare(j.get_const_object()->id);	
@@ -181,33 +181,33 @@ int base_resource::instance_iterator::compare(const base_resource::instance_iter
 int base_resource::const_instance_iterator::compare(const base_resource::const_instance_iterator& j) const{
 	if(literalp()&&j.literalp()){
 		//for now only compare same literal properties, not all properties define a comparison operator
-		if((get_Property()==j.get_Property())&&std::get<10>(i->t)) return std::get<10>(i->t)(subject,index,j.subject,j.index);
+		if((get_Property()==j.get_Property())&&i->t.compare) return i->t.compare(subject,index,j.subject,j.index);
 		return str().compare(j.str());//not very efficient and not always correct, eg: time formatting 
 	}
 	if(!literalp()&&!j.literalp()) return get_const_object()->id.compare(j.get_const_object()->id);	
 	return (literalp()&&!j.literalp())? -1 : 1; //some default rule
 }
 void base_resource::instance_iterator::set_string(string s){
-	std::get<0>(i->t)(subject,s,index);
+	i->t.set_string(subject,s,index);
 }
 RESOURCE_PTR base_resource::instance_iterator::get_object() const{
-	return std::get<3>(i->t)(subject,index);
+	return i->t.get_object(subject,index);
 }
 CONST_RESOURCE_PTR base_resource::instance_iterator::get_const_object() const{
-	return std::get<4>(i->t)(subject,index);
+	return i->t.cget_object(subject,index);
 }
 CONST_RESOURCE_PTR base_resource::const_instance_iterator::get_const_object() const{
-	assert(std::get<4>(i->t));
-	return std::get<4>(i->t)(subject,index);
+	assert(i->t.cget_object);
+	return i->t.cget_object(subject,index);
 }
 void base_resource::instance_iterator::set_object(RESOURCE_PTR r){
-	std::get<5>(i->t)(subject,r,index);
+	i->t.set_object(subject,r,index);
 }
 PROVENANCE base_resource::instance_iterator::get_provenance() const{
-	return std::get<9>(i->t)(subject,index);
+	return i->t.get_provenance(subject,index);
 }
 PROVENANCE base_resource::const_instance_iterator::get_provenance() const{
-	return std::get<9>(i->t)(subject,index);
+	return i->t.get_provenance(subject,index);
 }
 base_resource::instance_iterator base_resource::type_iterator::add_property(PROVENANCE p){
 	/*
@@ -217,9 +217,9 @@ base_resource::instance_iterator base_resource::type_iterator::add_property(PROV
 	cerr<<"add_property `"<<get_Property()->id<<"' to resource `"<<subject->id<<"'"<<endl;
 	#endif
 	//awkward
-	assert(std::get<7>(static_cast<V::iterator>(*this)->t));
+	assert(static_cast<V::iterator>(*this)->t.add_property);
 	//if(!std::get<7>(static_cast<V::iterator>(*this)->t)) return begin(base_resource::nil)->begin();
-	std::get<7>(static_cast<V::iterator>(*this)->t)(subject,p);
+	static_cast<V::iterator>(*this)->t.add_property(subject,p);
 	return instance_iterator(subject,*this,get_size()-1);
 }
 void base_resource::_tmp_::operator=(const string& value){
@@ -307,10 +307,10 @@ namespace objrdf{
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r,CONST_USER_PTR){return std::get<4>(get_class(r)->t)(r);}
 
 	void erase(RESOURCE_PTR r,base_resource::instance_iterator first,base_resource::instance_iterator last){
-		std::get<8>(first.i->t)(r,first.index,last.index);
+		first.i->t.erase(r,first.index,last.index);
 	}
 	void erase(RESOURCE_PTR r,base_resource::instance_iterator position){
-		std::get<8>(position.i->t)(r,position.index,position.index+1);
+		position.i->t.erase(r,position.index,position.index+1);
 	}
 	base_resource::const_instance_iterator get_const_self_iterator(CONST_RESOURCE_PTR r){
 		return base_resource::const_instance_iterator(r,base_resource::v.cbegin()+1,0);//hard-coded index, careful!
