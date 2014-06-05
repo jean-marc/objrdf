@@ -123,7 +123,7 @@ CONST_CLASS_PTR base_resource::get_class(){
 		)			
 		,get_comment()
 		,objrdf::sizeOf(sizeof(base_resource))
-		,objrdf::hashOf(pool::get_hash<base_resource>())
+		,objrdf::hashOf(pool_allocator::pool::get_hash<base_resource>())
 	);
 	return p;
 }
@@ -414,8 +414,8 @@ void objrdf::to_rdf_xml(ostream& os){
 	os<<">";
 	rdfs::Class::allocator_type a;
 	for(auto i=a.cbegin();i!=a.cend();++i){
-		pool::POOL_PTR p(i.index); //there is a mapping between Class and pools
-		for(auto j=pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
+		pool_allocator::pool::POOL_PTR p(i.index); //there is a mapping between Class and pools
+		for(auto j=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool_allocator::pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
 			to_rdf_xml(j,cout);
 		}
 	}
@@ -448,8 +448,8 @@ RESOURCE_PTR objrdf::find(uri u){
 void objrdf::generate_index(){
 	rdfs::Class::allocator_type a;
 	for(auto i=a.cbegin();i!=a.cend();++i){
-		pool::POOL_PTR p(i.index); //there is a mapping between Class and pools
-		for(auto j=pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
+		pool_allocator::pool::POOL_PTR p(i.index); //there is a mapping between Class and pools
+		for(auto j=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool_allocator::pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
 			base_resource::get_index()[j->id]=j;
 		}
 	}

@@ -21,7 +21,7 @@
 #include "ifthenelse.hpp"
 using namespace std;
 #define LOG std::cerr
-#include "pool_allocator.h"
+#include <pool_allocator/pool_allocator.h>
 template<typename T> vector<T> concat(/*const*/ vector<T>& a,const vector<T>& b){
 	a.insert(a.end(),b.begin(),b.end());
 	return a;
@@ -581,10 +581,10 @@ namespace objrdf{
 		typename RAW_ALLOCATOR,
 		typename MANAGEMENT
 	>
-	class base_property<pool::ptr<INDEX,VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool::ptr<INDEX,VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
+	class base_property<pool_allocator::pool::ptr<INDEX,VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool_allocator::pool::ptr<INDEX,VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
 	public:
 		enum{TYPE=0};
-		typedef pool::ptr<INDEX,VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
+		typedef pool_allocator::pool::ptr<INDEX,VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
 		base_property(){}
 		base_property(const PTR& s):PTR(s){}
 		size_t get_size() const{return (bool)PTR(*this);}//dangerous notation
@@ -603,10 +603,10 @@ namespace objrdf{
 		typename RAW_ALLOCATOR,
 		typename MANAGEMENT
 	>
-	class base_property<pool::ptr<INDEX,const VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool::ptr<INDEX,const VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
+	class base_property<pool_allocator::pool::ptr<INDEX,const VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool_allocator::pool::ptr<INDEX,const VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
 	public:
 		enum{TYPE=CONST};
-		typedef pool::ptr<INDEX,const VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
+		typedef pool_allocator::pool::ptr<INDEX,const VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
 		base_property(){}
 		base_property(const PTR& s):PTR(s){}
 		size_t get_size() const{return (bool)PTR(*this);}//dangerous notation
@@ -626,10 +626,10 @@ namespace objrdf{
 		typename RAW_ALLOCATOR,
 		typename MANAGEMENT
 	>
-	class base_property<pool::ptr_d<INDEX,VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool::ptr_d<INDEX,VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
+	class base_property<pool_allocator::pool::ptr_d<INDEX,VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool_allocator::pool::ptr_d<INDEX,VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
 	public:
 		enum{TYPE=0};
-		typedef pool::ptr_d<INDEX,VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
+		typedef pool_allocator::pool::ptr_d<INDEX,VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
 		base_property():PTR(0,0){}
 		base_property(const PTR& s):PTR(s){}
 		size_t get_size() const{return (bool)PTR(*this);}//dangerous notation
@@ -648,10 +648,10 @@ namespace objrdf{
 		typename RAW_ALLOCATOR,
 		typename MANAGEMENT
 	>
-	class base_property<pool::ptr_d<INDEX,const VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool::ptr_d<INDEX,const VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
+	class base_property<pool_allocator::pool::ptr_d<INDEX,const VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool_allocator::pool::ptr_d<INDEX,const VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
 	public:
 		enum{TYPE=CONST};
-		typedef pool::ptr_d<INDEX,const VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
+		typedef pool_allocator::pool::ptr_d<INDEX,const VALUE_TYPE,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
 		base_property():PTR(0,0){}
 		base_property(const PTR& s):PTR(s){}
 		size_t get_size() const{return (bool)PTR(*this);}//dangerous notation
@@ -780,14 +780,32 @@ namespace objrdf{
 		typedef objrdf::array<PROPERTY,ALLOCATOR> ARRAY;
 		typedef PROPERTY PP;
 		//why is it derived_pointer?
-		static inline ARRAY& get(RESOURCE_PTR subject){return static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->template get<ARRAY>();}
-		static inline const ARRAY& get_const(CONST_RESOURCE_PTR subject){return static_cast<typename SUBJECT::allocator_type::const_derived_pointer>(subject)->template get_const<ARRAY>();}
-		static inline PROPERTY& get(RESOURCE_PTR subject,size_t index){return static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->template get<ARRAY>()[index];}
-		static inline const PROPERTY& get_const(CONST_RESOURCE_PTR subject,size_t index){return static_cast<typename SUBJECT::allocator_type::const_derived_pointer>(subject)->template get_const<ARRAY>()[index];}
-		static size_t get_size(CONST_RESOURCE_PTR subject){return get_const(subject).size();}
-		static void add_property(RESOURCE_PTR subject,PROVENANCE p){typedef PROPERTY P;get(subject).push_back(P());}
-		static void erase(RESOURCE_PTR subject,size_t first,size_t last){get(subject).erase(get(subject).begin()+first,get(subject).begin()+last);}
-		static PROVENANCE get_provenance(CONST_RESOURCE_PTR subject,size_t index){return 0;}
+		static inline ARRAY& get(RESOURCE_PTR subject)
+		{
+			return static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->template get<ARRAY>();
+		}
+		static inline const ARRAY& get_const(CONST_RESOURCE_PTR subject){
+			return static_cast<typename SUBJECT::allocator_type::const_derived_pointer>(subject)->template get_const<ARRAY>();
+		}
+		static inline PROPERTY& get(RESOURCE_PTR subject,size_t index){
+			return static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->template get<ARRAY>()[index];
+		}
+		static inline const PROPERTY& get_const(CONST_RESOURCE_PTR subject,size_t index){
+			return static_cast<typename SUBJECT::allocator_type::const_derived_pointer>(subject)->template get_const<ARRAY>()[index];
+		}
+		static size_t get_size(CONST_RESOURCE_PTR subject){
+			return get_const(subject).size();
+		}
+		static void add_property(RESOURCE_PTR subject,PROVENANCE p){
+			typedef PROPERTY P;
+			get(subject).push_back(P());
+		}
+		static void erase(RESOURCE_PTR subject,size_t first,size_t last){
+			get(subject).erase(get(subject).begin()+first,get(subject).begin()+last);
+		}
+		static PROVENANCE get_provenance(CONST_RESOURCE_PTR subject,size_t index){
+			return 0;
+		}
 		static function_table get_table(){
 			function_table t;
 			t.get_size=get_size;
@@ -1296,7 +1314,7 @@ namespace objrdf{
 			),
 			TMP::get_comment!=SUPERCLASS::get_comment ? TMP::get_comment() : "",
 			objrdf::sizeOf(sizeof(TMP)),
-			objrdf::hashOf(pool::get_hash<TMP>())
+			objrdf::hashOf(pool_allocator::pool::get_hash<TMP>())
 		));
 		//is that a good place to generate indexes?
 		static auto tmp=TMP::allocator_type::_index();
@@ -1329,7 +1347,7 @@ namespace objrdf{
 		typename ALLOCATOR,
 		typename RAW_ALLOCATOR,
 		typename MANAGEMENT
-	>struct selector<pool::ptr<INDEX,PAYLOAD,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>{
+	>struct selector<pool_allocator::pool::ptr<INDEX,PAYLOAD,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>{
 		typedef PAYLOAD ResultT;
 		enum{IS_LITERAL=0};
 	};
