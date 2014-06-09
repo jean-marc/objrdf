@@ -37,13 +37,13 @@ struct any_p{
 // A=0x41 1000001
 // a=0x61 1100001
 template<char C,char c=(C|0x20)> struct is_letter{enum{N=('a'<=c)&&(c<='z')};};
-template<char C,typename T,int N=T::CASE_INSENSITIVE&&is_letter<C>::N> struct helper{
+template<char C,typename T,int N=T::CASE_INSENSITIVE&&is_letter<C>::N> struct _helper_{
 	static bool go(T& c){
 		c.increment();
 		return *c==C;
 	}
 };
-template<char C,typename T> struct helper<C,T,1>{
+template<char C,typename T> struct _helper_<C,T,1>{
 	static bool go(T& c){
 		c.increment();
 		return (*c|0x20)==(C|0x20);
@@ -53,7 +53,7 @@ template<char C,typename T> struct helper<C,T,1>{
 template<char C> struct char_p{
 	typedef char_p SELF;
 	template<typename T> static bool go(T& c){
-		return helper<C,T>::go(c);
+		return _helper_<C,T>::go(c);
 	}
 	/*
 	template<typename T,int N=T::CASE_INSENSITIVE&&is_letter<C>::N> static bool go(T& c){//so we can augment the type for callbacks
