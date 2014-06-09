@@ -16,6 +16,7 @@
  */
 //#include <boost/container/string.hpp>
 #include <string>
+#include <complex>
 #include "uri.h"
 #include "tuple_helper.h"
 #include "ifthenelse.hpp"
@@ -28,6 +29,10 @@ template<typename T> vector<T> concat(/*const*/ vector<T>& a,const vector<T>& b)
 }
 template <typename T> int sgn(T val){
 	return (T(0) < val) - (val < T(0));
+}
+//what about complex value? is that the phase?
+template <typename T> int sgn(complex<T> val){
+	return 0;
 }
 #define PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<rdfs_namespace,_##n,__VA_ARGS__> n
 #define PSEUDO_PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<rdfs_namespace,_##n,__VA_ARGS__,objrdf::NIL> n
@@ -58,8 +63,6 @@ namespace objrdf{
 	template<typename T> struct get_uri_help;
 	template<const char* A,const char* B> struct get_uri_help<tpair<A,B> >{static uri go(string name){return uri(A,B,name);}};
 	template<typename T> uri get_uri(string name){return get_uri_help<T>::go(name);}	
-	template<typename A,typename B> struct equality{enum{VALUE=0};};
-	template<typename A> struct equality<A,A>{enum{VALUE=1};};
 }
 /*
  *	uri and prefix MUST be quoted, the macro could quote but forward slashes in URI confuse syntax highlighting in VIM
@@ -154,7 +157,7 @@ namespace objrdf{
 		typename SUBJECT,
 		typename PROPERTY,
 		size_t INDEX=tuple_index<PROPERTY,typename SUBJECT::PROPERTIES>::value,
-		bool FOUND=tuple_index<PROPERTY,typename SUBJECT::PROPERTIES>::value < tuple_size<typename SUBJECT::PROPERTIES>::value
+		bool FOUND=in_tuple<PROPERTY,typename SUBJECT::PROPERTIES>::value;
 	> struct helper{
 		static PROPERTY& get(SUBJECT& s){return std::get<INDEX>(s.p);}
 		static const PROPERTY& get_const(const SUBJECT& s){return std::get<INDEX>(s.p);}
@@ -187,7 +190,7 @@ namespace objrdf{
 		static map<uri,RESOURCE_PTR>& get_index();
 		static void do_index(RESOURCE_PTR p);
 		//could break down in TRIGGER_SET and TRIGGER_GET
-		typedef base_resource TRIGGER;
+		typedef std::tuple<> TRIGGER;
 		typedef base_resource VERSION;
 		typedef std::tuple<> PSEUDO_PROPERTIES;
 		typedef base_resource SELF;
@@ -437,7 +440,6 @@ namespace objrdf{
 		typedef _PROPERTIES_ PROPERTIES;
 		typedef _SUPERCLASS_ SUPERCLASS;
 		typedef resource SELF;
-		//typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,resource,SUBCLASS>::ResultT TMP;
 		typedef typename IfThenElse<is_same<SUBCLASS,NIL>::value,resource,SUBCLASS>::ResultT TMP;
 		/*
  		*	by default allocator should be the same as base class's 
@@ -640,6 +642,11 @@ namespace objrdf{
 			*this=static_cast<PTR>(object);
 		}
 		void erase(){set_object(PTR(0,0));}
+		/*
+		base_property& operator=(const PTR& ptr){
+			
+		}
+		*/
 	};
 	template<
 		typename INDEX,
@@ -674,7 +681,7 @@ namespace objrdf{
 		typedef _RANGE_ RANGE;//not the range
 		typedef property SELF;
 		//template<typename S> property(S s):base_property<RANGE>(s){}
-		property(IMPLEMENTATION r):IMPLEMENTATION(r){
+		explicit property(IMPLEMENTATION r):IMPLEMENTATION(r){
 			//LOG<<"create property `"<<NAME<<"' "<<this<<endl;
 		}
 		property()/*:p(0)*/{
@@ -682,6 +689,14 @@ namespace objrdf{
 		}
 		~property(){
 			//LOG<<"delete property `"<<NAME<<"' "<<this<<endl;
+		}
+		/*
+ 		*	problem here: will allow copy of different properties with same implementation
+ 		*
+ 		*/ 
+		property& operator=(const IMPLEMENTATION& r){
+			(IMPLEMENTATION&)*this=r;
+			return *this;
 		}
 		//we could add arguments to modify the property, for instance set the rdfs::domain, the rdfs::subPropertyOf
 		static CONST_PROPERTY_PTR get_property();
@@ -760,7 +775,6 @@ namespace objrdf{
 				get(subject,0).erase();
 			}	
 		};
-		//typedef typename IfThenElse<equality<typename SUBJECT::VERSION,PROPERTY>::VALUE,version,normal>::ResultT ERASE;
 		typedef typename IfThenElse<std::is_same<typename SUBJECT::VERSION,PROPERTY>::value,version,normal>::ResultT ERASE;
 		static PROVENANCE get_provenance(CONST_RESOURCE_PTR subject,size_t){return 0;/*get_const(subject).p;*/}
 		static function_table get_table(){
@@ -852,8 +866,11 @@ namespace objrdf{
 				static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->set_p(tmp);
 			}
 		};
-		//typedef typename IfThenElse<equality<typename SUBJECT::TRIGGER,PROPERTY>::VALUE,trigger,normal>::ResultT TRIGGER;
-		typedef typename IfThenElse<is_same<typename SUBJECT::TRIGGER,PROPERTY>::value,trigger,normal>::ResultT TRIGGER;
+		typedef typename IfThenElse<
+			/*is_same<PROPERTY,typename SUBJECT::TRIGGER>::value||*/in_tuple<PROPERTY,typename SUBJECT::TRIGGER>::value,
+			trigger,
+			normal
+		>::ResultT TRIGGER;
 		static function_table get_table(){
 			auto t=BASE::get_table();
 			t.in=TRIGGER::in;
@@ -898,8 +915,11 @@ namespace objrdf{
 				static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->set_p(tmp);//to give information about the type
 			}
 		};
-		//typedef typename IfThenElse<equality<typename SUBJECT::TRIGGER,PROPERTY>::VALUE,trigger,normal>::ResultT TRIGGER;
-		typedef typename IfThenElse<is_same<typename SUBJECT::TRIGGER,PROPERTY>::value,trigger,normal>::ResultT TRIGGER;
+		typedef typename IfThenElse<
+			/*is_same<PROPERTY,typename SUBJECT::TRIGGER>::value||*/in_tuple<PROPERTY,typename SUBJECT::TRIGGER>::value,
+			trigger,
+			normal
+		>::ResultT TRIGGER;
 		static function_table get_table(){
 			auto t=BASE::get_table();
 			t.get_object=get_object;
@@ -1289,7 +1309,6 @@ namespace objrdf{
 		typename ALLOCATOR
 	>
 	CONST_CLASS_PTR resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,ALLOCATOR>::get_class(){
-		//typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,resource,SUBCLASS>::ResultT TMP;
 		typedef typename IfThenElse<std::is_same<SUBCLASS,NIL>::value,resource,SUBCLASS>::ResultT TMP;
 		//we can chain a function to add superClassOf
 		static CONST_CLASS_PTR p=rdfs::Class::super(rdfs::Class::allocator_type::construct_allocate_at(
@@ -1480,7 +1499,6 @@ namespace objrdf{
 		typename ALLOCATOR 
 	> struct get_generic_property<resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,ALLOCATOR>>{
 		typedef resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,ALLOCATOR> RESOURCE;
-		//typedef typename IfThenElse<equality<SUBCLASS,NIL>::VALUE,RESOURCE,SUBCLASS>::ResultT TMP;
 		typedef typename IfThenElse<is_same<SUBCLASS,NIL>::value,RESOURCE,SUBCLASS>::ResultT TMP;
 		static V go(){
 			LOG<<"get_generic_property:`"<<NAME<<"'"<<endl;
