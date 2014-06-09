@@ -33,14 +33,14 @@ namespace objrdf{
 		static void ns_declaration(ostream& os);
 		static void ns_declaration_pretty(ostream& os);
 		void to_uri(ostream& os) const;
-		#ifdef PERSISTENT
+		//#ifdef PERSISTENT
 		uri(const uri& u);
 		uri& operator=(const uri& u);
 		enum{STR_SIZE=32};
 		char local[STR_SIZE];	
-		#else
-		const string local;
-		#endif
+		//#else
+		//const string local;
+		//#endif
 	private:
 		//make sure all prefixes are different
 		static void check();

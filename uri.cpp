@@ -26,9 +26,9 @@ struct match_ns{
 	bool operator()(uri::ns_prefix& n)const{return ns==n.first;}
 };
 uri::uri():index(0){
-	#ifdef PERSISTENT
+	//#ifdef PERSISTENT
 	local[0]=0;//empty string
-	#endif
+	//#endif
 	cerr<<"new uri `"<<local<<"'"<<endl;
 }
 //should not use this!, use blank nodes instead
@@ -37,7 +37,7 @@ string get(void* p){
 	os<<p;
 	return os.str();
 }
-#ifdef PERSISTENT
+//#ifdef PERSISTENT
 uri::uri(string _local):index(0){
 	local[uri::STR_SIZE-1]=0;
 	if(_local.empty()) 
@@ -46,18 +46,18 @@ uri::uri(string _local):index(0){
 		strncpy(local,_local.c_str(),uri::STR_SIZE-1);
 	cerr<<"new uri `"<<local<<"'"<<endl;
 }
-#else
-uri::uri(string local):local(local.empty()?get(this):local),index(0){}
-#endif
+//#else
+//uri::uri(string local):local(local.empty()?get(this):local),index(0){}
+//#endif
 
-#ifdef PERSISTENT
+//#ifdef PERSISTENT
 uri::uri(string ns,string _local){
 	//does not use ns!
 	local[uri::STR_SIZE-1]=0;
 	strncpy(local,_local.c_str(),uri::STR_SIZE-1);
-#else
-uri::uri(string ns,string local):local(local){
-#endif
+//#else
+//uri::uri(string ns,string local):local(local){
+//#endif
 	//for performance
 	static vector<ns_prefix>& _ns_v_=ns_v();
 	vector<ns_prefix>::iterator i=find_if(_ns_v_.begin(),_ns_v_.end(),match_ns(ns));
@@ -68,13 +68,13 @@ uri::uri(string ns,string local):local(local){
 		index=i-_ns_v_.begin();
 	}
 }	
-#ifdef PERSISTENT
+//#ifdef PERSISTENT
 uri::uri(string ns,string prefix,string _local){
 	local[uri::STR_SIZE-1]=0;
 	strncpy(local,_local.c_str(),uri::STR_SIZE-1);
-#else
-uri::uri(string ns,string prefix,string local):local(local){
-#endif
+//#else
+//uri::uri(string ns,string prefix,string local):local(local){
+//#endif
 	//for performance
 	static vector<ns_prefix>& _ns_v_=ns_v();
 	vector<ns_prefix>::iterator i=find_if(_ns_v_.begin(),_ns_v_.end(),match_ns(ns));
@@ -112,41 +112,41 @@ string uri::ns() const{
 	return ns_v()[index].first;
 }
 bool uri::empty() const{
-#ifdef PERSISTENT
+//#ifdef PERSISTENT
 	return strlen(local)==0;
-#else
-	return local.empty();
-#endif
+//#else
+	//return local.empty();
+//#endif
 }
 bool uri::is_local() const{
 	return index==0;
 }
 bool uri::operator==(const uri& u) const{
-#ifdef PERSISTENT
+//#ifdef PERSISTENT
 	//cerr<<"`"<<local<<"'("<<index<<")==`"<<u.local<<"'("<<u.index<<")"<<endl;
 	return index==u.index && strcmp(local,u.local)==0;
-#else
-	return index==u.index && local==u.local;
-#endif
+//#else
+	//return index==u.index && local==u.local;
+//#endif
 }
 bool uri::operator!=(const uri& u) const{
-#ifdef PERSISTENT
+//#ifdef PERSISTENT
 	return index!=u.index || strcmp(local,u.local);
-#else
-	return index!=u.index || local!=u.local;
-#endif
+//#else
+	//return index!=u.index || local!=u.local;
+//#endif
 }
 int uri::compare(const uri& u) const{
-#ifdef PERSISTENT
+//#ifdef PERSISTENT
 	return index==u.index ? (strcmp(local,u.local)) : index-u.index;
-#else
-	return index==u.index ? local.compare(u.local) : index-u.index;
-#endif
+//#else
+	//return index==u.index ? local.compare(u.local) : index-u.index;
+//#endif
 }
 bool uri::operator<(const uri& u) const{
 	return compare(u)<0;
 }
-#ifdef PERSISTENT
+//#ifdef PERSISTENT
 uri::uri(const uri& u):index(u.index){
 	strcpy(local,u.local);
 }
@@ -154,7 +154,7 @@ uri& uri::operator=(const uri& u){
 	strcpy(local,u.local);
 	index=u.index;
 }
-#endif
+//#endif
 void uri::print(){
 	for(vector<ns_prefix>::iterator i=ns_v().begin();i<ns_v().end();++i)
 		cout<<(i-ns_v().begin())<<"\t"<<i->second<<"\t"<<i->first<<endl;
