@@ -157,7 +157,7 @@ namespace objrdf{
 		typename SUBJECT,
 		typename PROPERTY,
 		size_t INDEX=tuple_index<PROPERTY,typename SUBJECT::PROPERTIES>::value,
-		bool FOUND=in_tuple<PROPERTY,typename SUBJECT::PROPERTIES>::value;
+		bool FOUND=in_tuple<PROPERTY,typename SUBJECT::PROPERTIES>::value
 	> struct helper{
 		static PROPERTY& get(SUBJECT& s){return std::get<INDEX>(s.p);}
 		static const PROPERTY& get_const(const SUBJECT& s){return std::get<INDEX>(s.p);}
