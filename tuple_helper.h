@@ -7,7 +7,7 @@
 #include <tuple>
 namespace std{
 	template<typename _T,typename _Tp> struct tuple_index{
-		enum{value=0};//we have reached end of tuple
+		enum{value=0};//we have reached end of tuple shouldn't the value be >0???
 	};
 	template<typename _T,typename _Head,typename... _Tail> struct tuple_index<_T, tuple<_Head, _Tail...> >{
 		enum{value=1+tuple_index<_T,tuple<_Tail...> >::value};
@@ -26,5 +26,11 @@ namespace std{
 		}
 	};
 	template<typename _Tp,typename F> F static_for_each(F f){return static_for_each_impl<_Tp,F>::go(f);}
+	template<
+		typename _T,
+		typename _Tp
+	> struct in_tuple{
+		enum{value=tuple_index<_T,_Tp>::value < tuple_size<_Tp>::value};
+	};
 }
 #endif
