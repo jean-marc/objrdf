@@ -8,6 +8,7 @@
  *	s_1----+
  */
 #include "sparql_engine.h"
+using namespace pool_allocator;
 subject::subject(SPARQL_RESOURCE_PTR r):r(r),is_selected(true),bound(r!=0),is_root(false),busy(false){}
 subject::subject(string s):r(0),s(s),is_selected(true),bound(s.size()),is_root(false),busy(false){}
 subject::subject(uri u):r(0),u(u),is_selected(true),bound(!u.empty()),is_root(false),busy(false){}
@@ -666,6 +667,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					break;
 					case turtle_parser::uriref::id:{
 						CONST_PROPERTY_PTR r=find_t<rdf::Property>(uri::hash_uri(i->v[0].t.second));
+						current_sbj->verbs.push_back(verb(r,0,user));
 					}
 					break;
 					case turtle_parser::qname::id:{
@@ -673,6 +675,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						if(j!=prefix_ns.end()){
 							uri u(j->second,i->v[0].v[1].t.second);
 							CONST_PROPERTY_PTR r=find_t<rdf::Property>(u);
+							current_sbj->verbs.push_back(verb(r,0,user));
 						}else{
 							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
 							return false;
