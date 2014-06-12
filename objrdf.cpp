@@ -31,6 +31,7 @@ bool base_resource::type_iterator::literalp() const{return static_cast<V::iterat
 bool base_resource::const_type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
 bool base_resource::type_iterator::constp() const{return !static_cast<V::iterator>(*this)->t.add_property;}
 bool base_resource::const_type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property;}
+void base_resource::patch(V& v){}
 
 map<uri,RESOURCE_PTR>& base_resource::get_index(){
 	static map<uri,RESOURCE_PTR> *m=new map<uri,RESOURCE_PTR>();
