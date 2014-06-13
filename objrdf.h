@@ -595,6 +595,7 @@ namespace objrdf{
 		size_t get_size() const{return strlen(t)>0;}
 		void erase(){t[0]=0;}
 	};
+	//could we make this generic using traits?
 	template<
 		typename INDEX,
 		typename VALUE_TYPE,	
@@ -1224,7 +1225,7 @@ namespace rdfs{
 	struct Class:objrdf::resource<rdfs_namespace,_Class,
 		std::tuple<
 			objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>,
-			objrdf::array<objrdf::superClassOf,volatile_allocator_unmanaged<objrdf::superClassOf>>,
+			objrdf::array<objrdf::superClassOf,volatile_allocator_unmanaged<objrdf::superClassOf,uint16_t>>,
 			comment,
 			isDefinedBy,
 			objrdf::sizeOf,
@@ -1237,7 +1238,7 @@ namespace rdfs{
 	>{
 			//convenience typedef to retrieve properties
 			typedef objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>  array_subClassOf;
-			typedef objrdf::array<objrdf::superClassOf,volatile_allocator_unmanaged<objrdf::superClassOf>> array_superClassOf;
+			typedef objrdf::array<objrdf::superClassOf,volatile_allocator_unmanaged<objrdf::superClassOf,uint16_t>> array_superClassOf;
 		/*
  		*	should store all the information about the resources including function pointers, the only problem with that
  		*	is the user might want to add his own function pointer (unless he decides to use virtual functions) and that
