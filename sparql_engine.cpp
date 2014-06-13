@@ -436,7 +436,7 @@ void sparql_parser::out(ostream& os){//sparql XML serialization
 			case simple_describe_q:{
 				os<<"<"<<rdf::_RDF<<"\n";
 				uri::ns_declaration(os);
-				os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
+				//os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
 				os<<">";
 				if(d_resource)
 					to_rdf_xml(d_resource,os);
@@ -446,7 +446,7 @@ void sparql_parser::out(ostream& os){//sparql XML serialization
 				RESULT r=sbj->run();				
 				os<<"<"<<rdf::_RDF<<"\n";
 				uri::ns_declaration(os);
-				os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
+				//os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
 				os<<">";
 				sort(r,sbj->get_variables(),order_by_variables);
 				for(auto i=r.begin();i<r.end();++i){
@@ -467,7 +467,7 @@ void sparql_parser::out(ostream& os){//sparql XML serialization
  				*/
 				os<<"<"<<rdf::_RDF<<"\n";
 				uri::ns_declaration(os);
-				os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
+				//os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
 				os<<">";
 				if(bnode_subject_resource)
 					to_rdf_xml(bnode_subject_resource,os);
@@ -894,7 +894,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 						auto j=v.find(i->v[0].t.second.substr(1));
 						if(j!=v.end())
 							//we need to cast away constness, ugly but makes it noticeable
-							sub=RESOURCE_PTR(j->second->get_const_object().index,j->second->get_const_object().pool_ptr.index);
+							sub=RESOURCE_PTR(j->second->get_const_object().pool_ptr,j->second->get_const_object().index);
 						else
 							cerr<<"subject variable `"<<i->v[0].t.second<<"' not found"<<endl;	
 							
@@ -1067,7 +1067,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 								SPARQL_RESOURCE_PTR r=find(u);
 								if(r){
 									//cast away constness
-									current_property->add_property(0)->set_object(RESOURCE_PTR(r.index,r.pool_ptr.index));
+									current_property->add_property(0)->set_object(RESOURCE_PTR(r.pool_ptr,r.index));
 								}else{
 									cerr<<"resource `"<<u<<"' not found"<<endl;
 								}
@@ -1095,7 +1095,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 									SPARQL_RESOURCE_PTR r=find(u);
 									if(r){
 										//cast away constness
-										current_property->add_property(0)->set_object(RESOURCE_PTR(r.index,r.pool_ptr.index));
+										current_property->add_property(0)->set_object(RESOURCE_PTR(r.pool_ptr,r.index));
 									}else{
 										cerr<<"resource `"<<u<<"' not found"<<endl;
 									}
@@ -1172,7 +1172,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 										}
 									}else{
 										//cast away constness
-										current_property->add_property(0)->set_object(RESOURCE_PTR(obj.index,obj.pool_ptr.index));
+										current_property->add_property(0)->set_object(RESOURCE_PTR(obj.pool_ptr,obj.index));
 									}
 								}
 							}
