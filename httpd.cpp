@@ -137,7 +137,7 @@ void httpd::get(http_parser& h,iostream& io){
 		}else{
 			//io<<"HTTP/1.1 200 OK\r\n";
 			//a resource can have its own content, could be a static/dynamic document
-			r->get_output(io);
+			get_output(r,io);
 		}	
 	}else if(h.current_path=="/sparql"){//sparql end-point
 		/*

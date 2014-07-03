@@ -42,17 +42,15 @@ void base_resource::do_index(RESOURCE_PTR p){
 	get_index()[p->id]=p;
 }
 property_info::property_info(CONST_PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}
-//should be deprecated
-/*
-void base_resource::erase(instance_iterator first,instance_iterator last){
-	std::get<8>(first.i->t)(this,RESOURCE_PTR(),first.index,last.index);
-}
-void base_resource::erase(instance_iterator position){
-	std::get<8>(position.i->t)(this,RESOURCE_PTR(),position.index,position.index+1);
-}
-*/
 void base_resource::get_output(ostream& os) const{
-	//what would be most appropriate HTTP message?	
+	os<<"HTTP/1.1 200 OK"<<"\r\n";
+	ostringstream out;
+	out<<"empty"<<endl;
+	os<<"Content-Type: "<<"text/plain"<<"\r\n";
+	os<<"Content-Length:"<<out.str().size()<<"\r\n";
+	os<<"\r\n";
+	os<<out.str();
+	os.flush();
 }
 
 base_resource::instance_iterator operator+(const base_resource::instance_iterator& a,const unsigned int& b){
@@ -115,12 +113,13 @@ CONST_CLASS_PTR base_resource::get_class(){
 		rdfs::subClassOf(),
 		objrdf::base_resource::class_function_table(
 			f_ptr::constructor<base_resource>,
+			f_ptr::copy_constructor<base_resource>,
 			f_ptr::begin<base_resource>,
 			f_ptr::end<base_resource>,
 			f_ptr::cbegin<base_resource>,
-			f_ptr::cend<base_resource>
-			,f_ptr::copy_constructor<base_resource>
-			,f_ptr::allocate<base_resource>
+			f_ptr::cend<base_resource>,
+			f_ptr::allocate<base_resource>,
+			f_ptr::get_output<base_resource>
 		)			
 		,get_comment()
 		,objrdf::sizeOf(sizeof(base_resource))
@@ -219,7 +218,6 @@ base_resource::instance_iterator base_resource::type_iterator::add_property(PROV
 	#endif
 	//awkward
 	assert(static_cast<V::iterator>(*this)->t.add_property);
-	//if(!std::get<7>(static_cast<V::iterator>(*this)->t)) return begin(base_resource::nil)->begin();
 	static_cast<V::iterator>(*this)->t.add_property(subject,p);
 	return instance_iterator(subject,*this,get_size()-1);
 }
@@ -297,15 +295,15 @@ void base_resource::to_rdf_xml(ostream& os,const PROVENANCE& p) const{
 namespace objrdf{
 	CONST_CLASS_PTR get_class(CONST_RESOURCE_PTR r){return CONST_CLASS_PTR(r.pool_ptr.index);}
 	//shall we start with an offset since the first 2 properties are read-only (rdfs::type and objrdf::self)
-	base_resource::type_iterator begin(RESOURCE_PTR r){return std::get<1>(get_class(r)->t)(r);}
-	base_resource::type_iterator end(RESOURCE_PTR r){return std::get<2>(get_class(r)->t)(r);}
-	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return std::get<3>(get_class(r)->t)(r);}
-	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r){return std::get<4>(get_class(r)->t)(r);}
+	base_resource::type_iterator begin(RESOURCE_PTR r){return get_class(r)->t.begin(r);}
+	base_resource::type_iterator end(RESOURCE_PTR r){return get_class(r)->t.end(r);}
+	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return get_class(r)->t.cbegin(r);}
+	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r){return get_class(r)->t.cend(r);}
 	//to start we could define profiles then a full blown access control
-	base_resource::type_iterator begin(RESOURCE_PTR r,CONST_USER_PTR){return std::get<1>(get_class(r)->t)(r);}
-	base_resource::type_iterator end(RESOURCE_PTR r,CONST_USER_PTR){return std::get<2>(get_class(r)->t)(r);}
-	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r,CONST_USER_PTR){return std::get<3>(get_class(r)->t)(r);}
-	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r,CONST_USER_PTR){return std::get<4>(get_class(r)->t)(r);}
+	base_resource::type_iterator begin(RESOURCE_PTR r,CONST_USER_PTR){return get_class(r)->t.begin(r);}
+	base_resource::type_iterator end(RESOURCE_PTR r,CONST_USER_PTR){return get_class(r)->t.end(r);}
+	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r,CONST_USER_PTR){return get_class(r)->t.cbegin(r);}
+	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r,CONST_USER_PTR){return get_class(r)->t.cend(r);}
 
 	void erase(RESOURCE_PTR r,base_resource::instance_iterator first,base_resource::instance_iterator last){
 		first.i->t.erase(r,first.index,last.index);
@@ -345,8 +343,11 @@ namespace objrdf{
 		}
 		os<<"\n</"<<get_class(r)->id<<">";
 	}
+	void get_output(CONST_RESOURCE_PTR r,ostream& os){
+		get_class(r)->t.get_output(r,os);
+	}
 }
-#ifdef JJJJJJJ
+#if 0
 void base_resource::to_rdf_xml_pretty(ostream& os){
 	/*
  	*	we can only use rdf:ID if the resource is local, that is if uri::index==0
@@ -456,28 +457,8 @@ void objrdf::generate_index(){
 	}
 }
 RESOURCE_PTR objrdf::create_by_type(CONST_CLASS_PTR c,uri id){
-	//POOL_PTR p(c.index);
-	/*
-	* we have to make sure it points to a valid pool
-	* is there anyway we could construct the pool on the fly?
-	* 	we only need to know the store:
-	*	template<
-	*		typename T,
-	*		typename STORE=free_store,	//free store or persistent, could also have no store
-	*		bool POLYMORPHISM=false,	//does not support derived types
-	*		typename _INDEX_=uint16_t	//can address 2^16 objects
-	*	> struct pseudo_ptr
-	* currently the Class only contains reference to the constructor, no information about allocator
-	*/
-	//can get rid of that now
-	//assert(p->type_id);
-	//get a generic pointer
-	//should not allocate if constructor not defined???
-	//constructor always defined, just does not do anything sometime
-	//RESOURCE_PTR rp(p->allocate(),p);
-	RESOURCE_PTR rp(std::get<6>(c->t)());
-	//invoke constructor
-	std::get<0>(c->t)(rp,id);
+	RESOURCE_PTR rp(c->t.allocate());
+	c->t.ctor(rp,id);
 	return rp;
 }
 RESOURCE_PTR objrdf::create_by_type(uri type,uri id){
@@ -485,37 +466,27 @@ RESOURCE_PTR objrdf::create_by_type(uri type,uri id){
 	return c ? objrdf::create_by_type(c,id) : RESOURCE_PTR(0,0);
 }
 RESOURCE_PTR objrdf::create_by_type_blank(CONST_CLASS_PTR c){
-	//we need to use the object's allocator instead of the pointer...
-	//the problem is that we don't know how to access it, we would have to store it in function pointer
-	//LOG<<"creating blank instance of `"<<c->id<<"'"<<endl;
-	//POOL_PTR p(c.index);
-	//RESOURCE_PTR rp(p->allocate(),p);
-	RESOURCE_PTR rp(std::get<6>(c->t)());
+	RESOURCE_PTR rp(c->t.allocate());
 	ostringstream os;
 	rp._print(os);
 	uri u(os.str());
 	u.index=1;
-	std::get<0>(c->t)(rp,u);
+	c->t.ctor(rp,u);
 	return rp;
 }
 RESOURCE_PTR objrdf::clone(CONST_RESOURCE_PTR r){
 	LOG<<"cloning resource `"<<r->id<<"'"<<endl;
 	CONST_CLASS_PTR c=get_class(r);
-	//POOL_PTR p(c.index);
-	//RESOURCE_PTR rp(p->allocate(),p);
-	RESOURCE_PTR rp(std::get<6>(c->t)());
-	std::get<5>(c->t)(rp,r);
+	RESOURCE_PTR rp(c->t.allocate());
+	c->t.cctor(rp,r);
 	return rp;
 }
-//RESOURCE_PTR objrdf::clone_and_swap(CONST_RESOURCE_PTR r){
 RESOURCE_PTR objrdf::clone_and_swap(RESOURCE_PTR r){
 	LOG<<"cloning resource `"<<r->id<<"'"<<endl;
 	CONST_CLASS_PTR c=get_class(r);
-	RESOURCE_PTR rp(std::get<6>(c->t)());
+	RESOURCE_PTR rp(c->t.allocate());
 	memcpy(rp,r,c->cget<sizeOf>().t);//this could go very wrong if we don't have the right size
-	//void (*)(void*,CONST_RESOURCE_PTR) //copy constructor
-	//template<typename T> void copy_constructor(void* p,CONST_RESOURCE_PTR r){new(p)T(static_cast<const T&>(*r));}
-	std::get<5>(c->t)(r,rp);
+	c->t.cctor(r,rp);
 	return rp;
 }
 RESOURCE_PTR objrdf::create_by_type_blank(uri type){

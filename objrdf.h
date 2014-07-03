@@ -189,6 +189,8 @@ namespace objrdf{
 		typedef array SELF;
 		static CONST_PROPERTY_PTR get_property();
 		typedef typename PROPERTY::RANGE RANGE;
+		array(){}
+		array(initializer_list<PROPERTY> pr):vector<PROPERTY,ALLOCATOR>(pr){}
 		~array(){cerr<<"~array()"<<this->size()<<endl;}
 	};
 	struct match_property{
@@ -351,7 +353,6 @@ namespace objrdf{
 		const_type_iterator cbegin() const;
 		const_type_iterator cend() const;
 		*/
-		void get_output(ostream& os) const;//local resources can have content accessible through a URL scheme 
 		void end_resource(){};//will be invoked when finished parsing the element
 		/*
  		*	do we have to use functions? what about storing type_iterator begin,end,...
@@ -359,20 +360,26 @@ namespace objrdf{
  		*	that the container must be ready by the time we define the class, could be tricky
  		*	it will also be necessary if we modify the container by adding new entries to implement privileges
  		*/ 
-		typedef std::tuple<
-			//do we even need this when using PERSISTENT?
-			//yes when creating new resource in the parser or sparql update query
-			void (*)(RESOURCE_PTR,uri),	//in-place constructor
-			type_iterator (*)(RESOURCE_PTR),	//begin
-			type_iterator (*)(RESOURCE_PTR),	//end
-			const_type_iterator (*)(CONST_RESOURCE_PTR),//cbegin
-			const_type_iterator (*)(CONST_RESOURCE_PTR)	//cend
-			//shall we add a clone function?
-			,void (*)(void*,CONST_RESOURCE_PTR) //copy constructor
-			/* add more functions here ... */
-			//access the allocator
-			,RESOURCE_PTR (*)()
-		> class_function_table;
+		struct class_function_table{
+			typedef void (*ctor_f)(RESOURCE_PTR,uri);
+			typedef void (*cctor_f)(void*,CONST_RESOURCE_PTR);//why void*?
+			typedef type_iterator (*begin_f)(RESOURCE_PTR);
+			typedef type_iterator (*end_f)(RESOURCE_PTR);
+			typedef const_type_iterator (*cbegin_f)(CONST_RESOURCE_PTR);
+			typedef const_type_iterator (*cend_f)(CONST_RESOURCE_PTR);
+			typedef RESOURCE_PTR (*allocate_f)();
+			typedef void (*get_output_f)(CONST_RESOURCE_PTR,ostream& os);
+			ctor_f ctor;
+			cctor_f cctor;
+			begin_f begin;
+			end_f end;
+			cbegin_f cbegin;
+			cend_f cend;
+			allocate_f allocate;
+			get_output_f get_output;			
+			class_function_table():ctor(0),cctor(0),begin(0),end(0),cbegin(0),cend(0),allocate(0),get_output(0){}
+			class_function_table(ctor_f ctor,cctor_f cctor,begin_f begin,end_f end,cbegin_f cbegin,cend_f cend,allocate_f allocate,get_output_f get_output):ctor(ctor),cctor(cctor),begin(begin),end(end),cbegin(cbegin),cend(cend),allocate(allocate),get_output(get_output){}
+		};
 		/*
  		* 	we add information about the class to get rid of vtable	
 		*	is there a reason we can't store everything in Class: one more level of indirection, 
@@ -417,6 +424,9 @@ namespace objrdf{
 		template<typename T> RESOURCE_PTR allocate(){
 			typename T::allocator_type a;
 			return a.allocate(1);
+		}
+		template<typename T> void get_output(CONST_RESOURCE_PTR r,ostream& os){
+			static_cast<const T&>(*r).get_output(os);
 		}
 	}
 	base_resource::instance_iterator operator+(const base_resource::instance_iterator& a,const unsigned int& b);
@@ -1209,6 +1219,7 @@ namespace objrdf{
 	base_resource::type_iterator end(RESOURCE_PTR r,CONST_USER_PTR u);
 	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r,CONST_USER_PTR u);
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r,CONST_USER_PTR u);
+	void get_output(CONST_RESOURCE_PTR r,ostream& os);
 	//to investigate new method to store indices
 	OBJRDF_CLASS(Test_class,std::tuple<>);
 	/*	version control, use the git commit hash + date
@@ -1343,6 +1354,7 @@ namespace objrdf{
 			rdfs::subClassOf(SUPERCLASS::get_class()),
 			objrdf::base_resource::class_function_table(
 				f_ptr::constructor<TMP>,
+				f_ptr::copy_constructor<TMP>,
 				f_ptr::begin<TMP>,
 				//if the pool is not writable all instances will be locked
 				TMP::allocator_type::get_pool()->writable ? 
@@ -1350,8 +1362,8 @@ namespace objrdf{
 					static_cast<objrdf::base_resource::type_iterator (*)(RESOURCE_PTR)>(f_ptr::begin<TMP>),
 				f_ptr::cbegin<TMP>,
 				f_ptr::cend<TMP>,
-				f_ptr::copy_constructor<TMP>
-				,f_ptr::allocate<TMP>
+				f_ptr::allocate<TMP>,
+				f_ptr::get_output<TMP>
 			),
 			TMP::get_comment!=SUPERCLASS::get_comment ? TMP::get_comment() : "",
 			objrdf::sizeOf(sizeof(TMP)),
