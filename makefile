@@ -1,4 +1,6 @@
 CC = g++ -O3 
+ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ -O3
+
 #CFLAGS = -Wall -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB
 CFLAGS = -std=c++0x -I. -I../pool_allocator -w -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB -DPERSISTENT #-DTEST_STRING
 #CFLAGS = -w -Wno-invalid-offsetof -DOBJRDF_VERB -DPERSISTENT
@@ -11,13 +13,19 @@ OBJ9 = ebnf.o
 OBJS = $(OBJ1) $(OBJ2) $(OBJ3)
 %.o:%.cpp %.h
 	$(CC) -c $(CFLAGS) $< -o $@
+%.pic.o:%.cpp %.h
+	$(CC) -c $(CFLAGS) -fpic $< -o $@
+%.arm.o:%.cpp %.h
+	$(ARM) -c $(CFLAGS) $< -o $@
+%.arm.pic.o:%.cpp %.h
+	$(ARM) -c $(CFLAGS) -fpic $< -o $@
 #all:test0 test1
 #clean:
 #	rm $(OBJS)
 test%:test%.cpp $(OBJ1) $(OBJ8) objrdf.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) -o $@ 
-examples/%:examples/%.cpp $(OBJ1) $(OBJ8) objrdf.h
-	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) -o $@ 
+examples/%:examples/%.cpp $(OBJ1) $(OBJ7) $(OBJ8) $(OBJ9) objrdf.h
+	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ7) $(OBJ8) $(OBJ9) -o $@ 
 _example.%:example.%.cpp libobjrdf.so
 	$(CC) $(CFLAGS) $< libobjrdf.so -o $@ 
 example%:example%.cpp $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) objrdf.h
@@ -70,8 +78,6 @@ xml_signature.test:$(OBJ9) xml_signature.h uri.o
 	$(CC) $(CFLAGS) -I../../../license xml_signature.test.cpp $(OBJ9) uri.o -o xml_signature.test
 persistence.objrdf: persistence.objrdf.cpp objrdf.o uri.o rdf_xml_parser.o ebnf.h char_iterator.h
 	$(CC) $(CFLAGS) persistence.objrdf.cpp objrdf.o uri.o rdf_xml_parser.o -o persistence.objrdf
-%.pic.o:%.cpp %.h
-	$(CC) -c $(CFLAGS) -fpic $< -o $@
 
 #shared library experiment, total size is 25% bigger, could be improved
 #	ls -l libobjrdf.so example.inventory _example.inventory 
@@ -81,12 +87,16 @@ persistence.objrdf: persistence.objrdf.cpp objrdf.o uri.o rdf_xml_parser.o ebnf.
 #	run with /lib64/ld-linux-x86-64.so.2 --library-path /home/user/projects/objrdf/ _example.inventory
 
 libobjrdf.so:objrdf.pic.o uri.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o ../pool_allocator/pool_allocator.h
-	$(CC) $(CFLAGS) objrdf.pic.o uri.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o -lpthread -shared -o libobjrdf.so 
+	$(CC) $(CFLAGS) objrdf.pic.o uri.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o -lpthread -shared -o $@
+libobjrdf.arm.so:objrdf.arm.pic.o uri.arm.pic.o sparql_engine.arm.pic.o ebnf.arm.pic.o httpd.arm.pic.o rdf_xml_parser.arm.pic.o Sockets.arm.pic.o ../pool_allocator/pool_allocator.h
+	$(ARM) $(CFLAGS) objrdf.arm.pic.o uri.arm.pic.o sparql_engine.arm.pic.o ebnf.arm.pic.o httpd.arm.pic.o rdf_xml_parser.arm.pic.o Sockets.arm.pic.o -lpthread -shared -o $@
 #too many include files, need to reorganize the code
 install:libobjrdf.so
 	cp libobjrdf.so /usr/local/lib/
 	cp char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h /usr/local/include/objrdf/
-
+arm_install:libobjrdf.arm.so
+	cp libobjrdf.arm.so /opt/ioplex_mx/usr/arm-buildroot-linux-gnueabihf/sysroot/usr/lib/libobjrdf.so
+	cp char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h /opt/ioplex_mx/usr/arm-buildroot-linux-gnueabihf/sysroot/usr/include/objrdf/
 %.schema.so:%.schema.pic.o objrdf.o
 	$(CC) $(CFLAGS) $< -shared -o $@ 
 clean:
