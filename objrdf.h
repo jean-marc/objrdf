@@ -385,6 +385,7 @@ namespace objrdf{
 		*	is there a reason we can't store everything in Class: one more level of indirection, 
 		*	the best would be the pool, we could assign some space (char[n]) and just copy over
 		*/	
+		void get_output(ostream& os) const;
 		static CONST_CLASS_PTR get_class();	
 		template<typename U> U& get(){return helper<base_resource,U>::get(*this);}
 		template<typename U> const U& get_const() const{return helper<base_resource,U>::get_const(*this);}
