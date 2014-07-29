@@ -2,7 +2,7 @@ CC = g++ -O3
 ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ -O3
 
 #CFLAGS = -Wall -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB
-CFLAGS = -std=c++0x -I. -I../pool_allocator -w -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB -DPERSISTENT #-DTEST_STRING
+CFLAGS = -std=c++0x -I. -w -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB -DPERSISTENT #-DTEST_STRING
 #CFLAGS = -w -Wno-invalid-offsetof -DOBJRDF_VERB -DPERSISTENT
 OBJ1 = objrdf.o uri.o
 OBJ5 = Sockets.o
@@ -86,9 +86,9 @@ persistence.objrdf: persistence.objrdf.cpp objrdf.o uri.o rdf_xml_parser.o ebnf.
 #	-rwxrwxr-x 1 user user  939032 Apr 18 10:55 libobjrdf.so
 #	run with /lib64/ld-linux-x86-64.so.2 --library-path /home/user/projects/objrdf/ _example.inventory
 
-libobjrdf.so:objrdf.pic.o uri.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o ../pool_allocator/pool_allocator.h
+libobjrdf.so:objrdf.pic.o uri.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o
 	$(CC) $(CFLAGS) objrdf.pic.o uri.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o -lpthread -shared -o $@
-libobjrdf.arm.so:objrdf.arm.pic.o uri.arm.pic.o sparql_engine.arm.pic.o ebnf.arm.pic.o httpd.arm.pic.o rdf_xml_parser.arm.pic.o Sockets.arm.pic.o ../pool_allocator/pool_allocator.h
+libobjrdf.arm.so:objrdf.arm.pic.o uri.arm.pic.o sparql_engine.arm.pic.o ebnf.arm.pic.o httpd.arm.pic.o rdf_xml_parser.arm.pic.o Sockets.arm.pic.o
 	$(ARM) $(CFLAGS) objrdf.arm.pic.o uri.arm.pic.o sparql_engine.arm.pic.o ebnf.arm.pic.o httpd.arm.pic.o rdf_xml_parser.arm.pic.o Sockets.arm.pic.o -lpthread -shared -o $@
 #too many include files, need to reorganize the code
 install:libobjrdf.so
