@@ -85,7 +85,6 @@ RESULT subject::run(size_t n){
 			assert(p->type_id);
 			//iterate through the cells
 			for(auto j=pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
-			//for(auto j=pool_iterator::cell_iterator(p,p->get_size());j<pool_iterator::cell_iterator(p);++j){
 				RESULT tmp=run(get_const_self_iterator(j),0);
 				if(bound&&tmp.size()) return tmp;
 				res.insert(res.end(),tmp.begin(),tmp.end());
@@ -111,7 +110,6 @@ RESULT subject::run(size_t n){
 			cerr<<"optimization: Property only"<<endl;
 			rdf::Property::allocator_type a;
 			for(auto j=a.cbegin();j!=a.cend();++j){
-			//for(auto j=::begin<CONST_PROPERTY_PTR>();j< ::end<CONST_PROPERTY_PTR>();++j){
 				RESULT tmp=run(get_const_self_iterator(j),0);
 				if(bound&&tmp.size()) return tmp;
 				res.insert(res.end(),tmp.begin(),tmp.end());
@@ -121,7 +119,6 @@ RESULT subject::run(size_t n){
 			cerr<<"optimization: Class only"<<endl;
 			rdfs::Class::allocator_type a;
 			for(auto j=a.cbegin();j!=a.cend();++j){
-			//for(auto j=::begin<CLASS_PTR>();j< ::end<CLASS_PTR>();++j){
 				RESULT tmp=run(get_const_self_iterator(j),0);
 				if(bound&&tmp.size()) return tmp;
 				res.insert(res.end(),tmp.begin(),tmp.end());
@@ -276,7 +273,7 @@ RESULT subject::run(base_resource::const_instance_iterator i,CONST_PROPERTY_PTR 
 		return ret;	
 	}
 }
-verb::verb(CONST_PROPERTY_PTR p,subject* object,CONST_USER_PTR user):p(p),object(object),is_optional(false),is_selected(true),bound(p),user(user){}
+verb::verb(CONST_PROPERTY_PTR p,SUBJECT_PTR object,CONST_USER_PTR user):p(p),object(object),is_optional(false),is_selected(true),bound(p),user(user){}
 RESULT verb::run(SPARQL_RESOURCE_PTR r){
 	if(p){
 		LOG<<"bound\tP "<<this<<" to `"<<p->id<<"'"<<endl;	
@@ -423,7 +420,7 @@ bool sparql_parser::go(){
  	*	and reset the vtable, it will only work if we have a global lock on the database
  	*/ 
 	if(!document::go(*this)) return false;
-	if(q==select_q||q==describe_q) return sbj;
+	if(q==select_q||q==describe_q) return sbj.get();
 	return true;
 }
 void sparql_parser::out(ostream& os){//sparql XML serialization
@@ -603,9 +600,9 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					case turtle_parser::sparql_variable::id:{
 						INDEX::iterator j=index.find(i->v[0].t.second);
 						if(j!=index.end()){
-							current_sbj=j->second;
+							current_sbj=SUBJECT_PTR(j->second);
 						}else{
-							sbj=new subject();
+							sbj=SUBJECT_PTR(new subject());
 							sbj->name=i->v[0].t.second;
 							sbj->is_selected=variable_set.empty()||variable_set.count(i->v[0].t.second);
 							index[i->v[0].t.second]=sbj;
@@ -619,8 +616,13 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						//SPARQL_RESOURCE_PTR r=find(uri::hash_uri(i->v[0].t.second));
 						//SPARQL_RESOURCE_PTR r=find(u);
 						//we should bail out there if not found
-						sbj=new subject(u);
-						index[i->v[0].t.second]=sbj; //why do we need that?, only makes sense for variable no?
+						//what if we already have a subject?
+						if(sbj&&sbj->u==u){
+							cerr<<"same subject"<<endl;
+						}else{
+							sbj=SUBJECT_PTR(new subject(u));
+							index[i->v[0].t.second]=sbj; //why do we need that?, only makes sense for variable no?
+						}
 						current_sbj=sbj;
 					}
 					break;
@@ -628,8 +630,13 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						PREFIX_NS::iterator j=prefix_ns.find(i->v[0].v[0].t.second);
 						if(j!=prefix_ns.end()){
 							uri u(j->second,i->v[0].v[1].t.second);
-							sbj=new subject(u);
-							index[i->v[0].v[0].t.second]=sbj;
+							//what if we already have a subject?
+							if(sbj&&sbj->u==u){
+								cerr<<"same subject"<<endl;
+							}else{
+								sbj=SUBJECT_PTR(new subject(u));
+								index[i->v[0].v[0].t.second]=sbj;
+							}
 							current_sbj=sbj;
 						}else{
 							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
@@ -644,7 +651,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 							//we need to create uri to look up resource
 							cerr<<"nodeID: `"<<i->v[0].v[0].v[0].t.second<<"'"<<endl;
 							uri u=uri::bnode_uri(i->v[0].v[0].v[0].t.second);
-							sbj=new subject(u);
+							sbj=SUBJECT_PTR(new subject(u));
 							current_sbj=sbj;
 						}else{
 							cerr<<"only nodeID can be a subject"<<endl;
@@ -696,7 +703,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						if(j!=index.end()){
 							current_sbj->verbs.back().object=j->second;
 						}else{
-							subject* object=new subject();
+							SUBJECT_PTR object(new subject());
 							object->name=i->v[0].t.second;
 							object->is_selected=variable_set.empty()||variable_set.count(i->v[0].t.second);
 							index[i->v[0].t.second]=object;
@@ -708,7 +715,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					case turtle_parser::uriref::id:{
 						SPARQL_RESOURCE_PTR r;
 						uri u=uri::hash_uri(i->v[0].t.second);
-						subject* object=new subject(u);
+						SUBJECT_PTR object(new subject(u));
 						index[i->v[0].t.second]=object;
 						current_sbj->verbs.back().object=object;
 					}
@@ -717,7 +724,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						PREFIX_NS::iterator j=prefix_ns.find(i->v[0].v[0].t.second);
 						if(j!=prefix_ns.end()){
 							uri u(j->second,i->v[0].v[1].t.second);
-							subject* object=new subject(u);
+							SUBJECT_PTR object(new subject(u));
 							index[i->v[0].v[0].t.second]=object;
 							current_sbj->verbs.back().object=object;
 						}else{
@@ -727,7 +734,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					}
 					break;
 					case turtle_parser::literal::id:{
-						current_sbj->verbs.back().object=new subject(i->v[0].v[0].t.second);
+						current_sbj->verbs.back().object=SUBJECT_PTR(new subject(i->v[0].v[0].t.second));
 					}
 					break;
 					case 9999:{
@@ -737,7 +744,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 							//we need to create uri to look up resource
 							cerr<<"nodeID: `"<<i->v[0].v[0].v[0].t.second<<"'"<<endl;
 							uri u=uri::bnode_uri(i->v[0].v[0].v[0].t.second);
-							current_sbj->verbs.back().object=new subject(u);
+							current_sbj->verbs.back().object=SUBJECT_PTR(new subject(u));
 						}else{
 							cerr<<"only nodeID can be a subject"<<endl;
 							return false;

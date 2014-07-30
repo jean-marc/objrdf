@@ -2,6 +2,7 @@
 #define SPARQL_ENGINE_H
 #include <set>
 #include <sstream>
+#include <memory>
 #include "turtle_parser.h"
 #include "uri.h"
 #include "objrdf.h"
@@ -43,16 +44,17 @@
 using namespace objrdf;
 typedef CONST_RESOURCE_PTR SPARQL_RESOURCE_PTR;//won't allow modification (update)
 struct subject;
+typedef std::shared_ptr<subject> SUBJECT_PTR;
 typedef vector<vector<base_resource::const_instance_iterator>> RESULT;
 ostream& operator<<(ostream& os,const RESULT& r);
 struct verb{
 	CONST_PROPERTY_PTR p;//0 -> not bound
-	subject* object;
+	SUBJECT_PTR object;
 	string name;
 	bool is_optional;
 	bool is_selected;//will be returned in result set
 	bool bound;
-	verb(CONST_PROPERTY_PTR p,subject* object,CONST_USER_PTR user);
+	verb(CONST_PROPERTY_PTR p,SUBJECT_PTR object,CONST_USER_PTR user);
 	verb();
 	RESULT run(SPARQL_RESOURCE_PTR r);
 	int size();
@@ -97,7 +99,7 @@ public:
 	void to_xml(ostream& os,/*const*/ RESULT& r,/*const*/ subject&);
 	void to_csv(ostream& os,/*const*/ RESULT& r,/*const*/ subject&);
 	enum{CASE_INSENSITIVE=true};
-	typedef map<string,subject*> INDEX;
+	typedef map<string,SUBJECT_PTR> INDEX;
 	INDEX index;
 	typedef seq_c<'P','R','E','F','I','X'> PREFIX;
 	typedef seq_c<'S','E','L','E','C','T'> SELECT;
@@ -150,7 +152,7 @@ public:
 	> document;
 	typedef map<string,base_resource::const_instance_iterator> VARIABLES;
 	SPARQL_RESOURCE_PTR d_resource,bnode_subject_resource;
-	subject *sbj,*current_sbj,*where_s,*delete_s,*insert_s;
+	SUBJECT_PTR sbj,current_sbj,where_s,delete_s,insert_s;
 	typedef enum{no_q,select_q,simple_describe_q,describe_q,insert_data_q,delete_data_q} query_type;
 	query_type q;
 	typedef map<string,string> PREFIX_NS;
@@ -166,7 +168,7 @@ public:
 	//we can specialize the document
 	template<typename T> bool _go(){
 		if(!T::go(*this)) return false;
-		if(q==select_q||q==describe_q) return sbj;
+		if(q==select_q||q==describe_q) return sbj.get();
 		return true;
 	}
 	void out(ostream& os);
