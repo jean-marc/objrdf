@@ -23,10 +23,21 @@ base_resource::const_type_iterator base_resource::cbegin() const{return base_res
 base_resource::type_iterator base_resource::end(){return base_resource::type_iterator(this,v.end());}
 base_resource::const_type_iterator base_resource::cend() const{return base_resource::const_type_iterator(this,v.cend());}
 */
+base_resource::base_resource(uri id):id(id){
+	//note: not indexed by default, we couldn't anyway because we only have `this' pointer
+	#ifdef OBJRDF_VERB
+	cerr<<"create base_resource `"<<id<<"' "<<this<<endl;
+	#endif
+}
+base_resource::~base_resource(){
+	#ifdef OBJRDF_VERB
+	cerr<<"delete base_resource `"<<id<<"' "<<this<<endl;
+	#endif
+}
 CONST_PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::iterator>(*this)->p;}
 CONST_PROPERTY_PTR base_resource::const_type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}
-size_t base_resource::type_iterator::get_size() const{return static_cast<V::iterator>(*this)->t.get_size(subject);}//very confusing notation
-size_t base_resource::const_type_iterator::get_size() const{return static_cast<V::const_iterator>(*this)->t.get_size(subject);}//very confusing notation
+size_t base_resource::type_iterator::get_size() const{return static_cast<V::iterator>(*this)->t.get_size(subject);}
+size_t base_resource::const_type_iterator::get_size() const{return static_cast<V::const_iterator>(*this)->t.get_size(subject);}
 bool base_resource::type_iterator::literalp() const{return static_cast<V::iterator>(*this)->literalp;}
 bool base_resource::const_type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
 bool base_resource::type_iterator::constp() const{return !static_cast<V::iterator>(*this)->t.add_property;}
@@ -62,7 +73,14 @@ struct cmp_uri{
 	cmp_uri(uri u):u(u){}
 	bool operator()(CONST_CLASS_PTR s)const{return s->id==u;}
 };
-rdfs::Class::Class(objrdf::uri id,rdfs::subClassOf s,objrdf::base_resource::class_function_table t,string comment_str,objrdf::sizeOf size,objrdf::hashOf h):SELF(id),t(t){
+rdfs::Class::Class(
+	objrdf::uri id,
+	rdfs::subClassOf s,
+	objrdf::base_resource::class_function_table t,
+	string comment_str,
+	objrdf::sizeOf size,
+	objrdf::hashOf h
+):SELF(id),t(t){
 	/*objrdf::Test_class::allocator a;
 	auto ptr=a.allocate(1);
 	a.construct(ptr,id);

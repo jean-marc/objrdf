@@ -332,19 +332,11 @@ namespace objrdf{
 
 		void erase(instance_iterator first,instance_iterator last);
 		void erase(instance_iterator position);
-		base_resource(uri id):id(id){
-			#ifdef OBJRDF_VERB
-			cerr<<"create base_resource `"<<id<<"' "<<this<<endl;
-			#endif
-		}
+		base_resource(uri id);
+		~base_resource();
 		//shouldn't be const?
 		uri id;
 		static V v;
-		~base_resource(){
-			#ifdef OBJRDF_VERB
-			cerr<<"delete base_resource `"<<id<<"' "<<this<<endl;
-			#endif
-		}
 		CONST_CLASS_PTR get_Class() const{return get_class();};
 		void static patch(V& v);//patch function table
 		/*
@@ -894,7 +886,7 @@ namespace objrdf{
 			static void in(RESOURCE_PTR subject,istream& is,size_t index){
 				PROPERTY tmp;
 				is>>tmp.t;
-				//add pointer because `this' cannot be converter to pointer
+				//add pointer because `this' cannot be converted to pointer
 				static_cast<typename LEAF::allocator_type::derived_pointer>(subject)->set_p(tmp,static_cast<typename LEAF::allocator_type::derived_pointer>(subject));
 			}
 			static function_table patch(function_table t){
@@ -1283,6 +1275,8 @@ namespace rdfs{
 		bool is_subclass_of(const Class& c) const;
 		bool literalp() const;
 		static objrdf::CONST_CLASS_PTR super(objrdf::CONST_CLASS_PTR c){
+		//why doesn't this compile?
+		//static objrdf::CONST_CLASS_PTR super(objrdf::CLASS_PTR c){
 			for(auto i=c->get_const<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().cbegin();i<c->get_const<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().end();++i){
 				//problem *i is CONST_CLASS_PTR, we need to cast away constness
 				//pseudo_ptr<rdfs::Class,objrdf::CONST_CLASS_PTR::STORE,false,objrdf::CONST_CLASS_PTR::INDEX> tmp((*i).index);
@@ -1290,6 +1284,8 @@ namespace rdfs{
 				//tmp->get<objrdf::array<objrdf::superClassOf,volatile_allocator_unmanaged<objrdf::superClassOf>>>().push_back(objrdf::superClassOf(c));
 				tmp->get<array_superClassOf>().push_back(objrdf::superClassOf(c));
 			}
+			//let us index the new class here
+			Class::do_index(rdfs::Class::allocator_type::pointer(c.index));//cast away constness
 			return c;
 		}
 		/*
@@ -1333,7 +1329,7 @@ namespace rdf{
 }//end namespace rdf
 
 namespace objrdf{
-		template<
+	template<
 		typename NAMESPACE,
 		const char* NAME,
 		typename PROPERTIES,
@@ -1344,7 +1340,6 @@ namespace objrdf{
 	>
 	CONST_CLASS_PTR resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,TRIGGER,ALLOCATOR>::get_class(){
 		typedef typename IfThenElse<std::is_same<SUBCLASS,NIL>::value,resource,SUBCLASS>::ResultT TMP;
-		//we can chain a function to add superClassOf
 		static CONST_CLASS_PTR p=rdfs::Class::super(rdfs::Class::allocator_type::construct_allocate_at(
 			//in case of persistent storage we will override old version and refresh pointers and function pointers
 			//we have to find the index of pool where instances are stored, this is also where the pool is initialized
