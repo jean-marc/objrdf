@@ -194,16 +194,7 @@ void TCPSocketWrapper::connect(const string &address, int port)
     }
 
     hostent *hp;
-
-    unsigned long addr = inet_addr(address.c_str());
-    if (addr != INADDR_NONE)
-    {
-        hp = gethostbyaddr((const char*)&addr, 4, AF_INET);
-    }
-    else
-    {
-        hp = gethostbyname(address.c_str());
-    }
+    hp = gethostbyname(address.c_str());
 
     if (hp == NULL)
     {
