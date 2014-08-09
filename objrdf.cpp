@@ -311,7 +311,16 @@ void base_resource::to_rdf_xml(ostream& os,const PROVENANCE& p) const{
 }
 */
 namespace objrdf{
-	CONST_CLASS_PTR get_class(CONST_RESOURCE_PTR r){return CONST_CLASS_PTR(r.pool_ptr.index);}
+	CONST_CLASS_PTR get_class(CONST_RESOURCE_PTR r){
+		CONST_CLASS_PTR p(r.pool_ptr.index);
+		try{
+			auto r=p.operator->();
+		}catch(std::out_of_range& e){
+			cerr<<"rdfs::Class not defined yet!"<<endl;
+			exit(1);
+		}
+		return p;
+	}
 	//shall we start with an offset since the first 2 properties are read-only (rdfs::type and objrdf::self)
 	base_resource::type_iterator begin(RESOURCE_PTR r){return get_class(r)->t.begin(r);}
 	base_resource::type_iterator end(RESOURCE_PTR r){return get_class(r)->t.end(r);}
@@ -343,7 +352,7 @@ namespace objrdf{
 			default:os<<rdf::about<<"='";r->id.to_uri(os);os<<"'>";break;
 		}
 		for(auto i=cbegin(r);i!=cend(r);++i){
-			if(i->get_Property()!=objrdf::self::get_property()){//let's skip objrdf::self
+			if(i->get_Property()!=objrdf::self::get_property()){//let's skip objrdf::self, can we just increase index?
 				for(base_resource::const_instance_iterator j=i->cbegin();j!=i->cend();++j){
 					//should test if constant or not
 					if(i->literalp())
