@@ -139,8 +139,15 @@ namespace objrdf{
 		erase_f erase;
 		get_provenance_f get_provenance;
 		compare_f compare;
-		//we can have different constructors depending on type
 		function_table():set_string(0),in(0),out(0),get_object(0),cget_object(0),set_object(0),get_size(0),add_property(0),erase(0),get_provenance(0),compare(0){}
+		//we can have different constructors depending on type
+		static function_table literal(in_f _in,out_f _out,get_size_f _get_size){
+			function_table t;
+			t.in=_in;
+			t.out=_out;
+			t.get_size=_get_size;
+			return t;
+		}
 		friend ostream& operator<<(ostream& os,const function_table& f){
 			os<<"in\t"<<(void*)f.in<<"\n";
 			os<<"out\t"<<(void*)f.out<<"\n";
@@ -162,6 +169,9 @@ namespace objrdf{
 		/*const*/ bool literalp;
 		property_info(CONST_PROPERTY_PTR p,function_table t);
 	};
+	/*
+ 	*	can we access all those tables in a generic way?
+ 	*/ 
 	typedef vector<property_info> V;
 	/*
  	*	C++14 support this: http://en.cppreference.com/w/cpp/utility/tuple/get
@@ -338,6 +348,10 @@ namespace objrdf{
 		uri id;
 		static V v;
 		CONST_CLASS_PTR get_Class() const{return get_class();};
+		/*
+ 		*	gets called after generating function table, can be used to add or remove 
+ 		*	properties
+ 		*/ 
 		void static patch(V& v);//patch function table
 		/*
 		type_iterator begin();
@@ -410,6 +424,7 @@ namespace objrdf{
 	};
 	//to get function pointers
 	namespace f_ptr{
+		//a type_iterator does not need an actual instance of the class
 		template<typename T> base_resource::type_iterator begin(RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.begin());}
 		template<typename T> base_resource::type_iterator end(RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.end());}
 		template<typename T> base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,T::v.cbegin());}
@@ -542,6 +557,7 @@ namespace objrdf{
 		//should it be constant?
 		base_property(RANGE t=RANGE()):t(t){}
 		//sometime we want to override those functions, eg:hex type
+		//how do we do that? by patching function table? can we even do that, aren't all those functions shared?
 		void in(istream& is){is>>t;}
 		void out(ostream& os) const{os<<t;}
 		size_t get_size() const{return 1;}//would be nice to have a bit to tell us if it has been set or not
@@ -885,7 +901,7 @@ namespace objrdf{
 		template<typename LEAF> struct trigger{
 			static void in(RESOURCE_PTR subject,istream& is,size_t index){
 				PROPERTY tmp;
-				is>>tmp.t;
+				tmp.in(is);
 				//add pointer because `this' cannot be converted to pointer
 				static_cast<typename LEAF::allocator_type::derived_pointer>(subject)->set_p(tmp,static_cast<typename LEAF::allocator_type::derived_pointer>(subject));
 			}
@@ -1014,6 +1030,7 @@ namespace objrdf{
 			new(p)T(u);
 			T::do_index(p);
 		}
+		//have to look into that, sometime we don't want a copy constructor
 		template<typename T> void copy_constructor(void* p,CONST_RESOURCE_PTR r){new(p)T(static_cast<const T&>(*r));}
 		template<> void constructor<rdfs::Class>(RESOURCE_PTR p,uri u);
 		template<> base_resource::type_iterator end<rdfs::Class>(RESOURCE_PTR r);
@@ -1241,8 +1258,8 @@ namespace rdfs{
 		volatile_allocator_managed<void,uint8_t>
 	>{
 			//convenience typedef to retrieve properties
-			typedef objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>  array_subClassOf;
-			typedef objrdf::array<objrdf::superClassOf,volatile_allocator_unmanaged<objrdf::superClassOf,uint16_t>> array_superClassOf;
+			typedef std::tuple_element<0,PROPERTIES>::type array_subClassOf;
+			typedef std::tuple_element<1,PROPERTIES>::type array_superClassOf;
 		/*
  		*	should store all the information about the resources including function pointers, the only problem with that
  		*	is the user might want to add his own function pointer (unless he decides to use virtual functions) and that
@@ -1277,11 +1294,9 @@ namespace rdfs{
 		static objrdf::CONST_CLASS_PTR super(objrdf::CONST_CLASS_PTR c){
 		//why doesn't this compile?
 		//static objrdf::CONST_CLASS_PTR super(objrdf::CLASS_PTR c){
-			for(auto i=c->get_const<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().cbegin();i<c->get_const<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().end();++i){
+			for(auto i=c->cget<array_subClassOf>().cbegin();i<c->cget<array_subClassOf>().end();++i){
 				//problem *i is CONST_CLASS_PTR, we need to cast away constness
-				//pseudo_ptr<rdfs::Class,objrdf::CONST_CLASS_PTR::STORE,false,objrdf::CONST_CLASS_PTR::INDEX> tmp((*i).index);
 				rdfs::Class::allocator_type::pointer tmp((*i).index);
-				//tmp->get<objrdf::array<objrdf::superClassOf,volatile_allocator_unmanaged<objrdf::superClassOf>>>().push_back(objrdf::superClassOf(c));
 				tmp->get<array_superClassOf>().push_back(objrdf::superClassOf(c));
 			}
 			//let us index the new class here
