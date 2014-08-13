@@ -120,6 +120,7 @@ namespace objrdf{
 		typedef void (*set_string_f)(RESOURCE_PTR,string,size_t);
 		typedef void (*in_f)(RESOURCE_PTR,istream&,size_t);
 		typedef void (*out_f)(CONST_RESOURCE_PTR,ostream&,size_t);
+		typedef void (*out_generic_f)(CONST_RESOURCE_PTR,ptrdiff_t offset,ostream&,size_t);
 		typedef RESOURCE_PTR (*get_object_f)(RESOURCE_PTR,size_t);//could we use CONST_RESOURCE_PTR?
 		typedef CONST_RESOURCE_PTR (*cget_object_f)(CONST_RESOURCE_PTR,size_t);
 		typedef void (*set_object_f)(RESOURCE_PTR,RESOURCE_PTR,size_t);
@@ -131,6 +132,8 @@ namespace objrdf{
 		set_string_f set_string;
 		in_f in;
 		out_f out;
+		//attempt to reuse as many functions as possible to reduce executable size and possibly compile time
+		out_generic_f out_generic;
 		get_object_f get_object;
 		cget_object_f cget_object;
 		set_object_f set_object;
@@ -139,7 +142,11 @@ namespace objrdf{
 		erase_f erase;
 		get_provenance_f get_provenance;
 		compare_f compare;
-		function_table():set_string(0),in(0),out(0),get_object(0),cget_object(0),set_object(0),get_size(0),add_property(0),erase(0),get_provenance(0),compare(0){}
+		//let's define a few functions
+		struct default_f{
+			static size_t get_size(CONST_RESOURCE_PTR){return 1;}
+		};
+		function_table():set_string(0),in(0),out(0),out_generic(0),get_object(0),cget_object(0),set_object(0),get_size(0),add_property(0),erase(0),get_provenance(0),compare(0){}
 		//we can have different constructors depending on type
 		static function_table literal(in_f _in,out_f _out,get_size_f _get_size){
 			function_table t;
@@ -151,6 +158,7 @@ namespace objrdf{
 		friend ostream& operator<<(ostream& os,const function_table& f){
 			os<<"in\t"<<(void*)f.in<<"\n";
 			os<<"out\t"<<(void*)f.out<<"\n";
+			os<<"(out_generic\t"<<(void*)f.out_generic<<")\n";
 			os<<"get_object\t"<<(void*)f.get_object<<"\n";
 			os<<"cget_object\t"<<(void*)f.cget_object<<"\n";
 			os<<"set_object\t"<<(void*)f.set_object<<"\n";
@@ -167,6 +175,7 @@ namespace objrdf{
 		/*const*/ CONST_PROPERTY_PTR p;
 		function_table t;
 		/*const*/ bool literalp;
+		ptrdiff_t offset;//offset of property within class
 		property_info(CONST_PROPERTY_PTR p,function_table t);
 	};
 	/*
@@ -217,7 +226,7 @@ namespace objrdf{
 		//could break down in TRIGGER_SET and TRIGGER_GET
 		typedef std::tuple<> TRIGGER;
 		typedef base_resource VERSION;
-		typedef std::tuple<> PSEUDO_PROPERTIES;
+		typedef std::tuple<> PSEUDO_PROPERTIES;//are we still using this???
 		typedef base_resource SELF;
 		typedef volatile_allocator_managed<base_resource,uint32_t> allocator_type;
 		typedef std::tuple<> PROPERTIES; //base_resource does not have properties
@@ -424,7 +433,7 @@ namespace objrdf{
 	};
 	//to get function pointers
 	namespace f_ptr{
-		//a type_iterator does not need an actual instance of the class
+		//a type_iterator does not need an actual instance of the class, that allows to iterate through properties see examples/access_property.cpp
 		template<typename T> base_resource::type_iterator begin(RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.begin());}
 		template<typename T> base_resource::type_iterator end(RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.end());}
 		template<typename T> base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,T::v.cbegin());}
@@ -713,12 +722,13 @@ namespace objrdf{
 		typename NAMESPACE,
 		const char* NAME,
 		typename _RANGE_,
-		typename IMPLEMENTATION=base_property<_RANGE_>
-	> class property:public IMPLEMENTATION{
+		typename _IMPLEMENTATION_=base_property<_RANGE_>
+	> class property:public _IMPLEMENTATION_{
 	public:
-		PROVENANCE p;//let's get rid of that
+		//PROVENANCE p;//let's get rid of that
 		typedef _RANGE_ RANGE;//not the range
 		typedef property SELF;
+		typedef _IMPLEMENTATION_ IMPLEMENTATION;
 		//template<typename S> property(S s):base_property<RANGE>(s){}
 		explicit property(IMPLEMENTATION r):IMPLEMENTATION(r){
 			//LOG<<"create property `"<<NAME<<"' "<<this<<endl;
@@ -787,6 +797,13 @@ namespace objrdf{
 		typename PROPERTY
 	> struct base_f{
 		typedef PROPERTY PP;
+		/*
+ 		*	how could we reduce the number of created functions?
+ 		*		remove dependency on SUBJECT and PROPERTY, should only depend on PROPERTY::RANGE
+ 		*		if we know the offsetof the property we can just cast void* ptr (used to do that
+ 		*		in old implementation)
+ 		*
+ 		*/ 
 		static inline PROPERTY& get(RESOURCE_PTR subject,size_t){
 			//why is it derived?
 			return static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->template get<PROPERTY>();
@@ -869,6 +886,11 @@ namespace objrdf{
 		}
 	};
 
+	template<typename IMPLEMENTATION> void out_generic(CONST_RESOURCE_PTR subject,ptrdiff_t offset,ostream& os,size_t index){
+		//os<<static_cast<const typename PROPERTY::IMPLEMENTATION*>((const void*)subject+offset)->t;
+		os<<static_cast<const IMPLEMENTATION*>((const void*)subject+offset)->t;
+	}
+
 	template<
 		typename SUBJECT,
 		typename PROPERTY,
@@ -889,6 +911,7 @@ namespace objrdf{
 		static function_table get_table(){
 			auto t=BASE::get_table();
 			t.out=out;
+			t.out_generic=out_generic<typename PROPERTY::IMPLEMENTATION>;//no longer depends on SUBJECT or PROPERTY
 			t.compare=compare;
 			return t;
 		}
@@ -1050,6 +1073,7 @@ namespace objrdf{
 	//make it possible to modify a resource's id after it has been created, it is possible because the db
 	//relies on pointers, not on id
 	OBJRDF_PROPERTY(id,uri);
+	#if 0
 	template<typename SUBJECT> struct functions<SUBJECT/*,SUBJECT*/,objrdf::id,STRING|LITERAL>{
 		static void set_string(RESOURCE_PTR subject,string s,size_t){
 			if(subject->id.is_local()) //only makes sense with local resources
@@ -1075,12 +1099,13 @@ namespace objrdf{
 			return t;
 		}
 	};
-
+	#endif
 	/*
  	*	very useful property that returns a pointer to the subject, it is used by the sparql engine and will also be used
  	*	later for fast resource retrieval, a pseudo_ptr can be encoded in hex very easily
  	*/ 
 	OBJRDF_PROPERTY(self,CONST_RESOURCE_PTR);
+	#if 0
 	template<typename SUBJECT> struct functions<SUBJECT/*,SUBJECT*/,objrdf::self,objrdf::self::TYPE>{
 		static CONST_RESOURCE_PTR get_const_object(CONST_RESOURCE_PTR subject,size_t index){return subject;}
 		static void set_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){}
@@ -1098,6 +1123,7 @@ namespace objrdf{
 		}
 
 	};
+	#endif
 }
 namespace objrdf{
 	/*
@@ -1426,9 +1452,9 @@ namespace objrdf{
 		typename IMPLEMENTATION
 	> CONST_PROPERTY_PTR property<NAMESPACE,NAME,RANGE,IMPLEMENTATION>::get_property(){
 		static CONST_PROPERTY_PTR c=rdf::Property::allocator_type::construct_allocate(
-				objrdf::get_uri<NAMESPACE>(NAME),
-				rdfs::range(selector<RANGE>::ResultT::get_class()),
-				property<NAMESPACE,NAME,RANGE,IMPLEMENTATION>::TYPE&LITERAL
+			objrdf::get_uri<NAMESPACE>(NAME),
+			rdfs::range(selector<RANGE>::ResultT::get_class()),
+			property<NAMESPACE,NAME,RANGE,IMPLEMENTATION>::TYPE&LITERAL
 		);
 		return c;
 	}
@@ -1505,6 +1531,9 @@ namespace objrdf{
 		typename PROPERTY
 	> property_info get_property_info(){
 		property_info p(PROPERTY::get_property(),functions<SUBJECT,PROPERTY>::get_table());
+		//calculate offset
+		SUBJECT* t=0;
+		p.offset=(char*)&(t->get<PROPERTY>())-(char*)t;
 		/*
  		* by now we can't modify rdfs::domain, why is it broken down in the first place?
 		* because property does not know about SUBJECT, it is an important piece of meta information
@@ -1536,11 +1565,34 @@ namespace objrdf{
 	template<> struct get_generic_property<base_resource>{
 		static V go(){
 			LOG<<"get_generic_property:`base_resource'"<<endl;
+			function_table rdf_type,objrdf_self,objrdf_id;
+			//annoying that we need cast here
+			objrdf_id.cget_object=[](CONST_RESOURCE_PTR,size_t){return (CONST_RESOURCE_PTR)base_resource::get_class();};
+			objrdf_id.get_size=function_table::default_f::get_size;
+			objrdf_self.cget_object=[](CONST_RESOURCE_PTR subject,size_t index){return subject;};
+			objrdf_self.get_size=function_table::default_f::get_size;
+			objrdf_id.set_string=[](RESOURCE_PTR subject,string s,size_t){
+				if(subject->id.is_local()) //only makes sense with local resources
+					subject->id=uri(s);//could add code to detect duplicate id's
+			};
+			objrdf_id.in=[](RESOURCE_PTR subject,istream& is,size_t){
+				string tmp;
+				is>>tmp;
+				if(subject->id.is_local()) //only makes sense with local resources
+					subject->id=uri(tmp);//could add code to detect duplicate id's
+			};	
+			objrdf_id.out=[](CONST_RESOURCE_PTR subject,ostream& os,size_t){os<<subject->id;};	
+			objrdf_id.get_size=function_table::default_f::get_size;
 			V v={
-				get_property_info<base_resource,rdf::type>(),
+				get_property_info<base_resource,rdf::type>()
+				,property_info(objrdf::self::get_property(),objrdf_self)
+				,property_info(objrdf::id::get_property(),objrdf_id)
+				/*,
 				get_property_info<base_resource,objrdf::self>(),
 				get_property_info<base_resource,objrdf::id>()
+				*/
 			};
+			
 			return v;
 		}
 	};
@@ -1603,7 +1655,6 @@ namespace objrdf{
 	struct test_by_uri{
 		const uri u;
 		test_by_uri(const uri& u):u(u){}
-		//must be a pseudo_ptr<>
 		template<typename T> bool operator()(const T& t) const{return t.id==u;}
 	};
 	void to_rdf_xml(ostream& os);
@@ -1619,7 +1670,7 @@ namespace objrdf{
 		return typename T::allocator_type::pointer(r!=a.cend() ? r.index : 0);
 	}
 	ostream& operator<<(ostream& os,const property_info& i){
-		return os<<i.p->id<<"\n******************\n"<<i.t;
+		return os<<i.p->id<<"\n******************\noffset:\t"<<i.offset<<"\n"<<i.t;
 	}
 }
 #endif

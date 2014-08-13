@@ -352,7 +352,7 @@ namespace objrdf{
 			default:os<<rdf::about<<"='";r->id.to_uri(os);os<<"'>";break;
 		}
 		for(auto i=cbegin(r);i!=cend(r);++i){
-			if(i->get_Property()!=objrdf::self::get_property()){//let's skip objrdf::self, can we just increase index?
+			//if(i->get_Property()!=objrdf::self::get_property()){//let's skip objrdf::self, can we just increase index?
 				for(base_resource::const_instance_iterator j=i->cbegin();j!=i->cend();++j){
 					//should test if constant or not
 					if(i->literalp())
@@ -366,7 +366,7 @@ namespace objrdf{
 						}
 					}
 				}
-			}
+			//}
 		}
 		os<<"\n</"<<get_class(r)->id<<">";
 	}
