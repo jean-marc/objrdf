@@ -18,7 +18,7 @@ PROPERTY(a,int);
 PROPERTY(b,double);
 CLASS(Test,std::tuple<a,b>);
 int main(){
-	Test::allocator al;
+	Test::allocator_type al;
 	auto ptr=al.allocate(1);
 	al.construct(ptr,uri("test"));
 	ptr->get<a>().t=123;
@@ -31,10 +31,24 @@ int main(){
 ## Implementation
 The code relies heavily on the latest language features brought in C++0x
 
+## Pool allocator
+
+Resources are allocated on a pool, each class has its own pool, this offers multiple advantages:
+* all instances of a given class can be listed by iterating the corresponding pool
+* a pool can be made persistent so all instances are preserved between runs
+* the maximum pool size is set at compile time so determining the pointer size to reference every instances 
+* access control can be added to track memory access errors
+* resources can be allocated at a set address
+
 ## Reference
 
 Once classes and members are defined in code by specializing templates any new object becomes part of a RDF document, that can be published (RDFXML) and modified (SPARQL).
 
+## Patching function table
+
+Each property (real and pseudo-) has an entry in the property table (base_resource::V), the table is filled at runtime through introspection (by visiting the std::tuple) and via a user supplied 'patch' function. There are several reasons to patch the table:
+* add a pseudo-property
+* modify the behavior
 Persistence
 
 Allocating an object on the persistent store guarantees that the pointer will always be valid, including between runs of the programs.
@@ -65,7 +79,7 @@ Pseudo-properties do not have any memory allocated to them, it is up to the user
 
 ## Trigger
 
-Trigger are used to notify a resource that one property will be modified (add, delete or edit), the user-provided handler receives the new value, test the value and decides whether to accept or reject it.
+Trigger are used to notify a resource that one property will be modified (add, delete or edit), in the SPARQL Update syntax an edit is done by deleting than adding the modified triplet, the user-provided handler receives the new value, test the value and decides whether to accept or reject it.
 
 ## Versioning
 
@@ -81,7 +95,7 @@ It might be desirable to record versions of a predicate, one solution is to stow
 	<inv:on>0</inv:on>
 </inv:Set>
 ```
-We modified the property inv:located in the resource test from 'kololo' to 'naguru', note that the copy is a blank node and can only be reached through the objrdf:prev property of the resource, the copy must not be modified. 
+We modified the property inv:located in the resource test from 'kololo' to 'naguru', note that the copy is a blank node and can only be reached through the objrdf:prev property of the resource, the copy must not be modified.
 
 ## Privileges
 
