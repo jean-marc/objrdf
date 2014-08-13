@@ -2,7 +2,7 @@ CC = g++ -O3
 ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ -O3
 
 #CFLAGS = -Wall -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB
-CFLAGS = -std=c++0x -I. -w -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB -DPERSISTENT #-DTEST_STRING
+CFLAGS = -std=c++0x -I. -w -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB -DPERSISTENT -UREF_COUNT
 #CFLAGS = -w -Wno-invalid-offsetof -DOBJRDF_VERB -DPERSISTENT
 OBJ1 = objrdf.o uri.o
 OBJ5 = Sockets.o
@@ -70,8 +70,8 @@ httpd.test:$(OBJ1) $(OBJ5) $(OBJ6) $(OBJ7) httpd.test.cpp httpd.h http_parser.h 
 	$(CC) $(CFLAGS) httpd.test.cpp $(OBJ1) $(OBJ5) $(OBJ6) $(OBJ7) -lpthread -o httpd.test 
 turtle_parser.test:$(OBJ1) ebnf.h turtle_parser.h
 	$(CC) $(CFLAGS) turtle_parser.test.cpp -o turtle_parser.test 
-sparql_engine.test: objrdf.o uri.o sparql_engine.o sparql_engine.test.cpp ebnf.h turtle_parser.h char_iterator.h
-	$(CC) $(CFLAGS) sparql_engine.test.cpp objrdf.o uri.o sparql_engine.o -o sparql_engine.test 
+sparql_engine.test: objrdf.o uri.o sparql_engine.o ebnf.o sparql_engine.test.cpp turtle_parser.h char_iterator.h
+	$(CC) $(CFLAGS) sparql_engine.test.cpp objrdf.o uri.o sparql_engine.o ebnf.o -o sparql_engine.test 
 sparql_parser.1.test:$(OBJ1) sparql_parser.1.test.cpp ebnf.h jm.h
 	$(CC) $(CFLAGS) sparql_parser.1.test.cpp $(OBJ1) -o sparql_parser.1.test 
 xml_signature.test:$(OBJ9) xml_signature.h uri.o
