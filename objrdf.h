@@ -35,7 +35,6 @@ template <typename T> int sgn(complex<T> val){
 	return 0;
 }
 #define PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<rdfs_namespace,_##n,__VA_ARGS__> n
-#define PSEUDO_PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<rdfs_namespace,_##n,__VA_ARGS__,objrdf::NIL> n
 //property that exists in the objrdf namespace
 #define OBJRDF_PROPERTY(n,...) char _##n[]=#n;typedef objrdf::property<_rdfs_namespace,_##n,__VA_ARGS__> n
 #define CLASS(n,...) char _##n[]=#n;typedef objrdf::resource<rdfs_namespace,_##n,__VA_ARGS__> n
@@ -90,7 +89,6 @@ namespace objrdf{
 	OBJRDF_RDFS_NAMESPACE("http://www.example.org/objrdf#","obj");
 	struct NIL{
 		typedef NIL SELF;
-		typedef std::tuple<> PSEUDO_PROPERTIES;
 	};
 	class base_resource;
 }
@@ -218,10 +216,7 @@ namespace objrdf{
 		//global index, will be populated by
 		static map<uri,RESOURCE_PTR>& get_index();
 		static void do_index(RESOURCE_PTR p);
-		//could break down in TRIGGER_SET and TRIGGER_GET
-		typedef std::tuple<> TRIGGER;
 		typedef base_resource VERSION;
-		typedef std::tuple<> PSEUDO_PROPERTIES;//is this used?
 		typedef base_resource SELF;
 		typedef volatile_allocator_managed<base_resource,uint32_t> allocator_type;
 		typedef std::tuple<> PROPERTIES; //base_resource does not have properties
@@ -1577,21 +1572,10 @@ namespace objrdf{
  			* for now the best is a single property
  			*/
 			v.front()=get_property_info<RESOURCE,rdf::type>();//will override SUPERCLASS's rdf::type
-			//problem with derived classes
-			typedef typename IfThenElse<
-				std::is_same<
-					typename TMP::PSEUDO_PROPERTIES,
-					typename SUPERCLASS::PSEUDO_PROPERTIES
-				>::value,
-				NIL,//can we use std::tuple<>?
-				typename TMP::PSEUDO_PROPERTIES
-			>::ResultT PP;
-			v=concat(v,std::static_for_each<PP>(_meta_<TMP>()).v);
 			//filter properties for convenience, we need to store index of first non-const property somewhere
 			auto r=concat(v,std::static_for_each<PROPERTIES>(_meta_<TMP>()).v);
 			//need to process triggers at this stage: 
 			cerr<<"listing triggers for class `"<<NAME<<"'"<<endl;
-			//r=std::static_for_each<TRIGGER>(patch<TMP>(v)).v;causes crash, why????
 			r=std::static_for_each<TRIGGER>(patch<TMP>(r)).v;
 			//make sure we only invoke once
 			if(TMP::patch!=SUPERCLASS::patch){
