@@ -9,7 +9,7 @@ namespace objrdf{
 }
 using namespace objrdf;
 
-template<> void f_ptr::constructor<rdfs::Class>(RESOURCE_PTR p,uri u){assert(0);}
+//template<> void f_ptr::constructor<rdfs::Class>(RESOURCE_PTR p,uri u){assert(0);}//we might actually need that for sparql
 template<> void f_ptr::constructor<rdf::Property>(RESOURCE_PTR p,uri u){assert(0);}
 template<> base_resource::type_iterator f_ptr::end<rdfs::Class>(RESOURCE_PTR r){return base_resource::type_iterator(r,rdfs::Class::v.begin());}
 template<> base_resource::type_iterator f_ptr::end<rdf::Property>(RESOURCE_PTR r){return base_resource::type_iterator(r,rdf::Property::v.begin());}
@@ -31,13 +31,13 @@ base_resource::~base_resource(){
 	cerr<<"delete base_resource `"<<id<<"' "<<this<<endl;
 	#endif
 }
-CONST_PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::iterator>(*this)->p;}//strange syntax
+CONST_PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}//strange syntax
 CONST_PROPERTY_PTR base_resource::const_type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}
-size_t base_resource::type_iterator::get_size() const{return static_cast<V::iterator>(*this)->t.get_size(subject);}
+size_t base_resource::type_iterator::get_size() const{return static_cast<V::const_iterator>(*this)->t.get_size(subject);}
 size_t base_resource::const_type_iterator::get_size() const{return static_cast<V::const_iterator>(*this)->t.get_size(subject);}
-bool base_resource::type_iterator::literalp() const{return static_cast<V::iterator>(*this)->literalp;}
+bool base_resource::type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
 bool base_resource::const_type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
-bool base_resource::type_iterator::constp() const{return !static_cast<V::iterator>(*this)->t.add_property;}
+bool base_resource::type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property;}
 bool base_resource::const_type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property;}
 void base_resource::patch(V& v){}
 
@@ -70,6 +70,7 @@ struct cmp_uri{
 	cmp_uri(uri u):u(u){}
 	bool operator()(CONST_CLASS_PTR s)const{return s->id==u;}
 };
+rdfs::Class::Class(objrdf::uri id):SELF(id){}
 rdfs::Class::Class(
 	objrdf::uri id,
 	rdfs::subClassOf s,
@@ -100,12 +101,14 @@ CONST_CLASS_PTR base_resource::get_class(){
 		rdfs::subClassOf(),
 		objrdf::base_resource::class_function_table(
 			f_ptr::constructor<base_resource>,
+			f_ptr::destructor<base_resource>,
 			f_ptr::copy_constructor<base_resource>,
 			f_ptr::begin<base_resource>,
 			f_ptr::end<base_resource>,
 			f_ptr::cbegin<base_resource>,
 			f_ptr::cend<base_resource>,
 			f_ptr::allocate<base_resource>,
+			f_ptr::deallocate<base_resource>,
 			f_ptr::get_output<base_resource>
 		)			
 		,get_comment()
@@ -208,8 +211,8 @@ base_resource::instance_iterator base_resource::type_iterator::add_property(PROV
 	cerr<<"add_property `"<<get_Property()->id<<"' to resource `"<<subject->id<<"'"<<endl;
 	#endif
 	//awkward
-	assert(static_cast<V::iterator>(*this)->t.add_property);
-	static_cast<V::iterator>(*this)->t.add_property(subject,p);
+	assert(static_cast<V::const_iterator>(*this)->t.add_property);
+	static_cast<V::const_iterator>(*this)->t.add_property(subject,p);
 	return instance_iterator(subject,*this,get_size()-1);
 }
 int base_resource::p_to_xml_size(const CONST_PROPERTY_PTR p){return 1;}

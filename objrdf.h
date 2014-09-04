@@ -223,10 +223,10 @@ namespace objrdf{
 		struct instance_iterator{
 			friend class base_resource; //for base_resource::erase
 			RESOURCE_PTR subject;
-			V::iterator i;
+			V::const_iterator i;
 			size_t index;
 			instance_iterator():subject(0,0),index(0){}
-			instance_iterator(RESOURCE_PTR subject,V::iterator i,size_t index):subject(subject),i(i),index(index){}
+			instance_iterator(RESOURCE_PTR subject,V::const_iterator i,size_t index):subject(subject),i(i),index(index){}
 			instance_iterator& operator+=(const unsigned int& i){index+=i;return *this;}
 			instance_iterator& operator++(){++index;return *this;}
 			instance_iterator* operator->(){return this;}
@@ -266,8 +266,9 @@ namespace objrdf{
 			CONST_RESOURCE_PTR subject;
 			V::const_iterator i;
 			size_t index;
-			const_instance_iterator():subject(0,0),index(0){}
+			const_instance_iterator():subject(0,0),index(0){}//should use nullptr
 			const_instance_iterator(CONST_RESOURCE_PTR subject,V::const_iterator i,size_t index):subject(subject),i(i),index(index){}
+			const_instance_iterator(const instance_iterator& _i):subject(_i.subject),i(_i.i),index(_i.index){}
 			const_instance_iterator& operator+=(const unsigned int& i){index+=i;return *this;}
 			const_instance_iterator& operator++(){++index;return *this;}
 			//tricky here
@@ -302,10 +303,12 @@ namespace objrdf{
 			RESOURCE_PTR get_statement() const;
 		};
 		//should be moved to .cpp
-		struct type_iterator:V::iterator{
+		//that's a bit stupid, will never actually modify the function table
+		//struct type_iterator:V::iterator{
+		struct type_iterator:V::const_iterator{
 			RESOURCE_PTR subject;
-			type_iterator(RESOURCE_PTR subject,V::iterator i):V::iterator(i),subject(subject){}
-			V::iterator& get_base(){return *this;}
+			type_iterator(RESOURCE_PTR subject,V::const_iterator i):V::const_iterator(i),subject(subject){}
+			V::const_iterator& get_base(){return *this;}
 			size_t get_size() const;
 			bool literalp() const;
 			bool constp() const;
@@ -370,23 +373,27 @@ namespace objrdf{
  		*/ 
 		struct class_function_table{
 			typedef void (*ctor_f)(RESOURCE_PTR,uri);
+			typedef void (*dtor_f)(RESOURCE_PTR);
 			typedef void (*cctor_f)(void*,CONST_RESOURCE_PTR);//why void*?
 			typedef type_iterator (*begin_f)(RESOURCE_PTR);
 			typedef type_iterator (*end_f)(RESOURCE_PTR);
 			typedef const_type_iterator (*cbegin_f)(CONST_RESOURCE_PTR);
 			typedef const_type_iterator (*cend_f)(CONST_RESOURCE_PTR);
 			typedef RESOURCE_PTR (*allocate_f)();
+			typedef void (*deallocate_f)(CONST_RESOURCE_PTR);
 			typedef void (*get_output_f)(CONST_RESOURCE_PTR,ostream& os);
 			ctor_f ctor;
+			dtor_f dtor;
 			cctor_f cctor;
 			begin_f begin;
 			end_f end;
 			cbegin_f cbegin;
 			cend_f cend;
 			allocate_f allocate;
+			deallocate_f deallocate;
 			get_output_f get_output;			
-			class_function_table():ctor(0),cctor(0),begin(0),end(0),cbegin(0),cend(0),allocate(0),get_output(0){}
-			class_function_table(ctor_f ctor,cctor_f cctor,begin_f begin,end_f end,cbegin_f cbegin,cend_f cend,allocate_f allocate,get_output_f get_output):ctor(ctor),cctor(cctor),begin(begin),end(end),cbegin(cbegin),cend(cend),allocate(allocate),get_output(get_output){}
+			class_function_table():ctor(0),dtor(0),cctor(0),begin(0),end(0),cbegin(0),cend(0),allocate(0),deallocate(0),get_output(0){}
+			class_function_table(ctor_f ctor,dtor_f dtor,cctor_f cctor,begin_f begin,end_f end,cbegin_f cbegin,cend_f cend,allocate_f allocate,deallocate_f deallocate,get_output_f get_output):ctor(ctor),dtor(dtor),cctor(cctor),begin(begin),end(end),cbegin(cbegin),cend(cend),allocate(allocate),deallocate(deallocate),get_output(get_output){}
 		};
 		/*
  		* 	we add information about the class to get rid of vtable	
@@ -413,6 +420,10 @@ namespace objrdf{
 		template<typename T> RESOURCE_PTR allocate(){
 			typename T::allocator_type a;
 			return a.allocate(1);
+		}
+		template<typename T> void deallocate(CONST_RESOURCE_PTR r){
+			typename T::allocator_type a;
+			return a.deallocate(r,1);
 		}
 		template<typename T> void get_output(CONST_RESOURCE_PTR r,ostream& os){
 			static_cast<const T&>(*r).get_output(os);
@@ -539,7 +550,11 @@ namespace objrdf{
 		void in(istream& is){is>>t;}
 		void out(ostream& os) const{os<<t;}
 		size_t get_size() const{return 1;}//would be nice to have a bit to tell us if it has been set or not
-		int compare(const base_property& a)const{return sgn(t-a.t);}
+		//could also define static functions save one function call
+		int compare(const base_property& a)const{
+			cerr<<"compare `"<<t<<"' and `"<<a.t<<"'"<<endl;
+			return sgn(t-a.t);
+		}
 		void erase(){t=0;}
 	};
 	
@@ -1046,9 +1061,14 @@ namespace objrdf{
 			new(p)T(u);
 			T::do_index(p);
 		}
+		template<typename T> void destructor(RESOURCE_PTR p){
+			static_cast<typename T::allocator_type::pointer>(p)->~T();
+			//should remove from index
+		}
+		
 		//have to look into that, sometime we don't want a copy constructor
 		template<typename T> void copy_constructor(void* p,CONST_RESOURCE_PTR r){new(p)T(static_cast<const T&>(*r));}
-		template<> void constructor<rdfs::Class>(RESOURCE_PTR p,uri u);
+		//template<> void constructor<rdfs::Class>(RESOURCE_PTR p,uri u);
 		template<> base_resource::type_iterator end<rdfs::Class>(RESOURCE_PTR r);
 		template<> base_resource::type_iterator end<rdf::Property>(RESOURCE_PTR r);
 		template<> void constructor<rdf::Property>(RESOURCE_PTR p,uri u);
@@ -1297,6 +1317,7 @@ namespace rdfs{
  		*
  		*/
 		const objrdf::base_resource::class_function_table t;
+		Class(objrdf::uri u);
 		Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,string comment,objrdf::sizeOf,objrdf::hashOf);
 		~Class(){
 			cerr<<"delete Class `"<<id<<"'"<<endl;	
@@ -1372,6 +1393,7 @@ namespace objrdf{
 			rdfs::subClassOf(SUPERCLASS::get_class()),
 			objrdf::base_resource::class_function_table(
 				f_ptr::constructor<TMP>,
+				f_ptr::destructor<TMP>,
 				f_ptr::copy_constructor<TMP>,
 				f_ptr::begin<TMP>,
 				//if the pool is not writable all instances will be locked
@@ -1381,6 +1403,7 @@ namespace objrdf{
 				f_ptr::cbegin<TMP>,
 				f_ptr::cend<TMP>,
 				f_ptr::allocate<TMP>,
+				f_ptr::deallocate<TMP>,
 				f_ptr::get_output<TMP>
 			),
 			TMP::get_comment!=SUPERCLASS::get_comment ? TMP::get_comment() : "",
