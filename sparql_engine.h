@@ -6,6 +6,7 @@
 #include "turtle_parser.h"
 #include "uri.h"
 #include "objrdf.h"
+//#define LOG if(0) cerr
 #define LOG cerr
 /*
  * 	http://www.w3.org/TR/rdf-sparql-query/
@@ -65,6 +66,12 @@ struct subject{
 	SPARQL_RESOURCE_PTR r;//0 -> not bound	
 	uri u;//empty not bound
 	string s;//empty not bound
+	/*
+ 	* new idea to compare literal resources	
+ 	*
+ 	*/ 
+	base_resource::const_instance_iterator literal_p;
+	~subject();
 	string name;
 	bool is_selected;//will be returned in result set
 	const bool bound;
@@ -75,7 +82,7 @@ struct subject{
 	explicit subject(string s);
 	subject(uri u);
 	RESULT run(base_resource::const_instance_iterator i,CONST_PROPERTY_PTR p);
-	RESULT run(size_t n=1000000);
+	RESULT run(size_t n);
 	void del();
 	void ins();
 	int size();
@@ -113,17 +120,42 @@ public:
 	typedef seq_c<'A','S'> AS;
 	typedef seq_c<'O','R','D','E','R'> ORDER;
 	typedef seq_c<'B','Y'> BY;
+	typedef seq_c<'L','I','M','I','T'> LIMIT;
+	typedef seq_c<'O','F','F','S','E','T'> OFFSET;
+	typedef seq_c<'F','I','L','T','E','R'> FILTER;
 	typedef event_1<seqw<BASE,turtle_parser::_uriref_>,__COUNTER__> base_decl;
 	typedef event_1<seqw<PREFIX,turtle_parser::pname_ns,turtle_parser::_uriref_>,__COUNTER__> prefix_decl;
-	/*
- 	*	how do we add OPTIONAL?
- 	*/ 
-	typedef	event_1<seqw<WHERE,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> where_statement; 
-	typedef	event_1<seqw<DELETE,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> delete_statement; 
-	typedef	event_1<seqw<INSERT,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> insert_statement; 
+	typedef event_1<choice<turtle_parser::decimal,turtle_parser::sparql_variable>,__COUNTER__> NumericExpression;
+	typedef event_1<char_p<'='>,__COUNTER__> equal;
+	typedef event_1<seq_c<'!','='>,__COUNTER__> different;
+	typedef event_1<char_p<'<'>,__COUNTER__> less;
+	typedef event_1<char_p<'>'>,__COUNTER__> greater;
+	typedef event_1<seq_c<'<','='>,__COUNTER__> less_eq;
+	typedef event_1<seq_c<'>','='>,__COUNTER__> greater_eq;
+	typedef event_1<
+			seqw<
+				NumericExpression,
+				choice<
+					seqw<equal,NumericExpression>,
+					seqw<different,NumericExpression>,
+					seqw<less,NumericExpression>,
+					seqw<greater,NumericExpression>,
+					seqw<less_eq,NumericExpression>,
+					seqw<greater_eq,NumericExpression>
+				>
+			>,
+			__COUNTER__
+	> RelationalExpression;
+	typedef event_1<seqw<FILTER,char_p<'('>,RelationalExpression,char_p<')'>>,__COUNTER__> filter;
+	//let's use our own document so we can interleave FILTER statements
+	//typedef plus_p<statement> turtle_doc;
+	typedef plus_p<or_p<turtle_parser::statement,filter>> body;
+	typedef	event_1<seqw<WHERE,char_p<'{'>,body,char_p<'}'>>,__COUNTER__> where_statement; 
+	typedef	event_1<seqw<DELETE,char_p<'{'>,body,char_p<'}'>>,__COUNTER__> delete_statement; 
+	typedef	event_1<seqw<INSERT,char_p<'{'>,body,char_p<'}'>>,__COUNTER__> insert_statement; 
 	typedef event_1<seqw<or_p<delete_statement,true_p>,or_p<insert_statement,true_p>,where_statement>,__COUNTER__> update_query;
-	typedef	event_1<seqw<DELETE,DATA,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> delete_data_query; 
-	typedef	event_1<seqw<INSERT,DATA,char_p<'{'>,turtle_parser::turtle_doc,char_p<'}'>>,__COUNTER__> insert_data_query; 
+	typedef	event_1<seqw<DELETE,DATA,char_p<'{'>,body,char_p<'}'>>,__COUNTER__> delete_data_query; 
+	typedef	event_1<seqw<INSERT,DATA,char_p<'{'>,body,char_p<'}'>>,__COUNTER__> insert_data_query; 
 	//typedef seqw<delete_data_query,char_p<';'>,insert_data_query> update_data_query;
 	/*
  	* support for count() statement
@@ -131,10 +163,21 @@ public:
  	*
  	*/
 	typedef event_1<seqw<ORDER,BY,plus_pw<turtle_parser::sparql_variable>>,__COUNTER__> order_by;
+	typedef event_1<plus_p<range_p<'0','9'>>,__COUNTER__> _int_;
+	typedef event_1<seqw<LIMIT,_int_>,__COUNTER__> limit;
+	size_t _limit=100;//default number of solutions
 	typedef event_1<seqw<COUNT,char_p<'('>,turtle_parser::sparql_variable,char_p<')'>,AS,turtle_parser::sparql_variable>,__COUNTER__> counter;
-	typedef event_1<seqw<SELECT,or_p<plus_pw<or_p<turtle_parser::sparql_variable,counter>>,char_p<'*'>>,where_statement,or_p<order_by,true_p>>,__COUNTER__> select_query;	
+	typedef event_1<seqw<SELECT,or_p<plus_pw<or_p<turtle_parser::sparql_variable,counter>>,char_p<'*'>>,
+			where_statement,
+			or_p<order_by,true_p>,
+			or_p<limit,true_p>
+			>,__COUNTER__> select_query;	
 	typedef event_1<seqw<DESCRIBE,or_p<turtle_parser::_uriref_,turtle_parser::qname>>,__COUNTER__> simple_describe_query;	
-	typedef event_1<seqw<DESCRIBE,or_p<plus_pw<turtle_parser::sparql_variable>,char_p<'*'>>,where_statement,or_p<order_by,true_p>>,__COUNTER__> describe_query;	
+	typedef event_1<seqw<DESCRIBE,or_p<plus_pw<turtle_parser::sparql_variable>,char_p<'*'>>,
+			where_statement,
+			or_p<order_by,true_p>,
+			or_p<limit,true_p> //is this going to blow everything up?
+			>,__COUNTER__> describe_query;	
 	typedef seqw<
 		or_p<base_decl,true_p>,
 		kleene_pw<prefix_decl>,
