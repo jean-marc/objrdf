@@ -6,6 +6,9 @@ namespace objrdf{
 	//color scheme in bash, could be customized by namespace
 	char start_id[]="\033[32m";
 	char stop_id[]="\033[m";
+	ostream& operator<<(ostream& os,const property_info& i){
+		return os<<i.p->id<<"\n******************\n"<<i.t;
+	}
 }
 using namespace objrdf;
 
@@ -340,9 +343,10 @@ RESOURCE_PTR objrdf::create_by_type(uri type,uri id){
 RESOURCE_PTR objrdf::create_by_type_blank(CONST_CLASS_PTR c){
 	RESOURCE_PTR rp(c->t.allocate());
 	ostringstream os;
-	rp._print(os);
-	uri u(os.str());
-	u.index=1;
+	//rp._print(os);
+	//uri u(os.str());
+	//u.index=1;//local 
+	uri u=get_uri(rp);
 	c->t.ctor(rp,u);
 	return rp;
 }

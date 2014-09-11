@@ -1,8 +1,8 @@
-CC = g++ -O3 
+CC = g++ -O3 -UNEW_HEADER
 ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ -O3
 
-#CFLAGS = -Wall -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB
-CFLAGS = -std=c++0x -I. -w -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB -DPERSISTENT -UREF_COUNT
+#CFLAGS = -std=c++0x -I. -w -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB -DPERSISTENT -UREF_COUNT -DTEST_NAME
+CFLAGS = -std=c++0x -I. -w -DOBJRDF_VERB -UREF_COUNT -DTEST_NAME
 #CFLAGS = -w -Wno-invalid-offsetof -DOBJRDF_VERB -DPERSISTENT
 OBJ1 = objrdf.o uri.o
 OBJ5 = Sockets.o
