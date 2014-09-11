@@ -97,6 +97,16 @@ struct subject{
 
 //void to_xml(ostream& os,/*const*/ RESULT& r,/*const*/ subject&);
 //void to_json(ostream& os,const RESULT& r,const subject&){}
+#ifdef NEW_HEADER 
+class sparql_engine{
+public:
+	typedef enum{no_q,select_q,simple_describe_q,describe_q,insert_data_q,delete_data_q} query_type;
+	query_type q;
+	bool parse(istream& in);
+	void out(ostream& os);
+
+};
+#else
 class sparql_parser:public char_iterator{
 /*
  *	see http://www.w3.org/TR/rdf-sparql-query/#sparqlGrammar
@@ -226,4 +236,5 @@ public:
 	bool parse_update_data_statement(const PARSE_RES_TREE& r,bool do_delete=false,VARIABLES v=VARIABLES(),RESOURCE_PTR sub=RESOURCE_PTR());
 	template<typename T> void callback(T,string){}
 };
+#endif
 #endif

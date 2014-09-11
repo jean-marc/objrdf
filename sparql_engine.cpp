@@ -8,6 +8,70 @@
  *	s_1----+
  */
 #include "sparql_engine.h"
+#ifdef NEW_HEADER
+#include "sparql_parser.h"
+bool sparql_engine::parse(istream& in){
+	sparql_parser s(in,0);
+	if(!sparql_parser::document::go(s)) return false;
+	q=s.q;
+	if(q==select_q||q==describe_q) return s.sbj.get();
+	return true;
+}
+void sparql_engine::out(ostream& os){
+	switch(q){
+		case select_q:{
+			RESULT r=sbj->run(_limit);
+			to_xml(os,r,*sbj);
+		}break;
+		case simple_describe_q:{
+			os<<"<"<<rdf::_RDF<<"\n";
+			uri::ns_declaration(os);
+			//os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
+			os<<">";
+			if(d_resource)
+				to_rdf_xml(d_resource,os);
+			os<<"\n</"<<rdf::_RDF<<">\n";
+		}break;
+		case describe_q:{
+			RESULT r=sbj->run(_limit);//need to apply filter				
+			os<<"<"<<rdf::_RDF<<"\n";
+			uri::ns_declaration(os);
+			//os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
+			os<<">";
+			sort(r,sbj->get_variables(),order_by_variables);
+				for(auto i=r.begin();i<r.end();++i){
+					//only if resource
+					for(auto j=i->cbegin();j<i->cend();++j){
+						if(j->literalp()){
+							//os<<"<literal>"<<*j<<"</literal>";
+						}else{
+							to_rdf_xml(j->get_const_object(),os);
+						}
+					}
+				}
+				os<<"\n</"<<rdf::_RDF<<">\n";
+			}break;
+			case insert_data_q:{
+				/*
+ 				*	if subject blank node returns a description of it
+ 				*/
+				os<<"<"<<rdf::_RDF<<"\n";
+				uri::ns_declaration(os);
+				//os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
+				os<<">";
+				if(bnode_subject_resource)
+					to_rdf_xml(bnode_subject_resource,os);
+				os<<"\n</"<<rdf::_RDF<<">\n";
+			}break;
+			case delete_data_q:{
+			}break;
+			default:break;
+		}
+
+
+}
+#endif
+
 using namespace pool_allocator;
 subject::subject(SPARQL_RESOURCE_PTR r):r(r),is_selected(true),bound(r!=0),is_root(false),busy(false){}
 subject::subject(string s):r(0),s(s),is_selected(true),bound(s.size()),is_root(false),busy(false){}
