@@ -851,7 +851,7 @@ namespace objrdf{
 		CONST_RESOURCE_PTR r(p);
 		size_t _id=r.pool_ptr.index | (r.index<<(sizeof(r.pool_ptr.index)<<3));
 		ostringstream os;
-		os<<hex<<_id;
+		os<<hex<<"_"<<_id;
 		return uri(os.str().c_str());
 	}
 	template<
