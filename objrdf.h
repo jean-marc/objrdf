@@ -21,7 +21,11 @@
 #include "tuple_helper.h"
 #include "ifthenelse.hpp"
 using namespace std;
+#ifdef OBJRDF_VERB
 #define LOG std::cerr
+#else
+#define LOG if(0) cerr
+#endif
 #include <pool_allocator/pool_allocator.h>
 template<typename T> vector<T> concat(/*const*/ vector<T>& a,const vector<T>& b){
 	a.insert(a.end(),b.begin(),b.end());
