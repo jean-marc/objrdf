@@ -9,7 +9,6 @@
 #include <sys/stat.h>
 #include "popen_streambuf.h"
 using namespace objrdf;
-
 string get_mime(string extension){
 	typedef std::pair<string,string> P;
 	static map<string,string> m={	P("html","text/html"),P("xhtml","text/html"),
@@ -30,6 +29,7 @@ string url_decode(string in){
 	u.go();
 	return u.decoded;	
 }
+string httpd::file_path="www/";
 void httpd::run(){
 	server(this);
 }
@@ -42,10 +42,10 @@ void* httpd::server(void* s){
 	int port=static_cast<httpd*>(s)->port;
 	//can we make it listen only on 127.0.0.1?
 	sockserver.listen(port);
-	cerr << "http server is listening on port "<<port<< endl;
+	LOG << "http server is listening on port "<<port<< endl;
 	for(;;){
 		TCPSocketWrapper* sock=new TCPSocketWrapper(sockserver.accept());
-		cerr<<"accepted connection from: "<<sock->address()<<" port:"<<sock->port()<<endl;
+		LOG<<"accepted connection from: "<<sock->address()<<" port:"<<sock->port()<<endl;
 		request_info* r=new request_info(static_cast<httpd*>(s),sock);
 		pthread_t shell_t;
 		pthread_create(&shell_t,NULL,request,r);
@@ -73,13 +73,13 @@ inline ostream& http_400(ostream& stream){
 	return stream;
 }
 void* httpd::request(void* s){
-	cerr<<"new request"<<endl;
+	LOG<<"new request"<<endl;
 	request_info* r=static_cast<request_info*>(s);
 	try{
 		TCPStream stream(*r->second);
 		stream.exceptions(iostream::eofbit|iostream::badbit);
 		while(stream.good()){
-			cerr<<"peek: "<<stream.peek()<<endl;
+			LOG<<"peek: "<<stream.peek()<<endl;
 			http_parser p(stream);
 			if(p.go()){//blocking
 				if(p.current_method=="GET") r->first->get(p,stream);
@@ -90,23 +90,23 @@ void* httpd::request(void* s){
 					stream.flush();
 				}
 			}else{
-				cerr<<"could not parse http header\n";
+				LOG<<"could not parse http header\n";
 				stream<<"HTTP/1.1 400 Bad Request\r\n";
 				stream.setstate(ios::badbit);
 				stream.flush();
 			}
-			cerr<<"done!"<<endl;
+			LOG<<"done!"<<endl;
 		}
-		cerr<<"ending thread"<<endl;
+		LOG<<"ending thread"<<endl;
 		delete r->second;
 		delete r;//will attempt a flush here
 		return 0;
 	}catch(SocketRunTimeException& e){
-		cerr<<"****** "<<e.what()<<endl;
+		LOG<<"****** "<<e.what()<<endl;
 	}catch(SocketLogicException& e){
-		cerr<<"****** "<<e.what()<<endl;
+		LOG<<"****** "<<e.what()<<endl;
 	}catch(...){
-		cerr<<"****** exception!"<<endl;
+		LOG<<"****** exception!"<<endl;
 	}
 	//return 0;
 }
@@ -159,7 +159,7 @@ void httpd::get(http_parser& h,iostream& io){
 			//modify the parser
 			//if(p.go()){
 			if(p._go<seqw<sparql_parser::document,char_p<EOF>>>()){
-				cerr<<"success!"<<endl;
+				LOG<<"success!"<<endl;
 				io<<"HTTP/1.1 200 OK"<<"\r\n";
 				ostringstream out;
 				auto i=h.url_arguments.find("format");
@@ -211,8 +211,9 @@ void httpd::get(http_parser& h,iostream& io){
  		*/ 
 	}else if(h.current_path.compare(0,9,"/cgi-bin/")==0){
 		//pass the arguments to the command: http://unix.derkeiler.com/Newsgroups/comp.unix.programmer/2006-12/msg00447.html
-		string command="./"+h.current_path.substr(9);
-		cerr<<"running command `"<<command<<"'"<<endl;
+		//string command="./"+h.current_path.substr(9);
+		string command=file_path+h.current_path.substr(9);
+		LOG<<"running command `"<<command<<"'"<<endl;
 		popen_streambuf sb;
 		istream in(&sb);
 		if (NULL == sb.open(command.c_str(), "r")) {
@@ -230,7 +231,8 @@ void httpd::get(http_parser& h,iostream& io){
 		string path=h.current_path.substr(1);
 		if(path.empty()) path="index.html";
 		//ifstream file(h.current_path.substr(1).c_str(),ios_base::binary);
-		cerr<<"opening file `"<<path<<"'"<<endl;
+		path=file_path+path;
+		LOG<<"opening file `"<<path<<"'"<<endl;
 		ifstream file(path.c_str(),ios_base::binary);
 		if(file){
 			struct stat results;
@@ -264,7 +266,7 @@ void httpd::get(http_parser& h,iostream& io){
 				io<<file.rdbuf();
 			/*
 			}else{
-				cerr<<"cached!"<<endl;
+				LOG<<"cached!"<<endl;
 				io<<"HTTP/1.1 304"<<"\r\n";
 				io<<"\r\n";
 			}
@@ -289,9 +291,9 @@ void httpd::post(http_parser& h,iostream& io){
  	*/
 	try{
 		io.exceptions(iostream::eofbit);
-		cerr<<"attempting to get mutex...";
+		LOG<<"attempting to get mutex...";
 		pthread_mutex_lock(&mutex);
-		cerr<<"ok"<<endl;
+		LOG<<"ok"<<endl;
 		//problem: no EOF to tell the parser to stop
 		/*
 		if(!h.headers["Content-Length"].empty()){
@@ -301,7 +303,7 @@ void httpd::post(http_parser& h,iostream& io){
 			string query;
 		*/		
 		sparql_parser p(io);
-		cerr<<"peek:`"<<io.peek()<<"'"<<endl;
+		LOG<<"peek:`"<<io.peek()<<"'"<<endl;
 		//a lot of things happening in go, it can be interrupted anytime by socket exception
 		if(p.go()){
 			io<<"HTTP/1.1 200 OK\r\n";
@@ -326,11 +328,11 @@ void httpd::post(http_parser& h,iostream& io){
 				int l=0;
 				in>>l;
 				l-=p.n_read;
-				cerr<<"ignoring "<<l<<" extra characters:";
-				for(int i=0;i<l;++i) cerr<<(char)io.get();
+				LOG<<"ignoring "<<l<<" extra characters:";
+				for(int i=0;i<l;++i) LOG<<(char)io.get();
 			}
 		}else{
-			cerr<<"could not parse sparql query\n";
+			LOG<<"could not parse sparql query\n";
 			io<<http_400;
 			//there might be characters left in the pipe
 			if(!h.headers["Content-Length"].empty()){
@@ -338,20 +340,20 @@ void httpd::post(http_parser& h,iostream& io){
 				int l=0;
 				in>>l;
 				l-=p.n_read;
-				cerr<<"ignoring "<<l<<" extra characters:";
-				for(int i=0;i<l;++i) cerr<<(char)io.get();
+				LOG<<"ignoring "<<l<<" extra characters:";
+				for(int i=0;i<l;++i) LOG<<(char)io.get();
 			}
 		}
 		pthread_mutex_unlock(&mutex);
 	}catch(SocketRunTimeException& e){
 		pthread_mutex_unlock(&mutex);
-		cerr<<"http::post "<<e.what()<<endl;
+		LOG<<"http::post "<<e.what()<<endl;
 	}catch(std::exception& e){
 		pthread_mutex_unlock(&mutex);
-		cerr<<"exception: "<<e.what()<<endl;
+		LOG<<"exception: "<<e.what()<<endl;
 	}catch(...){
 		pthread_mutex_unlock(&mutex);
-		cerr<<"unknown exception!!!!!"<<endl;
+		LOG<<"unknown exception!!!!!"<<endl;
 	}
 }
 void httpd::put(http_parser& h,iostream& io){}	
