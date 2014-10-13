@@ -1,9 +1,7 @@
-CC = g++ -O3 -UNEW_HEADER
-ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ -O3
+CC = g++
+ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ 
 
-#CFLAGS = -std=c++0x -I. -w -Wno-invalid-offsetof -Xlinker -zmuldefs -DOBJRDF_VERB -DPERSISTENT -UREF_COUNT -DTEST_NAME
-CFLAGS = -std=c++0x -I. -w -DOBJRDF_VERB -UREF_COUNT -DTEST_NAME
-#CFLAGS = -w -Wno-invalid-offsetof -DOBJRDF_VERB -DPERSISTENT
+CFLAGS = -O3 -std=c++0x -I. -w -UOBJRDF_VERB -UREF_COUNT -UNEW_HEADER 
 OBJ1 = objrdf.o uri.o
 OBJ5 = Sockets.o
 OBJ7 = sparql_engine.o

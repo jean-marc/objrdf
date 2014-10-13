@@ -7,11 +7,7 @@ namespace geo{
 	PROPERTY(lat,float);
 	//problem:conflict with type long
 	//PROPERTY(long,float);
-	#ifdef TEST_NAME
 	struct _long{static char* name(){return "long";}};
-	#else
-	char _long[]="long";
-	#endif
 	typedef objrdf::property<rdfs_namespace,_long,float> _long_;
 	CLASS(Point,std::tuple<lat,_long_>);
 	//we could define functions that operate on geo:Point eg. distance (see http://www.w3.org/TR/rdf-sparql-query/#extensionFunctions)
