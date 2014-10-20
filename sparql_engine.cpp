@@ -131,14 +131,14 @@ RESULT subject::run(size_t n){
 		//we should remove the rdf:type from the graph otherwise we are going to check the type again in run
 		//find the pool
 		//we have to make sure it is not base_resource::nil, why can't we use null??
-		cerr<<"optimization..."<<i->object->r->id<<endl;
+		LOG<<"optimization..."<<i->object->r->id<<endl;
 		if(i->object->r==CLASS_PTR(0)) return RESULT();
 		if(get_class(i->object->r)!=rdfs::Class::get_class()) return RESULT();
 		CONST_CLASS_PTR c(static_cast<CONST_CLASS_PTR>(i->object->r));
 		//check if the pool exists
 		pool::POOL_PTR p(c.index);
 		//not needed anymore
-		cerr<<"assert pool `"<<c->id<<"'..."<<endl;
+		LOG<<"assert pool `"<<c->id<<"'..."<<endl;
 		assert(p->type_id);
 		//iterate through the cells
 		//what if not iterable because compact
@@ -152,7 +152,7 @@ RESULT subject::run(size_t n){
 		//now we have to find all the subclasses: we use superClassOf
 		for(auto k=c->get_const<rdfs::Class::array_superClassOf>().begin();k<c->get_const<rdfs::Class::array_superClassOf>().end();++k){
 			pool::POOL_PTR p((*k).index);
-			cerr<<"assert pool `"<<(*k)->id<<"'..."<<endl;
+			LOG<<"assert pool `"<<(*k)->id<<"'..."<<endl;
 			assert(p->type_id);
 			//iterate through the cells
 			for(auto j=pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
@@ -169,17 +169,17 @@ RESULT subject::run(size_t n){
 		*	if one of the property is rdfs:subClassOf then subject must be a Class
 		*	could be done in a generic way
 		*/		
-		cerr<<"optimization ..."<<endl;
+		LOG<<"optimization ..."<<endl;
 		bool is_Property=false,is_Class=false;
 		for(auto i=verbs.begin();i<verbs.end();++i){
-			cerr<<"current property: `"<<i->p->id<<"'"<<endl;
+			LOG<<"current property: `"<<i->p->id<<"'"<<endl;
 			//is_Property|=(i->p==rdfs::domain::get_property())||(i->p==rdfs::range::get_property());
 			is_Property|=(i->p==rdf::Property::domains::get_property())||(i->p==rdfs::range::get_property());
 			//ugly but problem with array of properties
 			is_Class|=(i->p==rdfs::Class::array_subClassOf::get_property());
 		}
 		if(is_Property){
-			cerr<<"optimization: Property only"<<endl;
+			LOG<<"optimization: Property only"<<endl;
 			rdf::Property::allocator_type a;
 			for(auto j=a.cbegin();j!=a.cend();++j){
 				RESULT tmp=run(get_const_self_iterator(j),0);
@@ -188,7 +188,7 @@ RESULT subject::run(size_t n){
 				if(res.size()>=n) return res;
 			}
 		}else if(is_Class){
-			cerr<<"optimization: Class only"<<endl;
+			LOG<<"optimization: Class only"<<endl;
 			rdfs::Class::allocator_type a;
 			for(auto j=a.cbegin();j!=a.cend();++j){
 				RESULT tmp=run(get_const_self_iterator(j),0);
@@ -288,7 +288,7 @@ RESULT subject::run(base_resource::const_instance_iterator i,CONST_PROPERTY_PTR 
 			if(r==_r){
 				result=true;
 			}else if(get_class(r)==rdfs::Class::get_class()&&get_class(_r)==rdfs::Class::get_class()){
-				cerr<<"entailment"<<endl;
+				LOG<<"entailment"<<endl;
 				CONST_CLASS_PTR a(static_cast<CONST_CLASS_PTR>(r));		
 				CONST_CLASS_PTR b(static_cast<CONST_CLASS_PTR>(_r));		
 				//entailment rules depend on property
@@ -307,7 +307,7 @@ RESULT subject::run(base_resource::const_instance_iterator i,CONST_PROPERTY_PTR 
  			*/ 
 			bool result=false;
 			if(_r->id==u){
-				cerr<<"URI comparison: "<<_r->id<<"=="<<u<<endl;
+				LOG<<"URI comparison: "<<_r->id<<"=="<<u<<endl;
 				r=_r;//bind!
 				result=true;
 			}else if(get_class(_r)==rdfs::Class::get_class()){
@@ -394,7 +394,7 @@ RESULT verb::run(SPARQL_RESOURCE_PTR r){
 				/*
 				*	how do we deal with optional results, let's say that rdfs::subPropertyOf should be optional
 				*/ 
-				cerr<<"optional? "<<p->id<<endl;
+				LOG<<"optional? "<<p->id<<endl;
 				if(p==rdfs::subPropertyOf::get_property()){
 					RESULT tmp=object->run(get_const_self_iterator(objrdf::base_resource::nil),p);	
 					LOG<<tmp<<endl;
@@ -449,7 +449,7 @@ void sparql_parser::sort(RESULT& r,vector<string> variables,vector<string> order
 		auto j=find(variables.cbegin(),variables.cend(),*i);
 		if(j!=variables.cend()){
 			vv.push_back(j-variables.cbegin());
-			cerr<<"ordering by variable `"<<*i<<"'"<<endl;
+			LOG<<"ordering by variable `"<<*i<<"'"<<endl;
 		}
 	}
 	if(vv.size()==1) std::sort(r.begin(),r.end(),comp_r(vv[0]));
@@ -595,7 +595,7 @@ void sparql_parser::out_csv(ostream& os){
 	}
 }
 bool sparql_parser::callback(PARSE_RES_TREE& r){
-	cerr<<r<<endl;
+	LOG<<r<<endl;
 	switch(r.t.first){
 		//what about multiple statements?
 		case prefix_decl::id:
@@ -648,15 +648,15 @@ bool sparql_parser::callback(PARSE_RES_TREE& r){
 		/*
 		case update_data_query::id:{
 
-			cerr<<"update data query"<<endl;
+			LOG<<"update data query"<<endl;
 
 		}break;
 		*/
 		case update_query::id:{
 			//we have 2 statements
-			cerr<<"update query"<<endl;
+			LOG<<"update query"<<endl;
 			for(auto i=r.v.begin();i<r.v.end();++i)
-				cerr<<i->t.first<<endl;
+				LOG<<i->t.first<<endl;
 			//need to process where statement first
 			parse_where_statement(r.v[1]);
 			//all the variables are defined, we can iterate
@@ -669,7 +669,7 @@ bool sparql_parser::callback(PARSE_RES_TREE& r){
 				VARIABLES v;
 				auto v_i=var.cbegin();
 				for(auto j=i->begin();j<i->end();++j,++v_i){
-					cerr<<"copying variable `"<<*v_i<<"'"<<endl;
+					LOG<<"copying variable `"<<*v_i<<"'"<<endl;
 					 v[*v_i]=*j;
 				}
 				parse_update_data_statement(r.v[0],r.v[0].t.first==delete_statement::id,v);
@@ -689,25 +689,25 @@ bool sparql_parser::callback(PARSE_RES_TREE& r){
 }
 bool sparql_parser::parse_extra_statement(PARSE_RES_TREE& r){
 	if(r.t.first==order_by::id){
-		cerr<<"order by!"<<endl;
+		LOG<<"order by!"<<endl;
 		for(auto i=r.v.cbegin();i!=r.v.cend();++i)
 			order_by_variables.push_back(i->t.second.substr(1));
 	}else if(r.t.first==limit::id){
-		cerr<<"limit!"<<endl<<r<<endl;
+		LOG<<"limit!"<<endl<<r<<endl;
 		_limit=stoi(r.v.front().t.second);
 	}
 	return true;
 }
 bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 	for(auto i=r.v.begin();i<r.v.end();++i){
-		cerr<<"current:\n"<<*i<<endl;
+		LOG<<"current:\n"<<*i<<endl;
 		switch(i->t.first){
 			case filter::id:{
 				/*
  				*	check which variable is involved, can we make a copy of the tree for later consumption?
  				*	fairly complex, we need to use the compare operator provided by the property of interest
  				*/ 
-				cerr<<"filter!"<<endl;
+				LOG<<"filter!"<<endl;
 				break;
 			}
 			case turtle_parser::subject::id:{
@@ -733,7 +733,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 						//we should bail out there if not found
 						//what if we already have a subject?, then we need to do intersect
 						if(sbj&&sbj->u==u){
-							cerr<<"same subject"<<endl;
+							LOG<<"same subject"<<endl;
 						}else{
 							sbj=SUBJECT_PTR(new subject(u));
 							index[i->v[0].t.second]=sbj; //why do we need that?, only makes sense for variable no?
@@ -747,34 +747,34 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 							uri u(j->second,i->v[0].v[1].t.second);
 							//what if we already have a subject?
 							if(sbj&&sbj->u==u){
-								cerr<<"same subject"<<endl;
+								LOG<<"same subject"<<endl;
 							}else{
 								sbj=SUBJECT_PTR(new subject(u));
 								index[i->v[0].v[0].t.second]=sbj;
 							}
 							current_sbj=sbj;
 						}else{
-							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
+							LOG<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
 							return false;
 						}
 					}
 					break;		
 					case 9999:{
-						cerr<<"bnode"<<endl; //could be	nodeID | '[]' | '[' predicateObjectList ']' | collection
+						LOG<<"bnode"<<endl; //could be	nodeID | '[]' | '[' predicateObjectList ']' | collection
 						//only nodeID makes sense
 						if(i->v[0].v[0].t.first==turtle_parser::nodeID::id){
 							//we need to create uri to look up resource
-							cerr<<"nodeID: `"<<i->v[0].v[0].v[0].t.second<<"'"<<endl;
+							LOG<<"nodeID: `"<<i->v[0].v[0].v[0].t.second<<"'"<<endl;
 							uri u=uri::bnode_uri(i->v[0].v[0].v[0].t.second);
 							sbj=SUBJECT_PTR(new subject(u));
 							current_sbj=sbj;
 						}else{
-							cerr<<"only nodeID can be a subject"<<endl;
+							LOG<<"only nodeID can be a subject"<<endl;
 							return false;
 						}
 					}break;
 					default:
-						cerr<<"??"<<endl;
+						LOG<<"??"<<endl;
 					break;
 				}
 			}
@@ -799,7 +799,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 							CONST_PROPERTY_PTR r=find_t<rdf::Property>(u);
 							current_sbj->verbs.push_back(verb(r,0,user));
 						}else{
-							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
+							LOG<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
 							return false;
 						}
 					}
@@ -843,7 +843,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 							index[i->v[0].v[0].t.second]=object;
 							current_sbj->verbs.back().object=object;
 						}else{
-							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
+							LOG<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
 							return false;
 						}
 					}
@@ -853,15 +853,15 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					}
 					break;
 					case 9999:{
-						cerr<<"bnode"<<endl; //could be	nodeID | '[]' | '[' predicateObjectList ']' | collection
+						LOG<<"bnode"<<endl; //could be	nodeID | '[]' | '[' predicateObjectList ']' | collection
 						//only nodeID makes sense
 						if(i->v[0].v[0].t.first==turtle_parser::nodeID::id){
 							//we need to create uri to look up resource
-							cerr<<"nodeID: `"<<i->v[0].v[0].v[0].t.second<<"'"<<endl;
+							LOG<<"nodeID: `"<<i->v[0].v[0].v[0].t.second<<"'"<<endl;
 							uri u=uri::bnode_uri(i->v[0].v[0].v[0].t.second);
 							current_sbj->verbs.back().object=SUBJECT_PTR(new subject(u));
 						}else{
-							cerr<<"only nodeID can be a subject"<<endl;
+							LOG<<"only nodeID can be a subject"<<endl;
 							return false;
 						}
 					}
@@ -884,7 +884,7 @@ CONST_PROPERTY_PTR sparql_parser::parse_property(const PARSE_RES_TREE& r){
 				uri u(j->second,r.v[1].t.second);
 				return find_t<rdf::Property>(u);
 			}else{
-				cerr<<"prefix `"<<r.v[0].t.second<<"' not associated with any namespace"<<endl;
+				LOG<<"prefix `"<<r.v[0].t.second<<"' not associated with any namespace"<<endl;
 				return CONST_PROPERTY_PTR();
 			}
 		}break;
@@ -903,7 +903,7 @@ SPARQL_RESOURCE_PTR sparql_parser::parse_object(const PARSE_RES_TREE& r){
 				uri u(j->second,r.v[1].t.second);
 				return find(u);
 			}else{
-				cerr<<"prefix `"<<r.v[0].t.second<<"' not associated with any namespace"<<endl;
+				LOG<<"prefix `"<<r.v[0].t.second<<"' not associated with any namespace"<<endl;
 				return CONST_PROPERTY_PTR();
 			}
 		}break;
@@ -928,10 +928,10 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 	base_resource::type_iterator current_property(RESOURCE_PTR(0),objrdf::V::iterator());
 	//for(auto i=r.v.begin();i<r.v.end();++i){
 	for(auto i=begin;i<end;++i){
-		cerr<<"!!!current:\n"<<*i<<endl;
+		LOG<<"!!!current:\n"<<*i<<endl;
 		switch(i->t.first){
 			case turtle_parser::subject::id:{
-				cerr<<"subject"<<endl;
+				LOG<<"subject"<<endl;
 				/*
  				*	we should keep the map::iterator to the subject in case we
  				*	need to remove it from the document
@@ -945,27 +945,27 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 							auto j=i+1;
 							while(j<end&&j->t.first!=turtle_parser::subject::id){
 								if(j->t.first==turtle_parser::verb::id){
-									cerr<<"verb:\n"<<*j<<endl;
+									LOG<<"verb:\n"<<*j<<endl;
 									if(parse_property(j->v[0])==rdf::type::get_property()){
-										cerr<<"rdf:type!"<<endl;
+										LOG<<"rdf:type!"<<endl;
 										//the next object will be the rdfs::Class
 										CONST_RESOURCE_PTR r=parse_object((j+1)->v[0]);
 										if(r){
 											if(get_class(r)==rdfs::Class::get_class()){
-												cerr<<"rdfs:Class!"<<endl;
+												LOG<<"rdfs:Class!"<<endl;
 												CONST_CLASS_PTR c(r);
 												sub=create_by_type(c,u);
 												if(!sub){
-													cerr<<"cannot create instances of class `"<<r->id<<"'"<<endl;
+													LOG<<"cannot create instances of class `"<<r->id<<"'"<<endl;
 													return false;
 												}
 												break;	
 											}else{
-												cerr<<"resource is not a rdfs:Class"<<endl;
+												LOG<<"resource is not a rdfs:Class"<<endl;
 												return false;	
 											}
 										}else{
-											cerr<<"resource not found"<<endl;
+											LOG<<"resource not found"<<endl;
 											return false;
 										}
 									}
@@ -985,17 +985,17 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 								auto j=i+1;
 								while(j<end&&j->t.first!=turtle_parser::subject::id){
 									if(j->t.first==turtle_parser::verb::id){//is there a chance we get to next statement?
-										cerr<<"verb:\n"<<*j<<endl;
+										LOG<<"verb:\n"<<*j<<endl;
 										if(parse_property(j->v[0])==rdf::type::get_property()){
-											cerr<<"rdf:type!"<<endl;
+											LOG<<"rdf:type!"<<endl;
 											//the next object will be the rdfs::Class
 											SPARQL_RESOURCE_PTR r=parse_object((j+1)->v[0]);
 											if(r&&get_class(r)==rdfs::Class::get_class()){
-												cerr<<"rdfs:Class!"<<endl;
+												LOG<<"rdfs:Class!"<<endl;
 												CONST_CLASS_PTR c(r);
 												sub=create_by_type(c,u);
 												if(!sub){
-													cerr<<"cannot create instances of class `"<<r->id<<"'"<<endl;
+													LOG<<"cannot create instances of class `"<<r->id<<"'"<<endl;
 													return false;
 												}
 												break;	
@@ -1007,7 +1007,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 							}
 							if(!sub) return false;
 						}else{
-							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
+							LOG<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
 							return false;
 						}
 					}
@@ -1018,45 +1018,45 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 							//we need to cast away constness, ugly but makes it noticeable
 							sub=RESOURCE_PTR(j->second->get_const_object().pool_ptr,j->second->get_const_object().index);
 						else
-							cerr<<"subject variable `"<<i->v[0].t.second<<"' not found"<<endl;	
+							LOG<<"subject variable `"<<i->v[0].t.second<<"' not found"<<endl;	
 							
 					}break;
 					case 9999:{
-						cerr<<"bnode!"<<endl;
+						LOG<<"bnode!"<<endl;
 						if(i->v[0].v[0].t.first==turtle_parser::nodeID::id){
 							uri u=uri::bnode_uri(i->v[0].v[0].v[0].t.second);
 							sub=find(u);
 							if(!sub){
-								cerr<<"blank node not found"<<endl;
+								LOG<<"blank node not found"<<endl;
 								return false;
 							}
 						}else{
-							cerr<<"##"<<endl;
+							LOG<<"##"<<endl;
 							auto j=i+1;
 							while(j<end&&j->t.first!=turtle_parser::subject::id){
 								if(j->t.first==turtle_parser::verb::id){
-									cerr<<"verb:\n"<<*j<<endl;
+									LOG<<"verb:\n"<<*j<<endl;
 									if(parse_property(j->v[0])==rdf::type::get_property()){
-										cerr<<"rdf:type!"<<endl;
+										LOG<<"rdf:type!"<<endl;
 										//the next object will be the rdfs::Class
 										CONST_RESOURCE_PTR r=parse_object((j+1)->v[0]);
 										if(r){
 											if(get_class(r)==rdfs::Class::get_class()){
-												cerr<<"rdfs:Class!"<<endl;
+												LOG<<"rdfs:Class!"<<endl;
 												CONST_CLASS_PTR c(r);
 												sub=create_by_type_blank(c);
 												bnode_subject_resource=sub;
 												if(!sub){
-													cerr<<"cannot create instances of class `"<<r->id<<"'"<<endl;
+													LOG<<"cannot create instances of class `"<<r->id<<"'"<<endl;
 													return false;
 												}
 												break;	
 											}else{
-												cerr<<"resource is not a rdfs:Class"<<endl;
+												LOG<<"resource is not a rdfs:Class"<<endl;
 												return false;	
 											}
 										}else{
-											cerr<<"resource not found"<<endl;
+											LOG<<"resource not found"<<endl;
 											return false;
 										}
 									}
@@ -1077,9 +1077,9 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
  				*	the parser is forgiving: if a property does not belong to the resource it is ignored
  				*	we replace unknown property by base_resource::type, not the best solution, we should have a property for that only purpose
  				*/ 
-				cerr<<"verb"<<endl;
+				LOG<<"verb"<<endl;
 				if(!sub){
-					cerr<<"no subject defined"<<endl;
+					LOG<<"no subject defined"<<endl;
 					return false;
 				}
 				switch(i->v[0].t.first){
@@ -1087,11 +1087,11 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 						uri u=uri::hash_uri(i->v[0].t.second);
 						current_property=std::find_if(objrdf::begin(sub,user),objrdf::end(sub,user),name_p(u));
 						if(current_property==objrdf::end(sub)){
-							cerr<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
+							LOG<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
 							current_property=objrdf::begin(base_resource::nil,user);
 						}else{//what if property constant
 							if(current_property.constp()){
-								cerr<<"property `"<<u<<"' can not be modified"<<endl;
+								LOG<<"property `"<<u<<"' can not be modified"<<endl;
 								current_property=objrdf::begin(base_resource::nil,user);
 							}
 						}
@@ -1103,16 +1103,16 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 							//find if property belongs to subject
 							current_property=std::find_if(objrdf::begin(sub,user),objrdf::end(sub,user),name_p(u));
 							if(current_property==objrdf::end(sub)){
-								cerr<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
+								LOG<<"property `"<<u<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
 								current_property=objrdf::begin(base_resource::nil,user);
 							}else{
 								if(current_property.constp()){
-									cerr<<"property `"<<u<<"' can not be modified"<<endl;
+									LOG<<"property `"<<u<<"' can not be modified"<<endl;
 									current_property=objrdf::begin(base_resource::nil,user);
 								}
 							}
 						}else{
-							cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
+							LOG<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
 							return false;
 						}
 					}
@@ -1121,16 +1121,16 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 						current_property=objrdf::begin(sub,user);//first property is always rdf::type
 					}break;
 					case turtle_parser::sparql_variable::id:{
-						cerr<<"property variable: `"<<i->v[0].t.second<<"'"<<endl;
+						LOG<<"property variable: `"<<i->v[0].t.second<<"'"<<endl;
 						auto j=v.find(i->v[0].t.second.substr(1));
 						if(j!=v.end()){
 							current_property=std::find_if(objrdf::begin(sub,user),objrdf::end(sub,user),match_property(static_cast<CONST_PROPERTY_PTR>(j->second->get_const_object())));
 							if(current_property==objrdf::end(sub,user)){
-								cerr<<"property `"<<j->second->get_const_object()->id<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
+								LOG<<"property `"<<j->second->get_const_object()->id<<"' does not belong to resource `"<<sub->id<<"'"<<endl;
 								return false;
 							}
 						}else
-							cerr<<"property variable `"<<i->v[0].t.second<<"' not found"<<endl;	
+							LOG<<"property variable `"<<i->v[0].t.second<<"' not found"<<endl;	
 							
 					}break;
 					default:return false;
@@ -1138,7 +1138,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 			}
 			break;
 			case turtle_parser::object::id:{
-				cerr<<"object"<<endl;
+				LOG<<"object"<<endl;
 				switch(i->v[0].t.first){
 					case turtle_parser::literal::id:{
 						if(current_property.literalp()){
@@ -1162,13 +1162,13 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 								}
 							}
 						}else{
-							cerr<<"current property `"<<current_property->get_Property()->id<<"' is not literal"<<endl;
+							LOG<<"current property `"<<current_property->get_Property()->id<<"' is not literal"<<endl;
 						}
 					}
 					break;
 					case turtle_parser::uriref::id:{
 						if(current_property.literalp()){
-							cerr<<"current property `"<<current_property->get_Property()->id<<"' is literal"<<endl;
+							LOG<<"current property `"<<current_property->get_Property()->id<<"' is literal"<<endl;
 						}else{
 							uri u=uri::hash_uri(i->v[0].t.second);//creates a uri if empty!
 							//hack to remove bad data
@@ -1179,7 +1179,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 									if(j->get_const_object()->id==u) break;
 								}
 								if(j==current_property->end()){
-									cerr<<"resource `"<<u<<"' not found"<<endl;
+									LOG<<"resource `"<<u<<"' not found"<<endl;
 									return false;
 								}else{
 									//sub->erase(j);
@@ -1191,7 +1191,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 									//cast away constness
 									current_property->add_property(0)->set_object(RESOURCE_PTR(r.pool_ptr,r.index));
 								}else{
-									cerr<<"resource `"<<u<<"' not found"<<endl;
+									LOG<<"resource `"<<u<<"' not found"<<endl;
 								}
 							}
 						}
@@ -1199,7 +1199,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 					break;
 					case turtle_parser::qname::id:{
 						if(current_property.literalp()){
-							cerr<<"current property `"<<current_property->get_Property()->id<<"' is literal"<<endl;
+							LOG<<"current property `"<<current_property->get_Property()->id<<"' is literal"<<endl;
 						}else{
 							PREFIX_NS::iterator j=prefix_ns.find(i->v[0].v[0].t.second);
 							if(j!=prefix_ns.end()){
@@ -1219,18 +1219,18 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 										//cast away constness
 										current_property->add_property(0)->set_object(RESOURCE_PTR(r.pool_ptr,r.index));
 									}else{
-										cerr<<"resource `"<<u<<"' not found"<<endl;
+										LOG<<"resource `"<<u<<"' not found"<<endl;
 									}
 								}
 							}else{
-								cerr<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
+								LOG<<"prefix `"<<i->v[0].v[0].t.second<<"' not associated with any namespace"<<endl;
 								return false;
 							}
 						}
 					}
 					break;
 					case 9999:{
-						cerr<<"bnode!"<<endl;
+						LOG<<"bnode!"<<endl;
 						//we might have a problem here: if set_object() fails we end up with non-initialized memory, also happens
 						//if the connection is lost,
 						/*
@@ -1245,7 +1245,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 							parse_update_data_statement(i->v[0].v.cbegin(),i->v[0].v.cend(),do_delete,v,tmp);
 							current_property->add_property(0)->set_object(tmp);
 						}else{
-							cerr<<"creating new anonymous class not allowed"<<endl;
+							LOG<<"creating new anonymous class not allowed"<<endl;
 						}
 					}
 					break;
@@ -1273,12 +1273,12 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 										current_property->add_property(0)->set_string(object_str);
 									}	
 								}else{
-									cerr<<"current property `"<<current_property->get_Property()->id<<"' is literal"<<endl;
+									LOG<<"current property `"<<current_property->get_Property()->id<<"' is literal"<<endl;
 									return false;
 								}
 							}else{
 								if(j->second.literalp()){
-									cerr<<"current property `"<<current_property->get_Property()->id<<"' is not literal"<<endl;
+									LOG<<"current property `"<<current_property->get_Property()->id<<"' is not literal"<<endl;
 									return false;
 								}else{
 									CONST_RESOURCE_PTR obj=j->second->get_const_object();
@@ -1299,7 +1299,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 								}
 							}
 						}else
-							cerr<<"object variable `"<<i->v[0].t.second<<"' not found"<<endl;	
+							LOG<<"object variable `"<<i->v[0].t.second<<"' not found"<<endl;	
 					}break;
 					default:return false;
 				}
