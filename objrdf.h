@@ -38,11 +38,21 @@ template <typename T> int sgn(T val){
 template <typename T> int sgn(complex<T> val){
 	return 0;
 }
+namespace objrdf{
+	template<char... C> struct str{
+		static const char* name(){
+			initializer_list<char> l={C...,0};
+			char* s=new char[l.size()];
+			strcpy(s,l.begin());
+			return s;
+		}
+	};
+}
 
-#define PROPERTY(n,...) struct n_##n{static char* name(){return #n;};};typedef objrdf::property<rdfs_namespace,n_##n,__VA_ARGS__> n
-#define OBJRDF_PROPERTY(n,...) struct n_##n{static char* name(){return #n;};};typedef objrdf::property<_rdfs_namespace,n_##n,__VA_ARGS__> n
-#define CLASS(n,...) struct n_##n{static char* name(){return #n;};};typedef objrdf::resource<rdfs_namespace,n_##n,__VA_ARGS__> n
-#define OBJRDF_CLASS(n,...) struct n_##n{static char* name(){return #n;};};typedef objrdf::resource<_rdfs_namespace,n_##n,__VA_ARGS__> n
+#define PROPERTY(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::property<rdfs_namespace,n_##n,__VA_ARGS__> n
+#define OBJRDF_PROPERTY(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::property<_rdfs_namespace,n_##n,__VA_ARGS__> n
+#define CLASS(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::resource<rdfs_namespace,n_##n,__VA_ARGS__> n
+#define OBJRDF_CLASS(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::resource<_rdfs_namespace,n_##n,__VA_ARGS__> n
 /*
  *	could we define lightweight classes? to reuse code?, that would all use the same pool because they are identical
  *	they only differ by their rdfs::type
@@ -65,8 +75,8 @@ namespace objrdf{
  *	uri and prefix MUST be quoted, the macro could quote but forward slashes in URI confuse syntax highlighting in VIM
  *	hash namespace vs slash namespace, use hash for now because of optimization, could catch non hash uri at compile-time or run-time
  */
-#define RDFS_NAMESPACE(uri,prefix) struct rdfs_namespace{static std::pair<char*,char*> name(){return std::pair<char*,char*>(uri,prefix);}};
-#define OBJRDF_RDFS_NAMESPACE(uri,prefix) struct _rdfs_namespace{static std::pair<char*,char*> name(){return std::pair<char*,char*>(uri,prefix);}};
+#define RDFS_NAMESPACE(uri,prefix) struct rdfs_namespace{static std::pair<const char*,const char*> name(){return std::pair<const char*,const char*>(uri,prefix);}};
+#define OBJRDF_RDFS_NAMESPACE(uri,prefix) struct _rdfs_namespace{static std::pair<const char*,const char*> name(){return std::pair<const char*,const char*>(uri,prefix);}};
 
 namespace rdf{
 	//multiple definitions, linker will complain
@@ -1165,7 +1175,7 @@ namespace rdfs{
 }
 namespace rdf{
 	struct Literal:objrdf::resource<rdfs_namespace,Literal,std::tuple<>,Literal>{
-		static char* name(){return "Literal";}
+		static const char* name(){return "Literal";}
 		Literal(objrdf::uri u):SELF(u){}
 		COMMENT("The class of literal values, eg. textual strings and integers")
 	};
@@ -1182,10 +1192,10 @@ namespace xsd{
 	CLASS(date,std::tuple<>,objrdf::NIL,rdf::Literal);
 	CLASS(dateTime,std::tuple<>,objrdf::NIL,rdf::Literal);
 	CLASS(unsignedShort,std::tuple<>,objrdf::NIL,rdf::Literal);
-	struct _Double{static char* name(){return "double";}};typedef objrdf::resource<rdfs_namespace,_Double,std::tuple<>,objrdf::NIL,rdf::Literal> Double;
-	struct _Float{static char* name(){return "float";}};typedef objrdf::resource<rdfs_namespace,_Float,std::tuple<>,objrdf::NIL,rdf::Literal> Float;
-	struct _Short{static char* name(){return "short";}};typedef objrdf::resource<rdfs_namespace,_Short,std::tuple<>,objrdf::NIL,rdf::Literal> Short;
-	struct _String{static char* name(){return "string";}};typedef objrdf::resource<rdfs_namespace,_String,std::tuple<>,objrdf::NIL,rdf::Literal> String;
+	struct _Double{static const char* name(){return "double";}};typedef objrdf::resource<rdfs_namespace,_Double,std::tuple<>,objrdf::NIL,rdf::Literal> Double;
+	struct _Float{static const char* name(){return "float";}};typedef objrdf::resource<rdfs_namespace,_Float,std::tuple<>,objrdf::NIL,rdf::Literal> Float;
+	struct _Short{static const char* name(){return "short";}};typedef objrdf::resource<rdfs_namespace,_Short,std::tuple<>,objrdf::NIL,rdf::Literal> Short;
+	struct _String{static const char* name(){return "string";}};typedef objrdf::resource<rdfs_namespace,_String,std::tuple<>,objrdf::NIL,rdf::Literal> String;
 }
 namespace objrdf{
 	OBJRDF_CLASS(Char,std::tuple<>,NIL,rdf::Literal);
@@ -1287,7 +1297,7 @@ namespace rdfs{
 		std::tuple<>,
 		volatile_allocator_managed<void,uint8_t>
 	>{
-		static char* name(){return "Class";}
+		static const char* name(){return "Class";}
 		//convenience typedef to retrieve properties
 		typedef std::tuple_element<0,PROPERTIES>::type array_subClassOf;
 		typedef std::tuple_element<1,PROPERTIES>::type array_superClassOf;
@@ -1358,7 +1368,7 @@ namespace rdf{
 		std::tuple<>,
 		volatile_allocator_managed<void,uint8_t>//we could have more than 256 propertie?
 	>{
-		static char* name(){return "Property";}
+		static const char* name(){return "Property";}
 		typedef std::tuple_element<0,PROPERTIES>::type domains;
 		Property(objrdf::uri u);
 		Property(objrdf::uri u,rdfs::range r,const bool literalp);
