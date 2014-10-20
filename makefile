@@ -1,7 +1,7 @@
 CC = g++
 ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ 
 
-CFLAGS = -O3 -std=c++0x -I. -w -UOBJRDF_VERB -UREF_COUNT -UNEW_HEADER 
+CFLAGS = -O3 -std=c++0x -I. -UOBJRDF_VERB -UREF_COUNT -UNEW_HEADER -UNATIVE
 OBJ1 = objrdf.o uri.o
 OBJ5 = Sockets.o
 OBJ7 = sparql_engine.o
@@ -22,8 +22,10 @@ OBJS = $(OBJ1) $(OBJ2) $(OBJ3)
 #	rm $(OBJS)
 test%:test%.cpp $(OBJ1) $(OBJ8) objrdf.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) -o $@ 
-examples/%:examples/%.cpp $(OBJ1) $(OBJ7) $(OBJ8) $(OBJ9) objrdf.h
-	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ7) $(OBJ8) $(OBJ9) -o $@ 
+examples/%:examples/%.cpp $(OBJ1) $(OBJ8) $(OBJ9) objrdf.h
+	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) $(OBJ9) -o $@ 
+#examples/%:examples/%.cpp $(OBJ1) $(OBJ7) $(OBJ8) $(OBJ9) objrdf.h
+	#$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ7) $(OBJ8) $(OBJ9) -o $@ 
 _example.%:example.%.cpp libobjrdf.so
 	$(CC) $(CFLAGS) $< libobjrdf.so -o $@ 
 example%:example%.cpp $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) objrdf.h
@@ -86,6 +88,8 @@ persistence.objrdf: persistence.objrdf.cpp objrdf.o uri.o rdf_xml_parser.o ebnf.
 
 libobjrdf.so:objrdf.pic.o uri.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o
 	$(CC) $(CFLAGS) objrdf.pic.o uri.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o -lpthread -shared -o $@
+libobjrdf_min.so:objrdf.pic.o uri.pic.o ebnf.pic.o rdf_xml_parser.pic.o
+	$(CC) $(CFLAGS) objrdf.pic.o uri.pic.o ebnf.pic.o rdf_xml_parser.pic.o -shared -o $@
 libobjrdf.arm.so:objrdf.arm.pic.o uri.arm.pic.o sparql_engine.arm.pic.o ebnf.arm.pic.o httpd.arm.pic.o rdf_xml_parser.arm.pic.o Sockets.arm.pic.o
 	$(ARM) $(CFLAGS) objrdf.arm.pic.o uri.arm.pic.o sparql_engine.arm.pic.o ebnf.arm.pic.o httpd.arm.pic.o rdf_xml_parser.arm.pic.o Sockets.arm.pic.o -lpthread -shared -o $@
 #too many include files, need to reorganize the code

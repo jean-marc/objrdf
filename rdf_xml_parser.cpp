@@ -26,9 +26,17 @@ bool rdf_xml_parser::go(){
 bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& to spare a map copy?
 	cerr<<"start resource "<<name<<endl;
 	if(current_property!=end(st.top())){
+		#ifdef NATIVE
+		if(current_property->get_Property()->cget<rdfs::range>().t->id==name && !current_property->constp()){
+		#else
 		if(current_property->get_Property()->cget<rdfs::range>()->id==name && !current_property->constp()){
+		#endif
 			//assert(current_property->get_Property()->cget<rdfs::range>()->constructor());
+			#ifdef NATIVE
+			auto cl=current_property->get_Property()->cget<rdfs::range>().t;
+			#else
 			auto cl=current_property->get_Property()->cget<rdfs::range>();
+			#endif
 			auto j=att.find(rdf::ID);
 			RESOURCE_PTR r=(j!=att.end()) ? create_by_type(cl,uri(j->second)):create_by_type_blank(cl);
 			auto k=att.find(rdf::nodeID);
@@ -110,9 +118,13 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 			RESOURCE_PTR r=find(name);
 			//alternatively only search rdfs::Class::get_instances() will work in most cases
 			if(r&&r->get_Class()==rdfs::Class::get_class()){
+				#ifdef NATIVE
+				CONST_CLASS_PTR c=static_cast<CONST_CLASS_PTR>(r);
+				if(is_subclass(c,current_property->get_Property()->cget<rdfs::range>().t)){
+				#else
 				CONST_CLASS_PTR c(r);
-				//if(*current_property->get_Property()->cget<rdfs::range>() < *c){
 				if(is_subclass(c,current_property->get_Property()->cget<rdfs::range>())){
+				#endif
 					RESOURCE_PTR r=create_by_type(c,uri(att[rdf::ID]));
 					//LOG<<"new resource:"<<r->id<<endl;
 					//r->id=att[rdf::ID];
@@ -126,7 +138,11 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 						}
 					}
 				}else{
+					#ifdef NATIVE
+					ERROR_PARSER<<name<<" not a sub-class of "<<current_property->get_Property()->cget<rdfs::range>().t->id<<endl;
+					#else
 					ERROR_PARSER<<name<<" not a sub-class of "<<current_property->get_Property()->cget<rdfs::range>()->id<<endl;
+					#endif
 					st.push(placeholder);
 				}
 			}else{
@@ -308,8 +324,13 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 		if(current_property.constp()){
 			ERROR_PARSER<<"property const"<<endl;
 		}else if(current_property.literalp()){
+			#ifdef NATIVE
+			if(current_property->get_Property()->cget<rdfs::range>().t==xsd::String::get_class()||
+			   current_property->get_Property()->cget<rdfs::range>().t==xsd::anyURI::get_class()){//if the RANGE is string it could consume the next `<'
+			#else
 			if(current_property->get_Property()->cget<rdfs::range>()==xsd::String::get_class()||
 			   current_property->get_Property()->cget<rdfs::range>()==xsd::anyURI::get_class()){//if the RANGE is string it could consume the next `<'
+			#endif
 				string_property=true;
 			}else{
 				current_property->add_property(p)->in(is);
