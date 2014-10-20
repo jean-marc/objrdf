@@ -10,6 +10,11 @@
  */
 #ifndef HTTP_PARSER_H
 #define HTTP_PARSER_H
+#ifdef OBJRDF_VERB
+#define LOG std::cerr
+#else
+#define LOG if(0) cerr
+#endif
 #include "ebnf.h"
 #include <iostream>
 #include <string>
@@ -42,32 +47,32 @@ struct http_parser:char_iterator/*<128>*/{
 	string current_key,current_path,current_method;
 	bool callback(method,string s){
 		current_method=s;
-		cerr<<"method:"<<s<<endl;
+		LOG<<"method:"<<s<<endl;
 		return true;
 	}
 	bool callback(key,string s){
 		current_key=s;
-		cerr<<"key:"<<s;
+		LOG<<"key:"<<s;
 		return true;
 	}
 	bool callback(value,string s){
 		headers[current_key]=s;
-		cerr<<" value:"<<s<<endl;
+		LOG<<" value:"<<s<<endl;
 		return true;
 	}
 	bool callback(path,string s){
 		current_path=s;
-		cerr<<"path:"<<s<<endl;
+		LOG<<"path:"<<s<<endl;
 		return true;
 	}
 	bool callback(_key,string s){
 		current_key=s;
-		cerr<<"_key:"<<s<<endl;
+		LOG<<"_key:"<<s<<endl;
 		return true;
 	}
 	bool callback(_value,string s){
 		url_arguments[current_key]=s;
-		cerr<<"_value:"<<s<<endl;
+		LOG<<"_value:"<<s<<endl;
 		return true;
 	}
 };
