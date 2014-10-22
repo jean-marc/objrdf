@@ -7,7 +7,7 @@ namespace objrdf{
 	char start_id[]="\033[32m";
 	char stop_id[]="\033[m";
 	ostream& operator<<(ostream& os,const property_info& i){
-		return os<<i.p->id<<"\n******************\n"<<i.t;
+		return os<<"\n"<<i.p->id<<"\t("<<i.offset<<")\n******************\n"<<i.t;
 	}
 }
 using namespace objrdf;
@@ -163,10 +163,15 @@ void base_resource::instance_iterator::in(istream& is){
 	i->t.in(subject,is,index);
 }
 void base_resource::instance_iterator::out(ostream& os) const{
-	i->t.out(subject,os,index);
+	//i->t.out(subject,os,index);
+	//typedef void (*out_generic_f)(CONST_RESOURCE_PTR,ptrdiff_t offset,ostream&,size_t);
+	//cerr<<"out"<<i->t.out_generic<<endl;
+	i->t.out_generic(subject,i->offset,os,index);
 }
 void base_resource::const_instance_iterator::out(ostream& os) const{
-	i->t.out(subject,os,index);
+	//i->t.out(subject,os,index);
+	//cerr<<"out"<<i->t.out_generic<<endl;
+	i->t.out_generic(subject,i->offset,os,index);
 }
 string base_resource::instance_iterator::str() const{
 	ostringstream os;
