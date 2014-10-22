@@ -6,23 +6,23 @@ namespace objrdf{
 	//color scheme in bash, could be customized by namespace
 	char start_id[]="\033[32m";
 	char stop_id[]="\033[m";
+	ostream& operator<<(ostream& os,const property_info& i){
+		return os<<i.p->id<<"\n******************\n"<<i.t;
+	}
 }
 using namespace objrdf;
 
-template<> void f_ptr::constructor<rdfs::Class>(RESOURCE_PTR p,uri u){assert(0);}
+//template<> void f_ptr::constructor<rdfs::Class>(RESOURCE_PTR p,uri u){assert(0);}//we might actually need that for sparql
 template<> void f_ptr::constructor<rdf::Property>(RESOURCE_PTR p,uri u){assert(0);}
 template<> base_resource::type_iterator f_ptr::end<rdfs::Class>(RESOURCE_PTR r){return base_resource::type_iterator(r,rdfs::Class::v.begin());}
 template<> base_resource::type_iterator f_ptr::end<rdf::Property>(RESOURCE_PTR r){return base_resource::type_iterator(r,rdf::Property::v.begin());}
 
 name_p::name_p(uri n):n(n){}
+
 bool name_p::operator()(const property_info& p) const{return p.p->id==n;}
-bool type_p::operator()(RESOURCE_PTR r) const{return *t<=*r->get_Class();}
-/*
-base_resource::type_iterator base_resource::begin(){return base_resource::type_iterator(this,v.begin());}
-base_resource::const_type_iterator base_resource::cbegin() const{return base_resource::const_type_iterator(this,v.cbegin());}
-base_resource::type_iterator base_resource::end(){return base_resource::type_iterator(this,v.end());}
-base_resource::const_type_iterator base_resource::cend() const{return base_resource::const_type_iterator(this,v.cend());}
-*/
+bool type_p::operator()(RESOURCE_PTR r) const{
+	return is_a(get_class(r),t);
+}
 base_resource::base_resource(uri id):id(id){
 	//note: not indexed by default, we couldn't anyway because we only have `this' pointer
 	#ifdef OBJRDF_VERB
@@ -34,13 +34,13 @@ base_resource::~base_resource(){
 	cerr<<"delete base_resource `"<<id<<"' "<<this<<endl;
 	#endif
 }
-CONST_PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::iterator>(*this)->p;}
+CONST_PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}//strange syntax
 CONST_PROPERTY_PTR base_resource::const_type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}
-size_t base_resource::type_iterator::get_size() const{return static_cast<V::iterator>(*this)->t.get_size(subject);}
+size_t base_resource::type_iterator::get_size() const{return static_cast<V::const_iterator>(*this)->t.get_size(subject);}
 size_t base_resource::const_type_iterator::get_size() const{return static_cast<V::const_iterator>(*this)->t.get_size(subject);}
-bool base_resource::type_iterator::literalp() const{return static_cast<V::iterator>(*this)->literalp;}
+bool base_resource::type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
 bool base_resource::const_type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
-bool base_resource::type_iterator::constp() const{return !static_cast<V::iterator>(*this)->t.add_property;}
+bool base_resource::type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property;}
 bool base_resource::const_type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property;}
 void base_resource::patch(V& v){}
 
@@ -73,6 +73,7 @@ struct cmp_uri{
 	cmp_uri(uri u):u(u){}
 	bool operator()(CONST_CLASS_PTR s)const{return s->id==u;}
 };
+rdfs::Class::Class(objrdf::uri id):SELF(id){}
 rdfs::Class::Class(
 	objrdf::uri id,
 	rdfs::subClassOf s,
@@ -81,67 +82,56 @@ rdfs::Class::Class(
 	objrdf::sizeOf size,
 	objrdf::hashOf h
 ):SELF(id),t(t){
-	/*objrdf::Test_class::allocator a;
-	auto ptr=a.allocate(1);
-	a.construct(ptr,id);
-	for(auto i=a.cbegin();i<a.cend();++i){
-		//cout<<(*i).index<<endl;
-		//crashes, does id become stale?, yes: the namespace handle!!!
-		cerr<<"Test_Class:`"<<(*i)->id.local<<"'"<<endl;
-		//we could use a hash to identify class
-	}
-	*/
 	#ifdef OBJRDF_VERB
 	cerr<<"create rdfs::Class `"<<id<<"'\t"<<this<</*"\t"<<t<<*/endl;
 	#endif
 	get<comment>().set_string(comment_str);
 	get<objrdf::sizeOf>()=size;
 	get<objrdf::hashOf>()=h;
+	#ifdef NATIVE
+	if(s.t){
+	#else
 	if(s){
-		//what if we change allocators??
-		get<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().push_back(s);
-		get<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().insert(
-			get<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().end(),
-			s->get_const<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().cbegin(),
-			s->get_const<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().cend()
+	#endif
+		get<array_subClassOf>().push_back(s);
+		get<array_subClassOf>().insert(
+			get<array_subClassOf>().end(),
+			#ifdef NATIVE
+			s.t->cget<array_subClassOf>().cbegin(),
+			s.t->cget<array_subClassOf>().cend()
+			#else
+			s->cget<array_subClassOf>().cbegin(),
+			s->cget<array_subClassOf>().cend()
+			#endif
 		);
 	}
 }
-bool rdfs::Class::operator==(const rdfs::Class& c) const{
-	return this==&c;	
-}
-bool rdfs::Class::operator<(const rdfs::Class& c) const{//is c subClass of this?
-	auto i=find(c.get_const<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().cbegin(),c.get_const<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().cend(),this);
-	return i!=c.get_const<objrdf::array<subClassOf,volatile_allocator_unmanaged<subClassOf>>>().cend();
-}
-bool rdfs::Class::operator<=(const rdfs::Class& c) const{
-	return (*this==c)||(*this<c);
-}
-bool rdfs::Class::is_subclass_of(const Class& c) const{
-	return c<=*this;
-}
-bool rdfs::Class::literalp() const{
-	return *rdf::Literal::get_class()<*this;
-}
-void rdfs::Class::analyze(){};
 CONST_CLASS_PTR base_resource::get_class(){
+	#ifdef NATIVE
+	static CONST_CLASS_PTR p=new rdfs::Class(
+	#else
 	static CONST_CLASS_PTR p=rdfs::Class::allocator_type::construct_allocate_at(
 		allocator_type::get_pool().index,
+	#endif
 		objrdf::get_uri<rdfs::rdfs_namespace>("Resource"),
 		rdfs::subClassOf(),
 		objrdf::base_resource::class_function_table(
 			f_ptr::constructor<base_resource>,
+			f_ptr::destructor<base_resource>,
 			f_ptr::copy_constructor<base_resource>,
 			f_ptr::begin<base_resource>,
 			f_ptr::end<base_resource>,
 			f_ptr::cbegin<base_resource>,
 			f_ptr::cend<base_resource>,
 			f_ptr::allocate<base_resource>,
+			f_ptr::deallocate<base_resource>,
 			f_ptr::get_output<base_resource>
 		)			
 		,get_comment()
 		,objrdf::sizeOf(sizeof(base_resource))
+		#ifndef NATIVE
 		,objrdf::hashOf(pool_allocator::pool::get_hash<base_resource>())
+		#endif
 	);
 	return p;
 }
@@ -158,10 +148,11 @@ rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp,rdfs::s
  *	one solution is to not persist base_resources but we might need them as cheap symbols 
  *
  */
-
-//CONST_RESOURCE_PTR base_resource::nil=CONST_RESOURCE_PTR::construct(uri("nil"));
-//RESOURCE_PTR base_resource::nil=RESOURCE_PTR::construct(uri("nil"));
+#ifdef NATIVE
+RESOURCE_PTR base_resource::nil=new base_resource(uri("nil"));
+#else
 RESOURCE_PTR base_resource::nil=base_resource::allocator_type::construct_allocate(uri("nil"));
+#endif
 V base_resource::v=get_generic_property<base_resource>::go();
 CONST_PROPERTY_PTR base_resource::instance_iterator::get_Property() const{return i->p;}
 CONST_PROPERTY_PTR base_resource::const_instance_iterator::get_Property() const{return i->p;}
@@ -221,6 +212,12 @@ CONST_RESOURCE_PTR base_resource::const_instance_iterator::get_const_object() co
 void base_resource::instance_iterator::set_object(RESOURCE_PTR r){
 	i->t.set_object(subject,r,index);
 }
+RESOURCE_PTR base_resource::instance_iterator::get_statement() const{
+	return i->t.get_statement(subject,index);
+}
+RESOURCE_PTR base_resource::const_instance_iterator::get_statement() const{
+	return i->t.get_statement(subject,index);
+}
 PROVENANCE base_resource::instance_iterator::get_provenance() const{
 	return i->t.get_provenance(subject,index);
 }
@@ -235,83 +232,16 @@ base_resource::instance_iterator base_resource::type_iterator::add_property(PROV
 	cerr<<"add_property `"<<get_Property()->id<<"' to resource `"<<subject->id<<"'"<<endl;
 	#endif
 	//awkward
-	assert(static_cast<V::iterator>(*this)->t.add_property);
-	static_cast<V::iterator>(*this)->t.add_property(subject,p);
+	assert(static_cast<V::const_iterator>(*this)->t.add_property);
+	static_cast<V::const_iterator>(*this)->t.add_property(subject,p);
 	return instance_iterator(subject,*this,get_size()-1);
 }
-void base_resource::_tmp_::operator=(const string& value){
-	/*
-  	base_resource::type_iterator i=std::find_if(r.begin(),r.end(),namep(key));
-	if(i!=r.end()){
-		if(i->literalp()){
-			istringstream is(value);
-			i->add_property()->in(is);
-			if(!is) cerr<<"problem with formating\n";
-		}else{
-			cerr<<"only literal properties supported for now\n";
-		}
-	}else{
-		cerr<<"property not found\n";
-	}
-	*/
-}
 int base_resource::p_to_xml_size(const CONST_PROPERTY_PTR p){return 1;}
-bool base_resource::is_a(const CONST_CLASS_PTR& c) const{
-	return *c<=*get_Class();
-}
-/*
-void base_resource::to_turtle(ostream& os){
-	os<<id<<" ";
-	base_resource::type_iterator t_begin=begin();
-	for(base_resource::type_iterator i=t_begin;i!=end();++i){
-		base_resource::instance_iterator begin=i->begin(),end=i->end();
-		if(begin!=end){ 
-			if(i!=t_begin) os<<";";
-			os<<i->get_Property()->id<<" "<<*begin;
-			++begin;
-			for(;begin<end;++begin)
-				os<<","<<*begin;
-		}
-	}
-	os<<" .\n";
-}
-void base_resource::to_turtle_pretty(ostream& os){
-	os<<id<<" ";
-	base_resource::type_iterator t_begin=begin();
-	for(base_resource::type_iterator i=t_begin;i!=end();++i){
-		base_resource::instance_iterator begin=i->begin(),end=i->end();
-		if(begin!=end){ 
-			if(i!=t_begin) os<<";";
-			os<<i->get_Property()->id<<" "<<*begin;
-			++begin;
-			for(;begin<end;++begin)
-				os<<","<<*begin;
-		}
-	}
-	os<<" .\n";
-}
-void base_resource::to_rdf_xml(ostream& os,const PROVENANCE& p) const{
-	os<<"\n<"<<get_Class()->id<<" "<<(id.is_local() ? rdf::ID : rdf::about)<<"='";
-	id.to_uri(os);
-	os<<"'>";
-	for(auto i=cbegin();i!=cend();++i){
-		for(auto j=i->cbegin();j!=i->cend();++j){
-			if(j->get_provenance()>=p){
-				if(i->literalp())
-					os<<"\n\t<"<<i->get_Property()->id<<">"<<*j<<"</"<<i->get_Property()->id<<">";
-				else{
-					os<<"\n\t<"<<i->get_Property()->id<<" "<<rdf::resource<<"='"<<(j->get_const_object()->id.is_local() ? "#" : "");
-					j->get_const_object()->id.to_uri(os);
-					os<<"'/>";
-				}
-			}
-		}
-	}
-	os<<"\n</"<<get_Class()->id<<">";
-}
-*/
 namespace objrdf{
 	CONST_CLASS_PTR get_class(CONST_RESOURCE_PTR r){
+		#ifdef NATIVE
+		return r->_get_class();
+		#else
 		CONST_CLASS_PTR p(r.pool_ptr.index);
 		try{
 			auto r=p.operator->();
@@ -320,6 +250,23 @@ namespace objrdf{
 			exit(1);
 		}
 		return p;
+		#endif
+	}
+	bool is_subclass(CONST_CLASS_PTR a,CONST_CLASS_PTR b){
+		//a is derived from b
+		#ifdef NATIVE
+		auto i=find_if(
+			a->cget<rdfs::Class::array_subClassOf>().cbegin(),
+			a->cget<rdfs::Class::array_subClassOf>().cend(),
+			[&](const rdfs::subClassOf& p){return p.t==b;}
+		);
+		#else
+		auto i=find(a->cget<rdfs::Class::array_subClassOf>().cbegin(),a->cget<rdfs::Class::array_subClassOf>().cend(),b);
+		#endif
+		return i!=a->cget<rdfs::Class::array_subClassOf>().cend();
+	}
+	bool is_a(CONST_CLASS_PTR a,CONST_CLASS_PTR b){
+		return a==b||is_subclass(a,b);
 	}
 	//shall we start with an offset since the first 2 properties are read-only (rdfs::type and objrdf::self)
 	base_resource::type_iterator begin(RESOURCE_PTR r){return get_class(r)->t.begin(r);}
@@ -327,10 +274,12 @@ namespace objrdf{
 	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return get_class(r)->t.cbegin(r);}
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r){return get_class(r)->t.cend(r);}
 	//to start we could define profiles then a full blown access control
+	#ifndef NATIVE
 	base_resource::type_iterator begin(RESOURCE_PTR r,CONST_USER_PTR){return get_class(r)->t.begin(r);}
 	base_resource::type_iterator end(RESOURCE_PTR r,CONST_USER_PTR){return get_class(r)->t.end(r);}
 	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r,CONST_USER_PTR){return get_class(r)->t.cbegin(r);}
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r,CONST_USER_PTR){return get_class(r)->t.cend(r);}
+	#endif
 
 	void erase(RESOURCE_PTR r,base_resource::instance_iterator first,base_resource::instance_iterator last){
 		first.i->t.erase(r,first.index,last.index);
@@ -374,65 +323,7 @@ namespace objrdf{
 		get_class(r)->t.get_output(r,os);
 	}
 }
-#if 0
-void base_resource::to_rdf_xml_pretty(ostream& os){
-	/*
- 	*	we can only use rdf:ID if the resource is local, that is if uri::index==0
- 	*/ 
-	os<<"\n\033[36m<"<<get_Class()->id<<" \033[32m"<<(id.is_local() ? rdf::ID : rdf::about)<<"=\033[31m'";
-	id.to_uri(os);
-#ifdef OBJRDF_VERB
-	//os<<"' ref_count='"<<n;
-#endif
-	os<<"'\033[36m>";
-	for(base_resource::type_iterator i=begin();i!=end();++i){
-		for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
-			if(i->literalp())
-				os<<"\n\t\033[36m<"<<i->get_Property()->id<</*"{"<<j->get_provenance()<<"}"<<*/">\033[m"<<*j<<"\033[36m</"<<i->get_Property()->id<<">";
-			else{
-				os<<"\n\t\033[36m<"<<i->get_Property()->id<</*"{"<<j->get_provenance()<<"}"<<*/" \033[32m"<<rdf::resource<<"=\033[31m'"<<(j->get_object()->id.is_local() ? "#" : "");
-				j->get_object()->id.to_uri(os);
-				os<<"'\033[36m/>";
-			}
-		}
-	}
-	os<<"\n\033[36m</"<<get_Class()->id<<">\033[m";
-}
-void base_resource::to_xml_leaf(ostream& os){
-	os<<"<"<<get_Class()->id<<" "<<rdf::ID<<"='"<<id<<"'>";
-	for(base_resource::type_iterator i=begin();i!=end();++i){
-		if(i->get_Property()!=rdf::type::get_property()){
-			for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
-					os<<"<"<<i->get_Property()->id<<">";
-					if(i->literalp())
-						j->out(os);	
-					else
-						j->get_object()->to_xml_leaf(os);//watch for loops!!!
-					os<<"</"<<i->get_Property()->id<<">";
-			}
-		}
-	}
-	os<<"</"<<get_Class()->id<<">";
-}
-void base_resource::to_xml(ostream& os){
-	os<<"<"<<get_Class()->id<<" ID='"<<id<<"'\n";
-	uri::ns_declaration(os);
-	os<<">";
-	for(base_resource::type_iterator i=begin();i!=end();++i){
-		if(i->get_Property()!=rdf::type::get_property()){
-			for(base_resource::instance_iterator j=i->begin();j!=i->end();++j){
-					os<<"<"<<i->get_Property()->id<<">";
-					if(i->literalp())
-						j->out(os);	
-					else
-						j->get_object()->to_xml_leaf(os);//watch for loops!!!
-					os<<"</"<<i->get_Property()->id<<">";
-			}
-		}
-	}
-	os<<"</"<<get_Class()->id<<">";
-}
-#endif
+#ifndef NATIVE
 void objrdf::to_rdf_xml(ostream& os){
 	os<<"<?xml version='1.0'?>\n";
 	os<<"<"<<rdf::_RDF<<"\n";
@@ -443,45 +334,41 @@ void objrdf::to_rdf_xml(ostream& os){
 	os<<">";
 	rdfs::Class::allocator_type a;
 	for(auto i=a.cbegin();i!=a.cend();++i){
-		pool_allocator::pool::POOL_PTR p(i.index); //there is a mapping between Class and pools
-		for(auto j=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool_allocator::pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
-			to_rdf_xml(j,cout);
+		pool_allocator::pool::POOL_PTR p(i.get_cell_index()); //there is a mapping between Class and pools
+		if(p->iterable){
+			for(auto j=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool_allocator::pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
+				to_rdf_xml(j,cout);
+			}
+		}else{
+			cerr<<"pool `"<<i->id<<"' not iterable "<<p->payload_offset<<endl;
 		}
 	}
 	os<<"\n</"<<rdf::_RDF<<">\n";
 }
-//dumb scanner
+void objrdf::generate_index(){
+	rdfs::Class::allocator_type a;
+	for(auto i=a.cbegin();i!=a.cend();++i){
+		pool_allocator::pool::POOL_PTR p(i.get_cell_index()); //there is a mapping between Class and pools
+		for(auto j=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool_allocator::pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
+			base_resource::get_index()[j->id]=j;
+		}
+	}
+}
+
+#endif
 RESOURCE_PTR objrdf::find(uri u){
 	cerr<<"looking up uri `"<<u<<"'...";
 	auto i=base_resource::get_index().find(u);
 	if(i==base_resource::get_index().end()){
 		cerr<<"not found"<<endl;
+		#ifdef NATIVE
+		return RESOURCE_PTR(0);
+		#else
 		return RESOURCE_PTR(0,0);
+		#endif
 	}
 	cerr<<"found"<<endl;
 	return i->second;
-	//return i==base_resource::_index_.end() ? RESOURCE_PTR() : i->second;
-	/*	
-	for(auto i=objrdf::begin();i<objrdf::end();++i){
-		for(auto j=i.begin();j<i.end();++j){
-			if((*j)->id==u){
-				cerr<<"found"<<endl;	
-				return *j;
-			}
-		}
-	}	
-	cerr<<"not found"<<endl;	
-	return RESOURCE_PTR();
-	*/
-}
-void objrdf::generate_index(){
-	rdfs::Class::allocator_type a;
-	for(auto i=a.cbegin();i!=a.cend();++i){
-		pool_allocator::pool::POOL_PTR p(i.index); //there is a mapping between Class and pools
-		for(auto j=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool_allocator::pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
-			base_resource::get_index()[j->id]=j;
-		}
-	}
 }
 RESOURCE_PTR objrdf::create_by_type(CONST_CLASS_PTR c,uri id){
 	RESOURCE_PTR rp(c->t.allocate());
@@ -490,14 +377,19 @@ RESOURCE_PTR objrdf::create_by_type(CONST_CLASS_PTR c,uri id){
 }
 RESOURCE_PTR objrdf::create_by_type(uri type,uri id){
 	CONST_CLASS_PTR c=find_t<rdfs::Class>(type);
+	#ifdef NATIVE
+	return c ? objrdf::create_by_type(c,id) : RESOURCE_PTR(0);
+	#else
 	return c ? objrdf::create_by_type(c,id) : RESOURCE_PTR(0,0);
+	#endif
 }
 RESOURCE_PTR objrdf::create_by_type_blank(CONST_CLASS_PTR c){
 	RESOURCE_PTR rp(c->t.allocate());
 	ostringstream os;
-	rp._print(os);
-	uri u(os.str());
-	u.index=1;
+	//rp._print(os);
+	//uri u(os.str());
+	//u.index=1;//local 
+	uri u=get_uri(rp);
 	c->t.ctor(rp,u);
 	return rp;
 }
@@ -518,7 +410,11 @@ RESOURCE_PTR objrdf::clone_and_swap(RESOURCE_PTR r){
 }
 RESOURCE_PTR objrdf::create_by_type_blank(uri type){
 	CONST_CLASS_PTR c=find_t<rdfs::Class>(type);
+	#ifdef NATIVE
+	return c ? objrdf::create_by_type_blank(c) : RESOURCE_PTR(0);
+	#else
 	return c ? objrdf::create_by_type_blank(c) : RESOURCE_PTR(0,0);
+	#endif
 }
 
 /*

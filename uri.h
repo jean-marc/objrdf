@@ -33,14 +33,23 @@ namespace objrdf{
 		static void ns_declaration(ostream& os);
 		static void ns_declaration_pretty(ostream& os);
 		void to_uri(ostream& os) const;
-		//#ifdef PERSISTENT
+		/*
+ 		*	we can use a pool allocator instead of fixed size array but the problem is
+ 		*	the id lives in in base_resource that will be derived by persistent or volatile
+ 		*	classes, so the char array must use the same allocator as derived class
+ 		*	this also means there will be 2 different pools for ID's, which is fine since the data
+ 		*	is un-managed anyway but can we use generic pointer inside container? why not?
+ 		*	eg: satdb 64K carriers name up to 51 bytes -> 3e6 bytes, that would work with 3 bytes pointer
+ 		*	(how do we do that? use union?) but it means cell is 6 bytes so we can actually 
+ 		*	we have to find a compromise: 6 bytes per cell ->
+ 		*	we only need 1 bit for the pool_ptr because there are only 2 pools to choose from, we might
+ 		*	have to be smart when creating original pool
+ 		*
+ 		*/ 
 		uri(const uri& u);
 		uri& operator=(const uri& u);
 		enum{STR_SIZE=32};
 		char local[STR_SIZE];	
-		//#else
-		//const string local;
-		//#endif
 	private:
 		//make sure all prefixes are different
 		static void check();

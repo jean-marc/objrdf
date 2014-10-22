@@ -130,11 +130,14 @@ void TCPSocketWrapper::listen(int port, int backlog)
     }
 
     sock_ = socket(AF_INET, SOCK_STREAM, 0);
+	
     if (sock_ == INVALID_SOCKET)
     {
         throw SocketRunTimeException("socket failed");
     }
-
+	// set SO_REUSEADDR on a socket to true (1):
+	int optval = 1;
+	setsockopt(sock_, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);
     sockaddr_in local;
 
     memset(&local, 0, sizeof(local));
