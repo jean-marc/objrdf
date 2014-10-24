@@ -33,14 +33,10 @@ Running the program will print:
 ```xml
 <rdf:RDF
 	xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'
-	xmlns:rdfs='http://www.w3.org/2000/01/rdf-schema#'
-	xmlns:obj='http://www.example.org/objrdf#'
-	xmlns:xsd='http://www.w3.org/2001/XMLSchema#'
 	xmlns:test='http://test.example.org/#'
 >
 	<test:Test rdf:ID='test'>
 		<rdf:type rdf:resource='http://test.example.org/#Test'/>
-		<obj:id>test</obj:id>
 		<test:a>123</test:a>
 		<test:b>0.123</test:b>
 	</test:Test>
@@ -67,32 +63,85 @@ int main(){
 ```
 Note the call `Test::get_class()` is required to register the class so that the parser can retrieve the class's information (including methods to instantiate).
 
-<!---
+### Links
+So far we have used literal properties (`int` and `double`) let us now use pointers to connect resources.
+
 ```cpp
-#include "objrdf.h"
+#include <objrdf.h>	/* doc/example.2.cpp */
 using namespace objrdf;
 RDFS_NAMESPACE("http://test.example.org/#","test")
-PROPERTY(a,int);
-PROPERTY(b,double);
-CLASS(Test,std::tuple<a,b>);
+typedef resource<rdfs_namespace,str<'T','a','r','g','e','t'>,std::tuple<>> Target;
+typedef property<rdfs_namespace,str<'a'>,Target*> a;
+typedef resource<rdfs_namespace,str<'T','e','s','t'>,std::tuple<a>> Test;
 int main(){
-	Test::allocator_type al;
-	auto ptr=al.allocate(1);
-	al.construct(ptr,uri("test"));
-	ptr->get<a>().t=123;
-	ptr->get<b>().t=.123;
-	to_rdf_xml(ptr,cout);
-	al.destroy(ptr);
-	al.deallocate(ptr,1);
+	Test t(uri("test"));
+	base_resource::do_index(&t);
+	Target d(uri("dest"));
+	base_resource::do_index(&d);
+	t.get<a>().t=&d;
+	to_rdf_xml(cout);
 }
 ```
---->
+Running the program will print:
+
+```xml
+<?xml version='1.0'?>
+<rdf:RDF
+	xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'
+	xmlns:test='http://test.example.org/#'
+>
+	<test:Target rdf:ID='dest'>
+		<rdf:type rdf:resource='http://test.example.org/#Target'/>
+	</test:Target>
+	<test:Test rdf:ID='test'>
+		<rdf:type rdf:resource='http://test.example.org/#Test'/>
+		<test:a rdf:resource='#dest'/>
+	</test:Test>
+	<!-- -->
+</rdf:RDF>
+```
+
+### Multiple instances of same property 
+
+```cpp
+#include <objrdf.h>	/* doc/example.3.cpp */
+using namespace objrdf;
+RDFS_NAMESPACE("http://test.example.org/#","test")
+typedef property<rdfs_namespace,str<'a'>,int> a;
+typedef resource<rdfs_namespace,str<'T','e','s','t'>,std::tuple<objrdf::array<a>>> Test;
+int main(){
+	Test t(uri("test"));
+	base_resource::do_index(&t);
+	t.get<objrdf::array<a>>().push_back(a(123));
+	t.get<objrdf::array<a>>().push_back(a(456));
+	to_rdf_xml(cout);
+}
+```
+Running the program will print:
+
+```xml
+<rdf:RDF
+	xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'
+	xmlns:test='http://test.example.org/#'
+>
+	<test:Test rdf:ID='test'>
+		<rdf:type rdf:resource='http://test.example.org/#Test'/>
+		<test:a>123</test:a>
+		<test:a>456</test:a>
+	</test:Test>
+	<!-- -->
+</rdf:RDF>
+```
+`objrdf::array<>` is a thin wrapper around `std::vector<>`.
+
 ## Implementation
-The code relies heavily on the latest language features brought in C++0x
+
+The code relies heavily on the latest language features brought in C++0x, note that because of limited support in MSVC 2010 work around are used in the code (`ifndef __GNUG__`).
 
 ## Pool allocator
 
 Resources are allocated on a pool, each class has its own pool, this offers multiple advantages:
+
 * all instances of a given class can be listed by iterating the corresponding pool
 * a pool can be made persistent so all instances are preserved between runs
 * the maximum pool size is set at compile time so determining the pointer size to reference every instances 
@@ -106,9 +155,11 @@ Once classes and members are defined in code by specializing templates any new o
 ## Patching function table
 
 Each property (real and pseudo-) has an entry in the property table (base_resource::V), the table is filled at runtime through introspection (by visiting the std::tuple) and via a user supplied 'patch' function. There are several reasons to patch the table:
+
 * add a pseudo-property
 * modify the behavior
-Persistence
+
+## Persistence
 
 Allocating an object on the persistent store guarantees that the pointer will always be valid, including between runs of the programs.
 The only way the pointer would become invalid is if the program is recompiled and causes the pool index to change, obviously changing the pointed-to class will also cause problems.
@@ -143,6 +194,7 @@ Trigger are used to notify a resource that one property will be modified (add, d
 ## Versioning
 
 It might be desirable to record versions of a predicate, one solution is to stow away a copy of the entire resource before removing a predicate (it means the resource and the copy will only differ by one predicate), the new - modified - resource will have a reference to the copy e.g:
+
 ```xml
 <inv:Set rdf:ID='test'>
 	<inv:located rdf:resource='#naguru'/>
@@ -159,15 +211,18 @@ We modified the property inv:located in the resource test from 'kololo' to 'nagu
 ## Privileges
 
 Any modification to the document through SPARQL or RDF parsing is done through the class s function table which provide a generic interface to all the properties (similar to virtual functions). That function table can be modified to change behaviour e.g:
+
 * disable editing of resources allocated on the persistent store mapped to a read-only file 
 * hide properties 	
 * create pseudo-properties (e.g: rdf:type)
-* obfuscate/encrypt properties
-Rather than modify the existing table we can extend it and use offset based on user, 'root' has access to the original table and can do anything, other users will use a filtered copy of the original.  
+* obfuscate/encrypt properties 
+Rather than modify the existing table we can extend it and use offset based on user, 'root' has access to the original table and can do anything, other users will use a filtered copy of the original.
 
 ## Data structure alignment
+
 Alignment requirements might necessitate padding between members, this will increase the memory usage (bigger database files), the framework offers some information about members (RDF properties) offset and size and can help reorder to limit the padding. Note that data mis-alignment results in slower memory access (more pointer operation) and could be a problem in CPU intensive operation (see here for instance)
 
 
 ##questions/ideas
+
 comparison with relational db: is a pool similar to a table?...
