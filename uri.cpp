@@ -17,7 +17,11 @@ vector<uri::ns_prefix>& uri::ns_v(){
  	*	v[1] is for blank nodes
  	*/ 
 	//static vector<ns_prefix> *v=new vector<ns_prefix>(2);
+#ifdef __GNUG__
 	static vector<ns_prefix> *v=new vector<ns_prefix>({ns_prefix(),ns_prefix("blank#","_:")});
+#else
+	static vector<ns_prefix> *v=new vector<ns_prefix>(2);
+#endif
 	return *v;
 }
 struct match_ns{
@@ -119,6 +123,7 @@ uri::uri(const uri& u):index(u.index){
 uri& uri::operator=(const uri& u){
 	strcpy(local,u.local);
 	index=u.index;
+	return *this;
 }
 void uri::print(){
 	for(vector<ns_prefix>::iterator i=ns_v().begin();i<ns_v().end();++i)

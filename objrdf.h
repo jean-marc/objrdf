@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <sstream>
+#include <stdint.h>
 /*
  *	std::basic_string is not compliant with 
  *	http://www.boost.org/doc/libs/1_54_0/doc/html/interprocess/allocators_containers.html#interprocess.allocators_containers.containers_explained.stl_container_requirements
@@ -40,6 +41,7 @@ template <typename T> int sgn(T val){
 template <typename T> int sgn(complex<T> val){
 	return 0;
 }
+#ifdef __GNUG__
 namespace objrdf{
 	template<char... C> struct str{
 		static const char* name(){
@@ -50,6 +52,7 @@ namespace objrdf{
 		}
 	};
 }
+#endif
 
 #define PROPERTY(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::property<rdfs_namespace,n_##n,__VA_ARGS__> n
 #define OBJRDF_PROPERTY(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::property<_rdfs_namespace,n_##n,__VA_ARGS__> n
@@ -221,7 +224,9 @@ namespace objrdf{
 		static PROPERTY_PTR get_property();
 		typedef typename PROPERTY::RANGE RANGE;
 		array(){}
+#ifdef __GNUG__
 		array(initializer_list<PROPERTY> pr):vector<PROPERTY,ALLOCATOR>(pr){}
+#endif
 		~array(){cerr<<"~array()"<<this->size()<<endl;}
 	};
 	struct match_property{
@@ -1572,7 +1577,12 @@ namespace objrdf{
 		typedef get_Literal<RANGE> ResultT;
 		enum{IS_LITERAL=1};
 	};
-	#ifndef NATIVE
+	#ifdef NATIVE
+	template<typename RANGE> struct selector<RANGE*>{
+		typedef RANGE ResultT;
+		enum{IS_LITERAL=0};
+	};
+	#else
 	template<
 		typename INDEX,
 		typename ALLOCATOR,
@@ -1719,11 +1729,18 @@ namespace objrdf{
 	template<> struct get_generic_property<base_resource>{
 		static V go(){
 			LOG<<"get_generic_property:`base_resource'"<<endl;
+#ifdef __GNUG__
 			V v={
 				get_property_info<base_resource,rdf::type>(),
 				get_property_info<base_resource,objrdf::self>(),
 				get_property_info<base_resource,objrdf::id>()
 			};
+#else
+			V v;
+			v.push_back(get_property_info<base_resource,rdf::type>());
+			v.push_back(get_property_info<base_resource,objrdf::self>());
+			v.push_back(get_property_info<base_resource,objrdf::id>());
+#endif
 			return v;
 		}
 	};
@@ -1790,11 +1807,13 @@ namespace objrdf{
 	//not as dumb because uses a single pool
 	//could be specialized for rdfs::Class and rdf::Property and use map<> index
 	template<typename T> typename T::allocator_type::pointer find_t(uri u){
-		#ifndef NATIVE
+		#ifdef NATIVE
+		return 0;
+		#else
 		cerr<<"looking up uri `"<<u<<"' in pool `"<<T::get_class()->id<<"'"<<endl;
 		typename T::allocator_type a;
 		auto r=find_if(a.cbegin(),a.cend(),test_by_uri(u));
-		return typename T::allocator_type::pointer(r!=a.cend() ? r.get_cell_index() : 0);
+		return typename T::allocator_type::pointer(r!=a.cend() ? r.get_cell_index() : 0);	
 		#endif
 	}
 	ostream& operator<<(ostream& os,const property_info& i);

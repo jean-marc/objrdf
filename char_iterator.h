@@ -3,9 +3,7 @@
 #include <iostream>
 #include <string.h> //memset
 #include <vector>
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
 #include <tuple>
-#endif
 using namespace std;
 /*
  *	this does not check for end-of-file condition but the stream can be
@@ -26,11 +24,7 @@ public:
 	typedef int ID; //we use __COUNTER__
 	bool inside;
 	int depth;
-	#ifdef __GXX_EXPERIMENTAL_CXX0X__
 	typedef std::tuple<ID,string,int> R;
-	#else
-	typedef std::pair<ID,std::pair<string,int> > R;
-	#endif
 	typedef vector<R> V;
 	V v;
 	int index;
