@@ -216,7 +216,11 @@ namespace objrdf{
  	*/ 	
 	template<
 		typename PROPERTY,
+#ifdef NATIVE
+		typename ALLOCATOR=std::allocator<PROPERTY>
+#else
 		typename ALLOCATOR
+#endif
 	> class array:public vector<PROPERTY,ALLOCATOR>{
 	public:
 		enum{TYPE=PROPERTY::TYPE};
