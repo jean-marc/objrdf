@@ -1,15 +1,73 @@
 # Objrdf library
 ## Introduction
+
 In the objrdf framework RDF classes are mapped to C++ classes, RDF properties are mapped to C++ class members. 
 RDF classes and properties are defined in the application code, using a syntax similar to standard class definitions.
 It implements a RDF datastore with a SPARQL end point.
 
 ## Example
-In the following a class 'Test' and two properties 'a' and 'b' are defined in the 'http://test.example.org/#' namespace, an instance 'test' is created, properties are set and the resource is serialized to XML. Note: 
-* properties must be defined before the domain class, because C++ does not allow to add members after the class has been defined	
-* properties are packed in a std::tuple (if the class has no properties use std::tuple<>)
+### Serializing
+In the following a class `Test` and two properties `a` and `b` are defined in the 'http://test.example.org/#' namespace, an instance 'test' is created, properties are set and the resource is serialized to XML. Note: 
+
+* properties must be defined before the domain class, because C++ does not allow to add members after the class has been defined
+* properties are packed in a `std::tuple` (if the class has no properties use `std::tuple<>`)
 * the class defines an allocator to create and destroy instances (it can be customized see later)
 
+```cpp
+#include <objrdf.h>	/* doc/example.0.cpp */
+using namespace objrdf;
+RDFS_NAMESPACE("http://test.example.org/#","test")
+typedef property<rdfs_namespace,str<'a'>,int> a;
+typedef property<rdfs_namespace,str<'b'>,double> b;
+typedef resource<rdfs_namespace,str<'T','e','s','t'>,std::tuple<a,b>> Test;
+int main(){
+	Test t(uri("test"));
+	base_resource::do_index(&t);
+	t.get<a>().t=123;
+	t.get<b>().t=.123;
+	to_rdf_xml(cout);
+}
+```
+Running the program will print:
+
+```xml
+<rdf:RDF
+	xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'
+	xmlns:rdfs='http://www.w3.org/2000/01/rdf-schema#'
+	xmlns:obj='http://www.example.org/objrdf#'
+	xmlns:xsd='http://www.w3.org/2001/XMLSchema#'
+	xmlns:test='http://test.example.org/#'
+>
+	<test:Test rdf:ID='test'>
+		<rdf:type rdf:resource='http://test.example.org/#Test'/>
+		<obj:id>test</obj:id>
+		<test:a>123</test:a>
+		<test:b>0.123</test:b>
+	</test:Test>
+	<!-- -->
+</rdf:RDF>
+```
+### Parsing
+Let us use the same class and parse an RDF file. 
+
+```cpp
+#include <objrdf.h>	/* doc/example.1.cpp */
+#include <rdf_xml_parser.h>
+using namespace objrdf;
+RDFS_NAMESPACE("http://test.example.org/#","test")
+typedef property<rdfs_namespace,str<'a'>,int> a;
+typedef property<rdfs_namespace,str<'b'>,double> b;
+typedef resource<rdfs_namespace,str<'T','e','s','t'>,std::tuple<a,b>> Test;
+int main(){
+	Test::get_class();
+	rdf_xml_parser r(cin);
+	r.go();
+	to_rdf_xml(cout);
+}
+```
+Note the call `Test::get_class()` is required to register the class so that the parser can retrieve the class's information (including methods to instantiate).
+
+<!---
 ```cpp
 #include "objrdf.h"
 using namespace objrdf;
@@ -28,6 +86,7 @@ int main(){
 	al.deallocate(ptr,1);
 }
 ```
+--->
 ## Implementation
 The code relies heavily on the latest language features brought in C++0x
 
