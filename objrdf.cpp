@@ -160,11 +160,11 @@ CONST_PROPERTY_PTR base_resource::const_instance_iterator::get_Property() const{
 bool base_resource::instance_iterator::literalp() const{return i->literalp;}
 bool base_resource::const_instance_iterator::literalp() const{return i->literalp;}
 void base_resource::instance_iterator::in(istream& is){
-	i->t.in(subject,is,index);
+	//i->t.in(subject,is,index);
+	i->t.in_generic(subject,i->offset,is,index);
 }
 void base_resource::instance_iterator::out(ostream& os) const{
 	//i->t.out(subject,os,index);
-	//typedef void (*out_generic_f)(CONST_RESOURCE_PTR,ptrdiff_t offset,ostream&,size_t);
 	//cerr<<"out"<<i->t.out_generic<<endl;
 	i->t.out_generic(subject,i->offset,os,index);
 }
@@ -206,13 +206,19 @@ void base_resource::instance_iterator::set_string(string s){
 }
 RESOURCE_PTR base_resource::instance_iterator::get_object() const{
 	return i->t.get_object(subject,index);
+	//assert(i->t.get_object_generic);
+	//return i->t.get_object_generic(subject,i->offset,index);
 }
 CONST_RESOURCE_PTR base_resource::instance_iterator::get_const_object() const{
 	return i->t.cget_object(subject,index);
+	//assert(i->t.cget_object_generic);
+	//return i->t.cget_object_generic(subject,i->offset,index);
 }
 CONST_RESOURCE_PTR base_resource::const_instance_iterator::get_const_object() const{
 	assert(i->t.cget_object);
 	return i->t.cget_object(subject,index);
+	//assert(i->t.cget_object_generic);
+	//return i->t.cget_object_generic(subject,i->offset,index);
 }
 void base_resource::instance_iterator::set_object(RESOURCE_PTR r){
 	i->t.set_object(subject,r,index);
