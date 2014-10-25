@@ -41,18 +41,22 @@ template <typename T> int sgn(T val){
 template <typename T> int sgn(complex<T> val){
 	return 0;
 }
-#ifdef __GNUG__
 namespace objrdf{
+#ifdef __GNUG__
 	template<char... C> struct str{
 		static const char* name(){
-			initializer_list<char> l={C...,0};
-			char* s=new char[l.size()];
-			strcpy(s,l.begin());
+			char tmp[]={C...,0};
+#else //MSVC
+	template<char A,char B=0,char C=0,char D=0,char E=0,char F=0,char G=0,char H=0,char I=0,char J=0> struct str{
+		static const char* name(){
+			char tmp[]={A,B,C,D,E,F,G,H,I,J,0};
+#endif
+			char* s=new char[strlen(tmp)];
+			strcpy(s,tmp);
 			return s;
 		}
 	};
 }
-#endif
 
 #define PROPERTY(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::property<rdfs_namespace,n_##n,__VA_ARGS__> n
 #define OBJRDF_PROPERTY(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::property<_rdfs_namespace,n_##n,__VA_ARGS__> n
@@ -84,7 +88,6 @@ namespace objrdf{
 #define OBJRDF_RDFS_NAMESPACE(uri,prefix) struct _rdfs_namespace{static std::pair<const char*,const char*> name(){return std::pair<const char*,const char*>(uri,prefix);}};
 
 namespace rdf{
-	//multiple definitions, linker will complain
 	RDFS_NAMESPACE("http://www.w3.org/1999/02/22-rdf-syntax-ns#","rdf");
 	const static objrdf::uri _RDF=objrdf::get_uri<rdfs_namespace>("RDF");
 	const static objrdf::uri ID=objrdf::get_uri<rdfs_namespace>("ID");
@@ -105,8 +108,6 @@ namespace objrdf{
 	};
 	class base_resource;
 }
-//test to make sure we do not persist objrdf::base_resource, because of duplicates objrdf::base_resource::nil
-
 namespace objrdf{
 	enum{TEST=0};
 	#ifdef NATIVE
@@ -343,8 +344,6 @@ namespace objrdf{
 			RESOURCE_PTR get_statement() const;
 		};
 		//should be moved to .cpp
-		//that's a bit stupid, will never actually modify the function table
-		//struct type_iterator:V::iterator{
 		struct type_iterator:V::const_iterator{
 			RESOURCE_PTR subject;
 			type_iterator(RESOURCE_PTR subject,V::const_iterator i):V::const_iterator(i),subject(subject){}
@@ -1802,8 +1801,8 @@ namespace objrdf{
 		//must be a pseudo_ptr<>
 		template<typename T> bool operator()(const T& t) const{return t.id==u;}
 	};
-	#ifndef NATIVE
 	void to_rdf_xml(ostream& os);
+	#ifndef NATIVE
 	void generate_index();
 	#endif
 	//dumb scanner
@@ -1812,7 +1811,8 @@ namespace objrdf{
 	//could be specialized for rdfs::Class and rdf::Property and use map<> index
 	template<typename T> typename T::allocator_type::pointer find_t(uri u){
 		#ifdef NATIVE
-		return 0;
+		auto r=find(u);
+		return static_cast<T*>(r);
 		#else
 		cerr<<"looking up uri `"<<u<<"' in pool `"<<T::get_class()->id<<"'"<<endl;
 		typename T::allocator_type a;
