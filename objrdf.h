@@ -47,9 +47,11 @@ namespace objrdf{
 		static const char* name(){
 			char tmp[]={C...,0};
 #else //MSVC
-	template<char A,char B=0,char C=0,char D=0,char E=0,char F=0,char G=0,char H=0,char I=0,char J=0> struct str{
+	template<char A,char B=0,char C=0,char D=0,char E=0,char F=0,char G=0,char H=0,
+		   char I=0,char J=0,char K=0,char L=0,char M=0,char N=0,char O=0,char P=0
+	> struct str{
 		static const char* name(){
-			char tmp[]={A,B,C,D,E,F,G,H,I,J,0};
+			char tmp[]={A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,0};
 #endif
 			char* s=new char[strlen(tmp)];
 			strcpy(s,tmp);
