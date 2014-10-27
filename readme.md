@@ -7,7 +7,7 @@ It implements a RDF datastore with a SPARQL end point.
 
 ## Examples
 ### Serializing
-In the following a class `Test` and two properties `a` and `b` are defined in the http://test.example.org/# namespace, an instance `test` is created, properties are set and the resource is serialized to RDF/XML. Note: 
+In the following a class `Test` and two properties `a` and `b` are defined in the http://test.example.org/# namespace, an instance `t` is created, properties are set and the resource is serialized to RDF/XML. Note: 
 
 * properties must be defined before the domain class, because C++ does not allow to add members after the class has been defined
 * properties are packed in a `std::tuple` (if the class has no properties use `std::tuple<>`)
@@ -198,6 +198,7 @@ int main(){
 ```
 ### Pseudo Properties
 ```cpp
+
 #include <objrdf.h>	/* doc/example.6.cpp */
 using namespace objrdf;
 RDFS_NAMESPACE("http://test.example.org/#","test")
@@ -239,9 +240,12 @@ The output is:
 	<!-- -->
 </rdf:RDF>
 ```
+Everytime the resource is serialized or queried (see sparql), the function stored in `Test::v[i].t.out` is invoked where `i` is the index in the function table. This mechanism can be used to parse obsolete properties (after schema has been modified).
 
 
+## Queries
 
+The objects and properties being mapped to a RDF model, they can also be queried through SPARQL, [sparql_engine.cpp](sparql_engine.cpp) offers a limitedimplementation of the query language as well as SPARQL Update. 
 
 
 ## Implementation
