@@ -331,7 +331,11 @@ void objrdf::to_rdf_xml(ostream& os){
 	//we need xml:base declaration
 	os<<">";
 	#ifdef NATIVE//use the index
+#ifdef __GNUG__
 	for(auto i:base_resource::get_index()) to_rdf_xml(i.second,os);
+#else
+	for(auto i=base_resource::get_index().cbegin();i!=base_resource::get_index().cend();++i) to_rdf_xml(i->second,os);
+#endif
 	#else
 	rdfs::Class::allocator_type a;
 	for(auto i=a.cbegin();i!=a.cend();++i){
