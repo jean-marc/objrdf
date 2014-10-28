@@ -116,7 +116,6 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 			}
 		}else{//could be a sub-class
 			RESOURCE_PTR r=find(name);
-			//alternatively only search rdfs::Class::get_instances() will work in most cases
 			if(r&&r->get_Class()==rdfs::Class::get_class()){
 				#ifdef NATIVE
 				CONST_CLASS_PTR c=static_cast<CONST_CLASS_PTR>(r);
