@@ -102,6 +102,7 @@ rdfs::Class::Class(
 	get<comment>().set_string(comment_str);
 	get<objrdf::sizeOf>()=size;
 	#ifdef NATIVE
+	do_index(this);
 	if(s.t){
 	#else
 	get<objrdf::hashOf>()=h;
@@ -350,15 +351,19 @@ namespace objrdf{
 		get_class(r)->t.get_output(r,os);
 	}
 }
-#ifndef NATIVE
 void objrdf::to_rdf_xml(ostream& os){
 	os<<"<?xml version='1.0'?>\n";
 	os<<"<"<<rdf::_RDF<<"\n";
 	uri::ns_declaration(os);
 	//we need xml:base declaration
-	//should not be here!!!
-	//os<<"xml:base='http://monitor.unicefuganda.org/'"<<endl;
 	os<<">";
+	#ifdef NATIVE//use the index
+#ifdef __GNUG__
+	for(auto i:base_resource::get_index()) to_rdf_xml(i.second,os);
+#else
+	for(auto i=base_resource::get_index().cbegin();i!=base_resource::get_index().cend();++i) to_rdf_xml(i->second,os);
+#endif
+	#else
 	rdfs::Class::allocator_type a;
 	for(auto i=a.cbegin();i!=a.cend();++i){
 		pool_allocator::pool::POOL_PTR p(i.get_cell_index()); //there is a mapping between Class and pools
@@ -370,8 +375,10 @@ void objrdf::to_rdf_xml(ostream& os){
 			cerr<<"pool `"<<i->id<<"' not iterable "<<p->payload_offset<<endl;
 		}
 	}
+	#endif
 	os<<"\n</"<<rdf::_RDF<<">\n";
 }
+#ifndef NATIVE
 void objrdf::generate_index(){
 	rdfs::Class::allocator_type a;
 	for(auto i=a.cbegin();i!=a.cend();++i){
@@ -381,7 +388,6 @@ void objrdf::generate_index(){
 		}
 	}
 }
-
 #endif
 RESOURCE_PTR objrdf::find(uri u){
 	cerr<<"looking up uri `"<<u<<"'...";

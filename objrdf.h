@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <sstream>
+#include <stdint.h>
 /*
  *	std::basic_string is not compliant with 
  *	http://www.boost.org/doc/libs/1_54_0/doc/html/interprocess/allocators_containers.html#interprocess.allocators_containers.containers_explained.stl_container_requirements
@@ -42,11 +43,20 @@ template <typename T> int sgn(complex<T> val){
 }
 //not supported in MSVC 2010
 namespace objrdf{
+#ifdef __GNUG__
 	template<char... C> struct str{
 		static const char* name(){
-			initializer_list<char> l={C...,0};
-			char* s=new char[l.size()];
-			strcpy(s,l.begin());
+			char tmp[]={C...,0};
+#else //MSVC
+	template<char A,char B=0,char C=0,char D=0,char E=0,char F=0,char G=0,char H=0,
+		   char I=0,char J=0,char K=0,char L=0,char M=0,char N=0,char O=0,char P=0,
+		   char Q=0,char R=0,char S=0,char T=0,char U=0,char V=0,char W=0,char X=0
+	> struct str{
+		static const char* name(){
+			char tmp[]={A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,0};
+#endif
+			char* s=new char[strlen(tmp)];
+			strcpy(s,tmp);
 			return s;
 		}
 	};
@@ -82,7 +92,6 @@ namespace objrdf{
 #define OBJRDF_RDFS_NAMESPACE(uri,prefix) struct _rdfs_namespace{static std::pair<const char*,const char*> name(){return std::pair<const char*,const char*>(uri,prefix);}};
 
 namespace rdf{
-	//multiple definitions, linker will complain
 	RDFS_NAMESPACE("http://www.w3.org/1999/02/22-rdf-syntax-ns#","rdf");
 	const static objrdf::uri _RDF=objrdf::get_uri<rdfs_namespace>("RDF");
 	const static objrdf::uri ID=objrdf::get_uri<rdfs_namespace>("ID");
@@ -103,8 +112,6 @@ namespace objrdf{
 	};
 	class base_resource;
 }
-//test to make sure we do not persist objrdf::base_resource, because of duplicates objrdf::base_resource::nil
-
 namespace objrdf{
 	enum{TEST=0};
 	#ifdef NATIVE
@@ -244,7 +251,7 @@ namespace objrdf{
  	*	problem with using array: the information is lost in the schema, now we use 
  	*	rdfs:member http://www.w3.org/TR/rdf-schema/#ch_member
  	*/ 	
-	enum{LITERAL=0x1,STRING=0x2,CONST=0x4,ARRY=0x8};
+	enum{LITERAL=0x1,STRING=0x2,CONSTP=0x4,ARRY=0x8};
 	template<
 		typename PROPERTY,
 		#ifdef NATIVE
@@ -260,7 +267,9 @@ namespace objrdf{
 		static PROPERTY_PTR get_property();
 		typedef typename PROPERTY::RANGE RANGE;
 		array(){}
+#ifdef __GNUG__
 		array(initializer_list<PROPERTY> pr):vector<PROPERTY,ALLOCATOR>(pr){}
+#endif
 		~array(){
 			//cerr<<"~array()"<<this->size()<<endl;
 		}
@@ -375,8 +384,6 @@ namespace objrdf{
 			RESOURCE_PTR get_statement() const;
 		};
 		//should be moved to .cpp
-		//that's a bit stupid, will never actually modify the function table
-		//struct type_iterator:V::iterator{
 		struct type_iterator:V::const_iterator{
 			RESOURCE_PTR subject;
 			type_iterator(RESOURCE_PTR subject,V::const_iterator i):V::const_iterator(i),subject(subject){}
@@ -679,7 +686,7 @@ namespace objrdf{
  	* should be set programmatically anyway, ... not sure)
  	*/
 	template<typename RANGE> struct base_property<const RANGE>{
-		enum{TYPE=CONST|LITERAL};
+		enum{TYPE=CONSTP|LITERAL};
 		const RANGE t;
 		base_property(const RANGE t=0):t(t){}
 		void out(ostream& os){os<<t;}
@@ -761,7 +768,7 @@ namespace objrdf{
 	class base_property<const RANGE*>{
 	public:
 		const RANGE* t;
-		enum{TYPE=CONST};
+		enum{TYPE=CONSTP};
 		base_property():t(0){}
 		base_property(const RANGE* s):t(s){}
 		size_t get_size() const{return (bool)t;}
@@ -807,7 +814,7 @@ namespace objrdf{
 	>
 	class base_property<pool_allocator::pool::ptr<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool_allocator::pool::ptr<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
 	public:
-		enum{TYPE=CONST};
+		enum{TYPE=CONSTP};
 		typedef pool_allocator::pool::ptr<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
 		base_property(){}
 		base_property(const PTR& s):PTR(s){}
@@ -857,7 +864,7 @@ namespace objrdf{
 	>
 	class base_property<pool_allocator::pool::ptr_d<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool_allocator::pool::ptr_d<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
 	public:
-		enum{TYPE=CONST};
+		enum{TYPE=CONSTP};
 		typedef pool_allocator::pool::ptr_d<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
 		base_property():PTR(0,0){}
 		base_property(const PTR& s):PTR(s){}
@@ -1139,7 +1146,7 @@ namespace objrdf{
 		}
 	};
 
-	template<typename IMPLEMENTATION> struct get_ftable<CONST,IMPLEMENTATION>{//const pointer
+	template<typename IMPLEMENTATION> struct get_ftable<CONSTP,IMPLEMENTATION>{//const pointer
 		static function_table go(){
 			function_table t;
 			t.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
@@ -1171,7 +1178,7 @@ namespace objrdf{
 			return t;
 		}
 	};
-	template<typename IMPLEMENTATION> struct get_ftable<CONST|ARRY,IMPLEMENTATION>{//array of const pointer
+	template<typename IMPLEMENTATION> struct get_ftable<CONSTP|ARRY,IMPLEMENTATION>{//array of const pointer
 		static function_table go(){
 			function_table t;
 			t.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
@@ -1247,7 +1254,7 @@ namespace objrdf{
 		size_t TYPE=PROPERTY::TYPE&0x7
 	> struct functions;
 
-	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONST|LITERAL>:base_f<SUBJECT,PROPERTY>{
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONSTP|LITERAL>:base_f<SUBJECT,PROPERTY>{
 		typedef base_f<SUBJECT,PROPERTY> BASE;
 		static void out(CONST_RESOURCE_PTR subject,ostream& os,size_t index){
 			/*
@@ -1266,8 +1273,8 @@ namespace objrdf{
 			return t;
 		}
 	};
-	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,LITERAL>:functions<SUBJECT,PROPERTY,CONST|LITERAL>{
-		typedef functions<SUBJECT,PROPERTY,CONST|LITERAL> BASE;
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,LITERAL>:functions<SUBJECT,PROPERTY,CONSTP|LITERAL>{
+		typedef functions<SUBJECT,PROPERTY,CONSTP|LITERAL> BASE;
 		static void in(RESOURCE_PTR subject,istream& is,size_t index){
 			BASE::get(subject,index).in(is);
 		}
@@ -1301,8 +1308,7 @@ namespace objrdf{
 	};
 	//what if set_object is invoked on const property?
 	static void set_const_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){cerr<<"error: const property"<<endl;}
-
-	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONST>:base_f<SUBJECT,PROPERTY>{
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONSTP>:base_f<SUBJECT,PROPERTY>{
 		typedef base_f<SUBJECT,PROPERTY> BASE;
 		static CONST_RESOURCE_PTR get_const_object(CONST_RESOURCE_PTR subject,size_t index){
 			return BASE::get_const(subject,index).get_const_object();
@@ -1315,8 +1321,8 @@ namespace objrdf{
 			return t;	
 		}
 	};	
-	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,0>:functions<SUBJECT,PROPERTY,CONST>{
-		typedef functions<SUBJECT,PROPERTY,CONST> BASE;
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,0>:functions<SUBJECT,PROPERTY,CONSTP>{
+		typedef functions<SUBJECT,PROPERTY,CONSTP> BASE;
 		static RESOURCE_PTR get_object(RESOURCE_PTR subject,size_t index){return BASE::get(subject,index).get_object();}
 		static void set_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
 			BASE::get(subject,index).set_object(object);
@@ -1922,12 +1928,18 @@ namespace objrdf{
 			*/
 			objrdf_id.out_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t,ostream& os,size_t){os<<subject->id;};	
 			//objrdf_id.get_size=function_table::default_f::get_size;
+#ifdef __GNUG__
 			V v={
 				property_info(rdf::type::get_property(),rdf_type),
 				property_info(objrdf::self::get_property(),objrdf_self),
 				property_info(objrdf::id::get_property(),objrdf_id)
 			};
-			v.front().t.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset,size_t index){return (CONST_RESOURCE_PTR)base_resource::get_class();};
+#else
+			V v;
+			v.push_back(property_info(rdf::type::get_property(),rdf_type));
+			v.push_back(property_info(objrdf::self::get_property(),objrdf_self));
+			v.push_back(property_info(objrdf::id::get_property(),objrdf_id));
+#endif
 			return v;
 		}
 	};
@@ -1987,8 +1999,8 @@ namespace objrdf{
 		test_by_uri(const uri& u):u(u){}
 		template<typename T> bool operator()(const T& t) const{return t.id==u;}
 	};
-	#ifndef NATIVE
 	void to_rdf_xml(ostream& os);
+	#ifndef NATIVE
 	void generate_index();
 	#endif
 	//dumb scanner
@@ -1996,11 +2008,14 @@ namespace objrdf{
 	//not as dumb because uses a single pool
 	//could be specialized for rdfs::Class and rdf::Property and use map<> index
 	template<typename T> typename T::allocator_type::pointer find_t(uri u){
-		#ifndef NATIVE
+		#ifdef NATIVE
+		auto r=find(u);
+		return static_cast<T*>(r);
+		#else
 		cerr<<"looking up uri `"<<u<<"' in pool `"<<T::get_class()->id<<"'"<<endl;
 		typename T::allocator_type a;
 		auto r=find_if(a.cbegin(),a.cend(),test_by_uri(u));
-		return typename T::allocator_type::pointer(r!=a.cend() ? r.get_cell_index() : 0);
+		return typename T::allocator_type::pointer(r!=a.cend() ? r.get_cell_index() : 0);	
 		#endif
 	}
 	ostream& operator<<(ostream& os,const property_info& i);

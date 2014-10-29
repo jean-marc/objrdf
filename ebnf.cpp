@@ -1,6 +1,7 @@
 #include "ebnf.h"
+#include <string>
 ostream& operator<<(ostream& os,char_iterator::R& vv){
-	return os<<get<0>(vv)<<"\t"<<get<1>(vv)<<"\t"<<get<2>(vv);
+	return os<<std::get<0>(vv)<<"\t"<<std::get<1>(vv)<<"\t"<<std::get<2>(vv);
 }
 ostream& operator<<(ostream& os,PARSE_RES& r){
 	return os<<r.first<<"\t"<<r.second;
