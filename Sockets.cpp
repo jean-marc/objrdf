@@ -137,7 +137,7 @@ void TCPSocketWrapper::listen(int port, int backlog)
     }
 	// set SO_REUSEADDR on a socket to true (1):
 	int optval = 1;
-	setsockopt(sock_, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);
+	setsockopt(sock_, SOL_SOCKET, SO_REUSEADDR,(char*) &optval, sizeof optval);
     sockaddr_in local;
 
     memset(&local, 0, sizeof(local));
