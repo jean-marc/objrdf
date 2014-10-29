@@ -1,0 +1,20 @@
+<?xml version='1.0'?>
+<rdf:RDF
+xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'
+xmlns:rdfs='http://www.w3.org/2000/01/rdf-schema#'
+xmlns:obj='http://www.example.org/objrdf#'
+xmlns:xsd='http://www.w3.org/2001/XMLSchema#'
+xmlns:test='http://test.example.org/#'
+>
+	<rdf:Description rdf:about='jm'>
+		<rdf:type rdf:resource='http://test.example.org/#A'/>
+		<obj:self rdf:resource='#jm'/>
+		<obj:id>jmjm</obj:id>
+		<test:p_0>12345</test:p_0>
+		<test:p_0>123456</test:p_0>
+		<test:p_1>56789</test:p_1>
+		<test:p_2 rdf:resource='#nil'/>
+		<test:p_2 rdf:resource='#jm'/>
+		<test:p_3 rdf:resource='#nil'/>
+	</rdf:Description>
+</rdf:RDF>
