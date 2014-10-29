@@ -48,10 +48,11 @@ namespace objrdf{
 			char tmp[]={C...,0};
 #else //MSVC
 	template<char A,char B=0,char C=0,char D=0,char E=0,char F=0,char G=0,char H=0,
-		   char I=0,char J=0,char K=0,char L=0,char M=0,char N=0,char O=0,char P=0
+		   char I=0,char J=0,char K=0,char L=0,char M=0,char N=0,char O=0,char P=0,
+		   char Q=0,char R=0,char S=0,char T=0,char U=0,char V=0,char W=0,char X=0
 	> struct str{
 		static const char* name(){
-			char tmp[]={A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,0};
+			char tmp[]={A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,0};
 #endif
 			char* s=new char[strlen(tmp)];
 			strcpy(s,tmp);
@@ -598,7 +599,7 @@ namespace objrdf{
 
 	enum{LITERAL=0x1};
 	enum{STRING=0x2};
-	enum{CONST=0x4};
+	enum{CONSTP=0x4};
 	template<typename RANGE> struct base_property{
 		enum{TYPE=LITERAL};
 		RANGE t;
@@ -651,7 +652,7 @@ namespace objrdf{
  	* should be set programmatically anyway, ... not sure)
  	*/
 	template<typename RANGE> struct base_property<const RANGE>{
-		enum{TYPE=CONST|LITERAL};
+		enum{TYPE=CONSTP|LITERAL};
 		const RANGE t;
 		base_property(const RANGE t=0):t(t){}
 		void out(ostream& os){os<<t;}
@@ -732,7 +733,7 @@ namespace objrdf{
 	class base_property<const RANGE*>{
 	public:
 		const RANGE* t;
-		enum{TYPE=CONST};
+		enum{TYPE=CONSTP};
 		base_property():t(0){}
 		base_property(const RANGE* s):t(s){}
 		size_t get_size() const{return (bool)t;}
@@ -778,7 +779,7 @@ namespace objrdf{
 	>
 	class base_property<pool_allocator::pool::ptr<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool_allocator::pool::ptr<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
 	public:
-		enum{TYPE=CONST};
+		enum{TYPE=CONSTP};
 		typedef pool_allocator::pool::ptr<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
 		base_property(){}
 		base_property(const PTR& s):PTR(s){}
@@ -828,7 +829,7 @@ namespace objrdf{
 	>
 	class base_property<pool_allocator::pool::ptr_d<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool_allocator::pool::ptr_d<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
 	public:
-		enum{TYPE=CONST};
+		enum{TYPE=CONSTP};
 		typedef pool_allocator::pool::ptr_d<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
 		base_property():PTR(0,0){}
 		base_property(const PTR& s):PTR(s){}
@@ -1041,7 +1042,7 @@ namespace objrdf{
 		size_t TYPE=PROPERTY::TYPE
 	> struct functions;
 
-	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONST|LITERAL>:base_f<SUBJECT,PROPERTY>{
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONSTP|LITERAL>:base_f<SUBJECT,PROPERTY>{
 		typedef base_f<SUBJECT,PROPERTY> BASE;
 		static void out(CONST_RESOURCE_PTR subject,ostream& os,size_t index){
 			/*
@@ -1059,8 +1060,8 @@ namespace objrdf{
 			return t;
 		}
 	};
-	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,LITERAL>:functions<SUBJECT,PROPERTY,CONST|LITERAL>{
-		typedef functions<SUBJECT,PROPERTY,CONST|LITERAL> BASE;
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,LITERAL>:functions<SUBJECT,PROPERTY,CONSTP|LITERAL>{
+		typedef functions<SUBJECT,PROPERTY,CONSTP|LITERAL> BASE;
 		static void in(RESOURCE_PTR subject,istream& is,size_t index){
 			BASE::get(subject,index).in(is);
 		}
@@ -1093,7 +1094,7 @@ namespace objrdf{
 	};
 	//what if set_object is invoked on const property?
 	static void set_const_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){cerr<<"error: const property"<<endl;}
-	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONST>:base_f<SUBJECT,PROPERTY>{
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONSTP>:base_f<SUBJECT,PROPERTY>{
 		typedef base_f<SUBJECT,PROPERTY> BASE;
 		static CONST_RESOURCE_PTR get_const_object(CONST_RESOURCE_PTR subject,size_t index){
 			return BASE::get_const(subject,index).get_const_object();
@@ -1105,8 +1106,8 @@ namespace objrdf{
 			return t;	
 		}
 	};	
-	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,0>:functions<SUBJECT,PROPERTY,CONST>{
-		typedef functions<SUBJECT,PROPERTY,CONST> BASE;
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,0>:functions<SUBJECT,PROPERTY,CONSTP>{
+		typedef functions<SUBJECT,PROPERTY,CONSTP> BASE;
 		static RESOURCE_PTR get_object(RESOURCE_PTR subject,size_t index){return BASE::get(subject,index).get_object();}
 		static void set_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
 			BASE::get(subject,index).set_object(object);
