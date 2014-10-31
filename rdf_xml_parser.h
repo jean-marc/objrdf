@@ -1,7 +1,8 @@
 #ifndef RDF_XML_PARSER_H
 #define RDF_XML_PARSER_H
-#include "xml_parser.h"
+
 #include "objrdf.h"
+#include "xml_parser.h"
 #include <stack>
 #include <sstream>
 #include <algorithm>
