@@ -3,36 +3,36 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+//using namespace std;
 namespace objrdf{
-	using namespace std;
 	class uri{
 	public:
-		typedef std::pair<string,string> ns_prefix;
+		typedef std::pair<std::string,std::string> ns_prefix;
 		uri();
 		/*
  		*	how to build uri from `http://www.w3.org/2000/01/rdf-schema#Class'?
  		*	there are 2 types of uri hash uri
  		*/ 
-		explicit uri(string local);
-		uri(string ns,string local);
-		uri(string ns,string prefix,string local);
+		explicit uri(std::string local);
+		uri(std::string ns,std::string local);
+		uri(std::string ns,std::string prefix,std::string local);
 		/*
  		*	named constructor idiom: http://www.parashift.com/c++-faq-lite/ctors.html#faq-10.8
  		*/ 
-		static uri hash_uri(string s);
-		static uri bnode_uri(string s);
-		string ns() const;
+		static uri hash_uri(std::string s);
+		static uri bnode_uri(std::string s);
+		std::string ns() const;
 		bool empty() const;
 		bool is_local() const;
 		bool operator==(const uri& u) const;
 		bool operator!=(const uri& u) const;
 		bool operator<(const uri& u) const;//for std::map
 		int compare(const uri& u) const;
-		friend ostream& operator<<(ostream& os,const uri& u);
+		friend std::ostream& operator<<(std::ostream& os,const uri& u);
 		static void print();
-		static void ns_declaration(ostream& os);
-		static void ns_declaration_pretty(ostream& os);
-		void to_uri(ostream& os) const;
+		static void ns_declaration(std::ostream& os);
+		static void ns_declaration_pretty(std::ostream& os);
+		void to_uri(std::ostream& os) const;
 		/*
  		*	we can use a pool allocator instead of fixed size array but the problem is
  		*	the id lives in in base_resource that will be derived by persistent or volatile
@@ -69,7 +69,7 @@ namespace objrdf{
  		*	indices will become stale when using persistence, that vector should be persisted too!!
  		*	but problem with allocator for string...
  		*/ 
-		static vector<ns_prefix>& ns_v();
+		static std::vector<ns_prefix>& ns_v();
 		short index;
 	};
 }

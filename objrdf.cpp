@@ -11,6 +11,7 @@ namespace objrdf{
 	}
 }
 using namespace objrdf;
+using namespace std;
 
 //template<> void f_ptr::constructor<rdfs::Class>(RESOURCE_PTR p,uri u){assert(0);}//we might actually need that for sparql
 template<> void f_ptr::constructor<rdf::Property>(RESOURCE_PTR p,uri u){assert(0);}
