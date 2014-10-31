@@ -24,7 +24,15 @@ namespace objrdf{
 			return static_for_each_impl<std::tuple<_Tail...>,F>::go(f);
 		}
 	};
+	template<typename _Tp,typename F> F static_for_each(F f){return static_for_each_impl<_Tp,F>::go(f);}
+	template<
+		typename _T,
+		typename _Tp
+	> struct in_tuple{
+		enum{value=tuple_index<_T,_Tp>::value < std::tuple_size<_Tp>::value};
+	};
 #else
+#if 0
 	/*
  	*	this does not well in MSVC because of recursive template instantiation
  	*	note: there might be smarter way to iterate through tuple but the 10 element
@@ -74,13 +82,8 @@ namespace objrdf{
 		static FUNC go(FUNC f){return f;}
 	};
 #endif
-	template<typename _Tp,typename F> F static_for_each(F f){return static_for_each_impl<_Tp,F>::go(f);}
-	template<
-		typename _T,
-		typename _Tp
-	> struct in_tuple{
-		enum{value=tuple_index<_T,_Tp>::value < std::tuple_size<_Tp>::value};
-	};
+#endif
+	
 
 }
 #endif
