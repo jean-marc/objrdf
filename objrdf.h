@@ -3,11 +3,9 @@
 #include <iostream>
 #include <vector>
 #include <string.h>
-#include <map>
-#include <tuple>
+#include <map>	/* will include <tuple> */
 #include <assert.h>
 #include <cstddef>
-#include <algorithm>
 #include <stdexcept>
 #include <sstream>
 #include <stdint.h>
@@ -19,18 +17,24 @@
 #include <string>
 #include <complex>
 #include "uri.h"
+#ifndef OBJRDF_TUPLE
+#include <tuple>
 #include "tuple_helper.h"
+using namespace std;//so we use std tuple instead of objrdf::tuple
+#else
+#include "objrdf_tuple.h"
+using namespace objrdf;
+#endif
 #include "ifthenelse.hpp"
-using namespace std;
 #ifdef OBJRDF_VERB
 #define LOG std::cerr
 #else
-#define LOG if(0) cerr
+#define LOG if(0) std::cerr
 #endif
 #ifndef NATIVE
 #include <pool_allocator/pool_allocator.h>
 #endif
-template<typename T> vector<T> concat(/*const*/ vector<T>& a,const vector<T>& b){
+template<typename T> std::vector<T> concat(/*const*/ std::vector<T>& a,const std::vector<T>& b){
 	a.insert(a.end(),b.begin(),b.end());
 	return a;
 }
@@ -38,10 +42,12 @@ template <typename T> int sgn(T val){
 	return (T(0) < val) - (val < T(0));
 }
 //what about complex value? is that the phase?
-template <typename T> int sgn(complex<T> val){
+template <typename T> int sgn(std::complex<T> val){
 	return 0;
 }
 //not supported in MSVC 2010
+using std::istream;
+using std::ostream;
 namespace objrdf{
 #ifdef __GNUG__
 	template<char... C> struct str{
@@ -78,10 +84,10 @@ namespace objrdf{
  * 	multiple symbols will be defined
  * 	as an alternative could use a C++ comment and parse this file to generate RDF, preprocessor
  */
-#define COMMENT(str) static string get_comment(){return str;}
-#define HTML_COMMENT(str) static string get_comment(){return string("<p xmlns='http://www.w3.org/1999/xhtml'>")+str+"</p>";}
+#define COMMENT(str) static std::string get_comment(){return str;}
+#define HTML_COMMENT(str) static std::string get_comment(){return std::string("<p xmlns='http://www.w3.org/1999/xhtml'>")+str+"</p>";}
 namespace objrdf{
-	template<typename NAMESPACE> uri get_uri(string name){return uri(NAMESPACE::name().first,NAMESPACE::name().second,name);}	
+	template<typename NAMESPACE> uri get_uri(std::string name){return uri(NAMESPACE::name().first,NAMESPACE::name().second,name);}	
 	template<typename NAMESPACE,typename NAME> uri get_uri(){return uri(NAMESPACE::name().first,NAMESPACE::name().second,NAME::name());}	
 }
 /*
@@ -143,27 +149,36 @@ namespace objrdf{
  	*	this function table can be used to modify privileges
  	*/ 
 	struct function_table{
-		typedef void (*set_string_f)(RESOURCE_PTR,string,size_t);
-		typedef void (*set_string_generic_f)(RESOURCE_PTR,string,ptrdiff_t,size_t);
-		typedef void (*in_f)(RESOURCE_PTR,istream&,size_t);
+		#ifdef OPTIMIZE_FUNC_TABLE
+		typedef void (*set_string_generic_f)(RESOURCE_PTR,std::string,ptrdiff_t,size_t);
 		typedef void (*in_generic_f)(RESOURCE_PTR,ptrdiff_t,istream&,size_t);
-		typedef void (*out_f)(CONST_RESOURCE_PTR,ostream&,size_t);
 		typedef void (*out_generic_f)(CONST_RESOURCE_PTR,ptrdiff_t offset,ostream&,size_t);
-		typedef RESOURCE_PTR (*get_object_f)(RESOURCE_PTR,size_t);//could we use CONST_RESOURCE_PTR?
 		typedef RESOURCE_PTR (*get_object_generic_f)(RESOURCE_PTR,ptrdiff_t,size_t);//could we use CONST_RESOURCE_PTR?
-		typedef CONST_RESOURCE_PTR (*cget_object_f)(CONST_RESOURCE_PTR,size_t);
 		typedef CONST_RESOURCE_PTR (*cget_object_generic_f)(CONST_RESOURCE_PTR,ptrdiff_t,size_t);
-		typedef void (*set_object_f)(RESOURCE_PTR,RESOURCE_PTR,size_t);
 		typedef void (*set_object_generic_f)(RESOURCE_PTR,RESOURCE_PTR,ptrdiff_t,size_t);
-		typedef size_t (*get_size_f)(CONST_RESOURCE_PTR);
 		typedef size_t (*get_size_generic_f)(CONST_RESOURCE_PTR,ptrdiff_t);
-		typedef void (*add_property_f)(RESOURCE_PTR,PROVENANCE);
 		typedef void (*add_property_generic_f)(RESOURCE_PTR,ptrdiff_t);
 		typedef void (*erase_f)(RESOURCE_PTR,size_t,size_t);
 		//let's make this more general using reification 
 		typedef PROVENANCE (*get_provenance_f)(CONST_RESOURCE_PTR,size_t);
 		typedef RESOURCE_PTR (*get_statement_f)(CONST_RESOURCE_PTR,size_t);
 		typedef int (*compare_f)(CONST_RESOURCE_PTR,size_t,CONST_RESOURCE_PTR,size_t);//should be with literal but we are still using indices 
+		#else
+		typedef void (*set_string_f)(RESOURCE_PTR,std::string,size_t);
+		typedef void (*in_f)(RESOURCE_PTR,istream&,size_t);
+		typedef void (*out_f)(CONST_RESOURCE_PTR,ostream&,size_t);
+		typedef RESOURCE_PTR (*get_object_f)(RESOURCE_PTR,size_t);//could we use CONST_RESOURCE_PTR?
+		typedef CONST_RESOURCE_PTR (*cget_object_f)(CONST_RESOURCE_PTR,size_t);
+		typedef void (*set_object_f)(RESOURCE_PTR,RESOURCE_PTR,size_t);
+		typedef size_t (*get_size_f)(CONST_RESOURCE_PTR);
+		typedef void (*add_property_f)(RESOURCE_PTR,PROVENANCE);
+		typedef void (*erase_f)(RESOURCE_PTR,size_t,size_t);
+		//let's make this more general using reification 
+		typedef PROVENANCE (*get_provenance_f)(CONST_RESOURCE_PTR,size_t);
+		typedef RESOURCE_PTR (*get_statement_f)(CONST_RESOURCE_PTR,size_t);
+		typedef int (*compare_f)(CONST_RESOURCE_PTR,size_t,CONST_RESOURCE_PTR,size_t);//should be with literal but we are still using indices 
+
+		#endif
 		//set_string_f set_string;
 		set_string_generic_f set_string_generic=0;
 		//in_f in;
@@ -234,18 +249,18 @@ namespace objrdf{
 	/*
  	*	can we access all those tables in a generic way?
  	*/ 
-	typedef vector<property_info> V;
+	typedef std::vector<property_info> V;
 	/*
  	*	C++14 support this: http://en.cppreference.com/w/cpp/utility/tuple/get
  	*/ 
 	template<
 		typename SUBJECT,
 		typename PROPERTY,
-		size_t INDEX=tuple_index<PROPERTY,typename SUBJECT::PROPERTIES>::value,
+		size_t INDEX=objrdf::tuple_index<PROPERTY,typename SUBJECT::PROPERTIES>::value,
 		bool FOUND=in_tuple<PROPERTY,typename SUBJECT::PROPERTIES>::value
 	> struct helper{
-		static PROPERTY& get(SUBJECT& s){return std::get<INDEX>(s.p);}
-		static const PROPERTY& get_const(const SUBJECT& s){return std::get<INDEX>(s.p);}
+		static PROPERTY& hget(SUBJECT& s){return get<INDEX>(s.p);}
+		static const PROPERTY& hcget(const SUBJECT& s){return get<INDEX>(s.p);}
 	};
 	/*
  	*	problem with using array: the information is lost in the schema, now we use 
@@ -259,7 +274,7 @@ namespace objrdf{
 		#else
 		typename ALLOCATOR
 		#endif
-	> class array:public vector<PROPERTY,ALLOCATOR>{
+	> class array:public std::vector<PROPERTY,ALLOCATOR>{
 	public:
 		typedef array IMPLEMENTATION;
 		enum{TYPE=PROPERTY::TYPE|ARRY};
@@ -268,10 +283,10 @@ namespace objrdf{
 		typedef typename PROPERTY::RANGE RANGE;
 		array(){}
 #ifdef __GNUG__
-		array(initializer_list<PROPERTY> pr):vector<PROPERTY,ALLOCATOR>(pr){}
+		array(std::initializer_list<PROPERTY> pr):std::vector<PROPERTY,ALLOCATOR>(pr){}
 #endif
 		~array(){
-			//cerr<<"~array()"<<this->size()<<endl;
+			//std::cerr<<"~array()"<<this->size()<<std::endl;
 		}
 	};
 	struct match_property{
@@ -283,7 +298,7 @@ namespace objrdf{
 	class base_resource{
 	public:
 		//global index, will be populated by
-		static map<uri,RESOURCE_PTR>& get_index();
+		static std::map<uri,RESOURCE_PTR>& get_index();
 		static void do_index(RESOURCE_PTR p);
 		typedef base_resource VERSION;
 		typedef base_resource SELF;
@@ -292,7 +307,8 @@ namespace objrdf{
 		#else
 		typedef volatile_allocator_managed<base_resource,uint32_t> allocator_type;
 		#endif
-		typedef std::tuple<> PROPERTIES; //base_resource does not have properties
+		//typedef objrdf::tuple<> PROPERTIES; //base_resource does not have properties
+		typedef tuple<> PROPERTIES; //base_resource does not have properties
 		struct instance_iterator{
 			friend class base_resource; //for base_resource::erase
 			RESOURCE_PTR subject;
@@ -330,8 +346,8 @@ namespace objrdf{
 					os<<i.get_object()->id;
 				return os;
 			}
-			string str() const;
-			void set_string(string s);
+			std::string str() const;
+			void set_string(std::string s);
 			static instance_iterator help();
 			int compare(const instance_iterator&) const;	
 			PROVENANCE get_provenance() const;
@@ -374,7 +390,7 @@ namespace objrdf{
 					os<<i.get_const_object()->id;
 				return os;
 			}
-			string str() const;
+			std::string str() const;
 			static const_instance_iterator help();
 			/*
  			*	for sparql result serialization, can be tricky with different range
@@ -488,10 +504,10 @@ namespace objrdf{
 		#ifdef NATIVE
 		virtual CONST_CLASS_PTR _get_class() const{return get_class();}
 		#endif
-		template<typename U> U& get(){return helper<base_resource,U>::get(*this);}
-		template<typename U> const U& get_const() const{return helper<base_resource,U>::get_const(*this);}
+		template<typename U> U& get(){return helper<base_resource,U>::hget(*this);}
+		template<typename U> const U& get_const() const{return helper<base_resource,U>::hcget(*this);}
 		//shorter name
-		template<typename U> const U& cget() const{return helper<base_resource,U>::get_const(*this);}
+		template<typename U> const U& cget() const{return helper<base_resource,U>::hcget(*this);}
 		static RESOURCE_PTR nil;
 		int p_to_xml_size(const CONST_PROPERTY_PTR p);
 		COMMENT("The class resource, everything.");
@@ -548,17 +564,17 @@ namespace objrdf{
 	template<
 		typename NAMESPACE,
 		typename NAME,
-		typename _PROPERTIES_=std::tuple<>, //MUST BE A std::tuple !!
+		typename _PROPERTIES_=tuple<>, //MUST BE A tuple !!
 		typename SUBCLASS=NIL,//default should be resource
 		typename _SUPERCLASS_=base_resource,
-		typename TRIGGER=std::tuple<>, //if you define a trigger you must derive the class to add the handlers
+		typename TRIGGER=tuple<>, //if you define a trigger you must derive the class to add the handlers
 		typename ALLOCATOR=typename _SUPERCLASS_::allocator_type
 	>
 	struct resource:_SUPERCLASS_{
 		typedef _PROPERTIES_ PROPERTIES;
 		typedef _SUPERCLASS_ SUPERCLASS;
 		typedef resource SELF;
-		typedef typename IfThenElse<is_same<SUBCLASS,NIL>::value,resource,SUBCLASS>::ResultT TMP;
+		typedef typename IfThenElse<std::is_same<SUBCLASS,NIL>::value,resource,SUBCLASS>::ResultT TMP;
 		/*
  		*	by default allocator should be the same as base class's 
  		*/ 
@@ -566,40 +582,40 @@ namespace objrdf{
 		//typedef typename DEFAULT_ALLOCATOR::template rebind<TMP>::other allocator_type;
 		//typedef ALLOCATOR allocator_type;
 		/*
- 		*	not optimal when no properties (std::tuple<>)
+ 		*	not optimal when no properties (tuple<>)
  		*	can we pass type information to properties?
  		*/ 
 		PROPERTIES p;
 		resource(uri id):SUPERCLASS(id){
 			//risk of recursion!
 			//
-			LOG<<"create resource `"<<NAME::name()<<"' `"<<id<<"' "<<this<<endl;
+			LOG<<"create resource `"<<NAME::name()<<"' `"<<id<<"' "<<this<<std::endl;
 		}
 		/*
  		*	all properties must be defined at once
  		*/
 		resource(uri id,PROPERTIES p):SUPERCLASS(id),p(p){
-			LOG<<"create resource `"<<NAME::name()<<"' `"<<id<<"' "<<this<<endl;
+			LOG<<"create resource `"<<NAME::name()<<"' `"<<id<<"' "<<this<<std::endl;
 		}
 		~resource(){
 			#ifdef OBJRDF_VERB
-			cerr<<"delete resource `"<<this->id<<"' "<<this<<endl;
+			std::cerr<<"delete resource `"<<this->id<<"' "<<this<<std::endl;
 			#endif
 		}
 		/*
 		void operator=(const resource& r){
-			cerr<<"operator="<<endl;
+			std::cerr<<"operator="<<std::endl;
 			p=r.p;
 			
 		}
 		*/
-		template<typename U> U& get(){return helper<resource,U>::get(*this);}
-		template<typename U> const U& get_const() const{return helper<resource,U>::get_const(*this);}
-		template<typename U> const U& cget() const{return helper<resource,U>::get_const(*this);}
+		template<typename U> U& get(){return helper<resource,U>::hget(*this);}
+		template<typename U> const U& get_const() const{return helper<resource,U>::hcget(*this);}
+		template<typename U> const U& cget() const{return helper<resource,U>::hcget(*this);}
 		/*
  		*	a bit more complicated because we want to catch modifications, similar to db trigger
  		*	if overloaded for a property in derived class, a copy of template method must be present eg:
- 		*	struct derived:resource<...,...,std::tuple<p_0,p_1,...>,derived>{
+ 		*	struct derived:resource<...,...,tuple<p_0,p_1,...>,derived>{
  		*		...
  		*		void set(p_0 p){
  		*			//handler is responsible for updating value
@@ -645,7 +661,7 @@ namespace objrdf{
 		size_t get_size() const{return 1;}//would be nice to have a bit to tell us if it has been set or not
 		//could also define static functions save one function call
 		int compare(const base_property& a)const{
-			cerr<<"compare `"<<t<<"' and `"<<a.t<<"'"<<endl;
+			std::cerr<<"compare `"<<t<<"' and `"<<a.t<<"'"<<std::endl;
 			return sgn(t-a.t);
 		}
 		void erase(){t=0;}
@@ -655,15 +671,15 @@ namespace objrdf{
 	template<typename T> struct base_property<hex_adapter<T>>:base_property<T>{
 		base_property(T t=T()):base_property<T>(t){}
 		//should not get rid of zeros
-		void in(istream& is){is>>hex>>this->t>>dec;}
+		void in(istream& is){is>>std::hex>>this->t>>std::dec;}
 		//void out(ostream& os)const{os<<hex<<setfill('0')<<setwidth(2*sizeof(T)<<this->t<<dec;}
-		void out(ostream& os)const{os<<hex<<this->t<<dec;}
+		void out(ostream& os)const{os<<std::hex<<this->t<<std::dec;}
 	};
-	template<> struct base_property<string>{
+	template<> struct base_property<std::string>{
 		enum{TYPE=STRING|LITERAL};
-		string t;
-		base_property(string s=string()):t(s){}
-		void set_string(string s){t=s;}
+		std::string t;
+		base_property(std::string s=std::string()):t(s){}
+		void set_string(std::string s){t=s;}
 		void in(istream& is){is>>t;}
 		void out(ostream& os) const{os<<t;}
 		size_t get_size() const{return !t.empty();}
@@ -706,15 +722,15 @@ namespace objrdf{
 		typedef typename pool_allocator::pool::allocator<char,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> allocator_type;
 		typedef std::vector<char,allocator_type> STR;//to make our life easy
 		STR str;
-		base_property(const string s=string()):str(STR(s.size()+1)){
+		base_property(const std::string s=std::string()):str(STR(s.size()+1)){
 			strcpy(str.data(),s.c_str());
 		}
-		void set_string(string s){
+		void set_string(std::string s){
 			str.resize(s.size()+1);
 			strcpy(str.data(),s.c_str());
 		}
 		void in(istream& is){
-			string tmp;
+			std::string tmp;
 			is>>tmp;
 			set_string(tmp);
 		}
@@ -732,9 +748,9 @@ namespace objrdf{
 		char t[N];
 		base_property(){t[0]=0;}
 		base_property(const char s[N]){strcpy(t,s);}
-		void set_string(string s){strncpy(t,s.c_str(),N-1);}
+		void set_string(std::string s){strncpy(t,s.c_str(),N-1);}
 		void in(istream& is){
-			string tmp;
+			std::string tmp;
 			is>>tmp;
 			set_string(tmp);
 		}
@@ -891,13 +907,13 @@ namespace objrdf{
 		typedef _IMPLEMENTATION_ IMPLEMENTATION;
 		//template<typename S> property(S s):base_property<RANGE>(s){}
 		explicit property(IMPLEMENTATION r):IMPLEMENTATION(r){
-			//LOG<<"create property `"<<NAME<<"' "<<this<<endl;
+			//LOG<<"create property `"<<NAME<<"' "<<this<<std::endl;
 		}
 		property()/*:p(0)*/{
-			//LOG<<"create property `"<<NAME<<"' "<<this<<endl;
+			//LOG<<"create property `"<<NAME<<"' "<<this<<std::endl;
 		}
 		~property(){
-			//LOG<<"delete property `"<<NAME<<"' "<<this<<endl;
+			//LOG<<"delete property `"<<NAME<<"' "<<this<<std::endl;
 		}
 		/*
  		*	problem here: will allow copy of different properties with same implementation
@@ -956,8 +972,8 @@ namespace objrdf{
 		#else
 		size_t _id=r.pool_ptr.index | (r.index<<(sizeof(r.pool_ptr.index)<<3));
 		#endif
-		ostringstream os;
-		os<<hex<<"_"<<_id;
+		std::ostringstream os;
+		os<<std::hex<<"_"<<_id;
 		return uri(os.str().c_str());
 	}
 	#if 0
@@ -1111,7 +1127,7 @@ namespace objrdf{
 	template<typename IMPLEMENTATION> struct get_ftable<LITERAL|STRING,IMPLEMENTATION>{
 		static function_table go(){
 			function_table t;
-			t.set_string_generic=[](RESOURCE_PTR subject,string s,ptrdiff_t offset,size_t index){
+			t.set_string_generic=[](RESOURCE_PTR subject,std::string s,ptrdiff_t offset,size_t index){
 				static_cast<IMPLEMENTATION*>((void*)((char*)subject+offset))->set_string(s);
 			};
 			t.in_generic=[](RESOURCE_PTR subject,ptrdiff_t offset,istream& is,size_t index){
@@ -1138,7 +1154,7 @@ namespace objrdf{
 				static_cast<IMPLEMENTATION*>((void*)((char*)subject+offset))->set_object(object);
 			};
 			t.get_size_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset){
-				//cerr<<"get_size_generic"<<endl;
+				//std::cerr<<"get_size_generic"<<std::endl;
 				return size_t(static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))->t!=0);
 			};
 			t.add_property_generic=function_table::default_f::add_property_generic_def;
@@ -1153,7 +1169,7 @@ namespace objrdf{
 				return (CONST_RESOURCE_PTR) static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))->t;
 			};
 			t.get_size_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset){
-				//cerr<<"get_size_generic"<<endl;
+				//std::cerr<<"get_size_generic"<<std::endl;
 				return size_t(static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))->t!=0);
 			};
 			return t;
@@ -1169,7 +1185,7 @@ namespace objrdf{
 				os<<(*static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset)))[index].t;
 			};
 			t.get_size_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset){
-				//cerr<<"get_size_generic"<<endl;
+				//std::cerr<<"get_size_generic"<<std::endl;
 				return (static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset)))->size();
 			};
 			t.add_property_generic=[](RESOURCE_PTR subject,ptrdiff_t offset){
@@ -1212,42 +1228,6 @@ namespace objrdf{
 		}
 	};
 	#if 0
-	template<bool IS_ARRAY> struct is_array;
-	template<> struct is_array<false>{	
-		template<typename IMPLEMENTATION> static void in_generic(RESOURCE_PTR subject,ptrdiff_t offset,istream& is,size_t index){
-			is>>static_cast<IMPLEMENTATION*>((void*)((char*)subject+offset))->t;
-		}
-		template<typename IMPLEMENTATION> static void out_generic(CONST_RESOURCE_PTR subject,ptrdiff_t offset,ostream& os,size_t index){
-			os<<static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))->t;
-		}
-		template<typename IMPLEMENTATION> static CONST_RESOURCE_PTR cget_object_generic(CONST_RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
-			return static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))->t;
-		}
-		template<typename IMPLEMENTATION> static RESOURCE_PTR get_object_generic(RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
-			return static_cast<IMPLEMENTATION*>((void*)((char*)subject+offset))->t;
-		}
-	};
-
-	template<> struct is_array<true>{	
-		//a bit more complicated because we need to know the type of the container
-		//not optimal because depends on property type so array<property<ns,A,int>> will be different from array<property<ns,B,int>>
-		//so maybe not worth it
-		
-		template<typename ARRAY> static void in_generic(RESOURCE_PTR subject,ptrdiff_t offset,istream& is,size_t index){
-			is>>(*static_cast<ARRAY*>((void*)((char*)subject+offset)))[index].t;
-		}
-		template<typename ARRAY> static void out_generic(CONST_RESOURCE_PTR subject,ptrdiff_t offset,ostream& os,size_t index){
-			os<<(*static_cast<const ARRAY*>((const void*)((const char*)subject+offset)))[index].t;
-		}
-		template<typename ARRAY> static CONST_RESOURCE_PTR cget_object_generic(CONST_RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
-			cerr<<"cget_object_generic"<<subject<<"\t"<<offset<<"\t"<<index<<endl;
-			return (*static_cast<const ARRAY*>((const void*)((const char*)subject+offset)))[index].t;
-		}
-		template<typename ARRAY> static RESOURCE_PTR get_object_generic(RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
-			cerr<<"get_object_generic"<<subject<<"\t"<<offset<<"\t"<<index<<endl;
-			return (*static_cast<ARRAY*>((void*)((char*)subject+offset)))[index].t;
-		}
-	};
 	template<
 		typename SUBJECT,
 		typename PROPERTY,
@@ -1268,7 +1248,6 @@ namespace objrdf{
 		static function_table get_table(){
 			auto t=BASE::get_table();
 			t.out=out;
-			t.out_generic=is_array<PROPERTY::TYPE&ARRY>::template out_generic<typename PROPERTY::IMPLEMENTATION>;//no longer depends on SUBJECT or PROPERTY
 			t.compare=compare;
 			return t;
 		}
@@ -1293,7 +1272,6 @@ namespace objrdf{
 		static function_table get_table(){
 			auto t=BASE::get_table();//we could drop T here
 			t.in=in;
-			t.in_generic=is_array<PROPERTY::TYPE&ARRY>::template in_generic<typename PROPERTY::IMPLEMENTATION>;//no longer depends on SUBJECT or PROPERTY
 			return t;	
 		}
 	};
@@ -1307,7 +1285,7 @@ namespace objrdf{
 		}
 	};
 	//what if set_object is invoked on const property?
-	static void set_const_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){cerr<<"error: const property"<<endl;}
+	static void set_const_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){std::cerr<<"error: const property"<<std::endl;}
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONSTP>:base_f<SUBJECT,PROPERTY>{
 		typedef base_f<SUBJECT,PROPERTY> BASE;
 		static CONST_RESOURCE_PTR get_const_object(CONST_RESOURCE_PTR subject,size_t index){
@@ -1316,7 +1294,6 @@ namespace objrdf{
 		static function_table get_table(){
 			auto t=BASE::get_table();
 			t.cget_object=get_const_object;
-			t.cget_object_generic=is_array<PROPERTY::TYPE&ARRY>::template cget_object_generic<typename PROPERTY::IMPLEMENTATION>;
 			t.set_object=set_const_object;//???
 			return t;	
 		}
@@ -1341,7 +1318,6 @@ namespace objrdf{
 		static function_table get_table(){
 			auto t=BASE::get_table();
 			t.get_object=get_object;
-			t.get_object_generic=is_array<PROPERTY::TYPE&ARRY>::template get_object_generic<typename PROPERTY::IMPLEMENTATION>;
 			t.set_object=set_object;
 			return t;	
 		}
@@ -1446,18 +1422,18 @@ namespace rdfs{
 	PROPERTY(domain,objrdf::CONST_CLASS_PTR);
 	PROPERTY(range,objrdf::CONST_CLASS_PTR);
 	PROPERTY(subClassOf,objrdf::CONST_CLASS_PTR);
-	PROPERTY(comment,string);
+	PROPERTY(comment,std::string);
 	/*
  	* some properties whose domain is rdf:Resource but we don't want to make them member
  	* of objrdf::base_resource 
  	*/
 	PROPERTY(isDefinedBy,objrdf::CONST_RESOURCE_PTR);
-	PROPERTY(label,string);
+	PROPERTY(label,std::string);
 	PROPERTY(subPropertyOf,objrdf::CONST_PROPERTY_PTR);
 	PROPERTY(member,objrdf::RESOURCE_PTR);
 }
 namespace rdf{
-	struct Literal:objrdf::resource<rdfs_namespace,Literal,std::tuple<>,Literal>{
+	struct Literal:objrdf::resource<rdfs_namespace,Literal,tuple<>,Literal>{
 		static const char* name(){return "Literal";}
 		Literal(objrdf::uri u):SELF(u){}
 		COMMENT("The class of literal values, eg. textual strings and integers")
@@ -1469,19 +1445,19 @@ namespace xsd{
  	*	not clear what the syntax should be
  	*/ 
 	RDFS_NAMESPACE("http://www.w3.org/2001/XMLSchema#","xsd");//or xs?
-	CLASS(integer,std::tuple<>,objrdf::NIL,rdf::Literal);
-	CLASS(unsignedInt,std::tuple<>,objrdf::NIL,rdf::Literal);
-	CLASS(anyURI,std::tuple<>,objrdf::NIL,rdf::Literal);
-	CLASS(date,std::tuple<>,objrdf::NIL,rdf::Literal);
-	CLASS(dateTime,std::tuple<>,objrdf::NIL,rdf::Literal);
-	CLASS(unsignedShort,std::tuple<>,objrdf::NIL,rdf::Literal);
-	typedef objrdf::resource<rdfs_namespace,objrdf::str<'d','o','u','b','l','e'>,std::tuple<>,objrdf::NIL,rdf::Literal> Double;
-	typedef objrdf::resource<rdfs_namespace,objrdf::str<'f','l','o','a','t'>,std::tuple<>,objrdf::NIL,rdf::Literal> Float;
-	typedef objrdf::resource<rdfs_namespace,objrdf::str<'s','h','o','r','t'>,std::tuple<>,objrdf::NIL,rdf::Literal> Short;
-	typedef objrdf::resource<rdfs_namespace,objrdf::str<'s','t','r','i','n','g'>,std::tuple<>,objrdf::NIL,rdf::Literal> String;
+	CLASS(integer,tuple<>,objrdf::NIL,rdf::Literal);
+	CLASS(unsignedInt,tuple<>,objrdf::NIL,rdf::Literal);
+	CLASS(anyURI,tuple<>,objrdf::NIL,rdf::Literal);
+	CLASS(date,tuple<>,objrdf::NIL,rdf::Literal);
+	CLASS(dateTime,tuple<>,objrdf::NIL,rdf::Literal);
+	CLASS(unsignedShort,tuple<>,objrdf::NIL,rdf::Literal);
+	typedef objrdf::resource<rdfs_namespace,objrdf::str<'d','o','u','b','l','e'>,tuple<>,objrdf::NIL,rdf::Literal> Double;
+	typedef objrdf::resource<rdfs_namespace,objrdf::str<'f','l','o','a','t'>,tuple<>,objrdf::NIL,rdf::Literal> Float;
+	typedef objrdf::resource<rdfs_namespace,objrdf::str<'s','h','o','r','t'>,tuple<>,objrdf::NIL,rdf::Literal> Short;
+	typedef objrdf::resource<rdfs_namespace,objrdf::str<'s','t','r','i','n','g'>,tuple<>,objrdf::NIL,rdf::Literal> String;
 }
 namespace objrdf{
-	OBJRDF_CLASS(Char,std::tuple<>,NIL,rdf::Literal);
+	OBJRDF_CLASS(Char,tuple<>,NIL,rdf::Literal);
 }
 namespace objrdf{
 	template<typename T> struct get_Literal:rdf::Literal{}; 
@@ -1498,7 +1474,7 @@ namespace objrdf{
 		class CharT,
 		class Traits,
 		class Allocator
-	> struct get_Literal<basic_string<CharT,Traits,Allocator>>:xsd::String{};
+	> struct get_Literal<std::basic_string<CharT,Traits,Allocator>>:xsd::String{};
 	template<size_t N> struct get_Literal<char[N]>:xsd::String{};
 	template<> struct get_Literal<uri>:xsd::anyURI{};
 	//extra types
@@ -1514,7 +1490,7 @@ namespace rdfs{
 		but NOT when using XML serialization of SPARQL reply
 	*/
 	struct XMLLiteral{}; //symbolic type
-	CLASS(XML_Literal,std::tuple<>,objrdf::NIL,rdf::Literal);
+	CLASS(XML_Literal,tuple<>,objrdf::NIL,rdf::Literal);
 }
 namespace objrdf{
 	template<> struct get_Literal<rdfs::XMLLiteral>:rdfs::XML_Literal{};
@@ -1537,12 +1513,12 @@ namespace objrdf{
  	*/ 
 	/*
 	PROPERTY(on,rdfs::Class::allocator_type::const_pointer);
-	CLASS(Privilege,std::tuple<type,array<on>>);
+	CLASS(Privilege,tuple<type,array<on>>);
 	*/
-	OBJRDF_CLASS(User,std::tuple<>,NIL,base_resource,std::tuple<>,persistent_allocator_managed<void>);
+	OBJRDF_CLASS(User,tuple<>,NIL,base_resource,tuple<>,persistent_allocator_managed<void>);
 	/*
 	char _User[]="User";
-	struct User:objrdf::resource<_rdfs_namespace,_User,std::tuple<>,User>{
+	struct User:objrdf::resource<_rdfs_namespace,_User,tuple<>,User>{
 		//could also be made transient and users are created at run time for security
 		typedef persistent_allocator_managed<User> allocator_type;
 		User(objrdf::uri id):SELF(id){}
@@ -1556,7 +1532,7 @@ namespace objrdf{
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r,CONST_USER_PTR u);
 	void get_output(CONST_RESOURCE_PTR r,ostream& os);
 	//to investigate new method to store indices
-	OBJRDF_CLASS(Test_class,std::tuple<>);
+	OBJRDF_CLASS(Test_class,tuple<>);
 	/*	version control, use the git commit hash + date
 	*	<objrdf:Version>
 	*		<objrdf:hash  rdf:resource='https://github.com/jean-marc/objrdf/commit/cd5475382d68999730a6b7623dfdfd0b1026b8ad'/>
@@ -1569,7 +1545,7 @@ namespace objrdf{
 }
 namespace rdfs{
 	struct Class:objrdf::resource<rdfs_namespace,Class,
-		std::tuple<
+		tuple<
 			#ifdef NATIVE
 			objrdf::array<subClassOf,std::allocator<subClassOf>>,
 			objrdf::array<objrdf::superClassOf,std::allocator<objrdf::superClassOf>>,
@@ -1586,15 +1562,15 @@ namespace rdfs{
 		>,
 		Class,
 		objrdf::base_resource,
-		std::tuple<>
+		tuple<>
 		#ifndef NATIVE
 		,volatile_allocator_managed<void,uint8_t>
 		#endif
 	>{
 		static const char* name(){return "Class";}
 		//convenience typedef to retrieve properties
-		typedef std::tuple_element<0,PROPERTIES>::type array_subClassOf;
-		typedef std::tuple_element<1,PROPERTIES>::type array_superClassOf;
+		typedef tuple_element<0,PROPERTIES>::type array_subClassOf;
+		typedef tuple_element<1,PROPERTIES>::type array_superClassOf;
 		/*
  		*	should store all the information about the resources including function pointers, the only problem with that
  		*	is the user might want to add his own function pointer (unless he decides to use virtual functions) and that
@@ -1619,12 +1595,12 @@ namespace rdfs{
 		const objrdf::base_resource::class_function_table t;
 		Class(objrdf::uri u);
 		#ifdef NATIVE
-		Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,string comment,objrdf::sizeOf);
+		Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,std::string comment,objrdf::sizeOf);
 		#else
-		Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,string comment,objrdf::sizeOf,objrdf::hashOf=objrdf::hashOf());
+		Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,std::string comment,objrdf::sizeOf,objrdf::hashOf=objrdf::hashOf());
 		#endif
 		~Class(){
-			cerr<<"delete Class `"<<id<<"'"<<endl;	
+			std::cerr<<"delete Class `"<<id<<"'"<<std::endl;	
 		}
 		//why doesn't this compile?
 		//static objrdf::CONST_CLASS_PTR super(objrdf::CLASS_PTR c){
@@ -1659,7 +1635,7 @@ namespace objrdf{
 }
 namespace rdf{
 	struct Property:objrdf::resource<rdfs_namespace,Property,
-		std::tuple<
+		tuple<
 			//rdfs::domain,//same property could applies to different unrelated classes (might be in conflict with strict RDFS)
 			#ifdef NATIVE
 			objrdf::array<rdfs::domain,std::allocator<rdfs::domain>>,
@@ -1671,13 +1647,13 @@ namespace rdf{
 		>,
 		Property,
 		objrdf::base_resource,
-		std::tuple<>
+		tuple<>
 		#ifndef NATIVE
 		,volatile_allocator_managed<void,uint8_t>//we could have more than 256 propertie?
 		#endif
 	>{
 		static const char* name(){return "Property";}
-		typedef std::tuple_element<0,PROPERTIES>::type domains;
+		typedef tuple_element<0,PROPERTIES>::type domains;
 		Property(objrdf::uri u);
 		Property(objrdf::uri u,rdfs::range r,const bool literalp);
 		Property(objrdf::uri u,rdfs::range r,const bool literalp,rdfs::subPropertyOf);
@@ -1893,7 +1869,7 @@ namespace objrdf{
 			//would be nice to have message
 			//static_assert(help_validate_store<SUBJECT,PROPERTY>::value,"inconsistent stores");
 			/*if(!help_validate_store<SUBJECT,PROPERTY>::value){
-				cerr<<SUBJECT::get_class()->id<<" "<<PROPERTY::get_property()->id<<endl;
+				std::cerr<<SUBJECT::get_class()->id<<" "<<PROPERTY::get_property()->id<<std::endl;
 				exit(1);
 			}*/
 			v.push_back(get_property_info<SUBJECT,PROPERTY>());
@@ -1901,7 +1877,7 @@ namespace objrdf{
 	};
 	template<> struct get_generic_property<base_resource>{
 		static V go(){
-			LOG<<"get_generic_property:`base_resource'"<<endl;
+			LOG<<"get_generic_property:`base_resource'"<<std::endl;
 			function_table rdf_type,objrdf_self,objrdf_id;
 			rdf_type.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t,size_t){return (CONST_RESOURCE_PTR)base_resource::get_class();};
 			rdf_type.get_size_generic=function_table::default_f::always_1;
@@ -1947,11 +1923,11 @@ namespace objrdf{
 		V v;
 		patch(const V& v):v(v){}
 		template<typename PROPERTY> void operator()(){
-			cerr<<"trigger on property `"<<PROPERTY::get_property()->id.local<<"'"<<endl;
+			std::cerr<<"trigger on property `"<<PROPERTY::get_property()->id.local<<"'"<<std::endl;
 			//look-up property in array
 			auto i=find_if(v.begin(),v.end(),[](property_info& p){return p.p==PROPERTY::get_property();});
 			if(i!=v.end()){
-				cerr<<"patching function table for `"<<i->p->id.local<<"'"<<endl;
+				std::cerr<<"patching function table for `"<<i->p->id.local<<"'"<<std::endl;
 				//i->t=functions<SUBJECT,PROPERTY>::template trigger<SUBJECT>::patch(i->t);				
 			}
 		}
@@ -1968,9 +1944,9 @@ namespace objrdf{
 		resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,TRIGGER,ALLOCATOR>
 	>{
 		typedef resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,TRIGGER,ALLOCATOR> RESOURCE;
-		typedef typename IfThenElse<is_same<SUBCLASS,NIL>::value,RESOURCE,SUBCLASS>::ResultT TMP;
+		typedef typename IfThenElse<std::is_same<SUBCLASS,NIL>::value,RESOURCE,SUBCLASS>::ResultT TMP;
 		static V go(){
-			LOG<<"get_generic_property:`"<<NAME::name()<<"'"<<endl;
+			LOG<<"get_generic_property:`"<<NAME::name()<<"'"<<std::endl;
 			V v=get_generic_property<typename SUPERCLASS::SELF>::go();
 			/*
  			* multiple rdf:type properties, would be more consistent to have an array or a single type
@@ -1982,10 +1958,10 @@ namespace objrdf{
 			rdf_type.get_size_generic=function_table::default_f::always_1;
 			v.front()=property_info(rdf::type::get_property(),rdf_type);
 			//filter properties for convenience, we need to store index of first non-const property somewhere
-			auto r=concat(v,std::static_for_each<PROPERTIES>(_meta_<TMP>()).v);
+			auto r=concat(v,objrdf::static_for_each<PROPERTIES>(_meta_<TMP>()).v);
 			//need to process triggers at this stage: 
-			cerr<<"listing triggers for class `"<<NAME::name()<<"'"<<endl;
-			r=std::static_for_each<TRIGGER>(patch<TMP>(r)).v;
+			std::cerr<<"listing triggers for class `"<<NAME::name()<<"'"<<std::endl;
+			r=objrdf::static_for_each<TRIGGER>(patch<TMP>(r)).v;
 			//make sure we only invoke once
 			if(TMP::patch!=SUPERCLASS::patch){
 				TMP::patch(r);//each class can decide to modify table: add pseudo-properties,...
@@ -2012,7 +1988,7 @@ namespace objrdf{
 		auto r=find(u);
 		return static_cast<T*>(r);
 		#else
-		cerr<<"looking up uri `"<<u<<"' in pool `"<<T::get_class()->id<<"'"<<endl;
+		std::cerr<<"looking up uri `"<<u<<"' in pool `"<<T::get_class()->id<<"'"<<std::endl;
 		typename T::allocator_type a;
 		auto r=find_if(a.cbegin(),a.cend(),test_by_uri(u));
 		return typename T::allocator_type::pointer(r!=a.cend() ? r.get_cell_index() : 0);	
