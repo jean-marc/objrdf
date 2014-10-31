@@ -2,6 +2,7 @@
 #include <sstream>
 #include <string.h>
 using namespace objrdf;
+using namespace std;
 /*
  *	preload the vector
  *	v[0]=empty namespace
