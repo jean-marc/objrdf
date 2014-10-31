@@ -56,7 +56,11 @@ namespace objrdf{
 	template<typename TUPLE,typename F> struct static_for_each_impl:static_for_each_impl<typename TUPLE::IMPL,F>{};
 	template<typename A,typename B,typename F> struct static_for_each_impl<duo<A,B>,F>{
 		static F go(F f){
+#ifdef __GNUG__
 			f.template operator()<A>();
+#else
+			f.operator()<A>();
+#endif
 			return static_for_each_impl<typename duo<A,B>::NEXT,F>::go(f);
 		}
 	};
