@@ -10,8 +10,8 @@
 #include <list>
 #include <algorithm>
 #include "uri.h"
-using namespace std;
-typedef map<objrdf::uri,string> ATTRIBUTES;
+//using namespace std;
+typedef std::map<objrdf::uri,std::string> ATTRIBUTES;
 
 template<typename START,typename STOP> struct _range_:seq<START,kleene_p<not_p<STOP> >,STOP>{};
 //CRTP curiously recursive template pattern
