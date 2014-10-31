@@ -23,7 +23,8 @@
 using namespace std;//so we use std tuple instead of objrdf::tuple
 #else
 #include "objrdf_tuple.h"
-using namespace objrdf;
+using objrdf::tuple;
+using objrdf::tuple_element;
 #endif
 #include "ifthenelse.hpp"
 #ifdef OBJRDF_VERB
@@ -45,15 +46,16 @@ template <typename T> int sgn(T val){
 template <typename T> int sgn(std::complex<T> val){
 	return 0;
 }
-//not supported in MSVC 2010
 using std::istream;
 using std::ostream;
+using std::string;
 namespace objrdf{
 #ifdef __GNUG__
+	//not supported in MSVC 2010
 	template<char... C> struct str{
 		static const char* name(){
 			char tmp[]={C...,0};
-#else //MSVC
+#else
 	template<char A,char B=0,char C=0,char D=0,char E=0,char F=0,char G=0,char H=0,
 		   char I=0,char J=0,char K=0,char L=0,char M=0,char N=0,char O=0,char P=0,
 		   char Q=0,char R=0,char S=0,char T=0,char U=0,char V=0,char W=0,char X=0
