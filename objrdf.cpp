@@ -64,7 +64,7 @@ void base_resource::do_index(RESOURCE_PTR p){
 	LOG<<"indexing resource `"<<p->id<<"'"<<endl;
 	get_index()[p->id]=p;
 }
-property_info::property_info(CONST_PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}
+property_info::property_info(CONST_PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp),offset(0){}
 void base_resource::get_output(ostream& os) const{
 	os<<"HTTP/1.1 200 OK"<<"\r\n";
 	ostringstream out;
