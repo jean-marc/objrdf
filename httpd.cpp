@@ -4,6 +4,7 @@
 #ifdef NEW_HEADER
 #include "sparql_parser.h"
 #endif
+#include <unistd.h>
 #include "url_decoder.h"
 #include <fstream>
 #include <sys/stat.h>
