@@ -270,7 +270,8 @@ namespace objrdf{
 		function_table t;
 		/*const*/ bool literalp;
 		ptrdiff_t offset;//=0;//offset of property within class
-		property_info(CONST_PROPERTY_PTR p,function_table t);
+		property_info(CONST_PROPERTY_PTR p,function_table t,ptrdiff_t offset=0);
+		template<typename PROPERTY> static property_info go(ptrdiff_t offset);
 	};
 	/*
  	*	can we access all those tables in a generic way?
@@ -292,7 +293,7 @@ namespace objrdf{
  	*	problem with using array: the information is lost in the schema, now we use 
  	*	rdfs:member http://www.w3.org/TR/rdf-schema/#ch_member
  	*/ 	
-	enum{LITERAL=0x1,STRING=0x2,CONSTP=0x4,ARRY=0x8};
+	enum{LITERAL=0x1,STRING=0x2,CONSTP=0x4,ARRY=0x8,LOCAL=0x10};
 	template<
 		typename PROPERTY,
 		#ifdef NATIVE
@@ -471,7 +472,7 @@ namespace objrdf{
 		base_resource(uri id);
 		~base_resource();
 		//shouldn't be const?
-		uri id;
+		uri id;//can we get rid of it sometime?, we could make it a property,
 		static V v;
 		CONST_CLASS_PTR get_Class() const{return get_class();};
 		/*
@@ -485,7 +486,7 @@ namespace objrdf{
 		const_type_iterator cbegin() const;
 		const_type_iterator cend() const;
 		*/
-		void end_resource(){};//will be invoked when finished parsing the element
+		virtual void end_resource(){};//will be invoked when finished parsing the element
 		/*
  		*	do we have to use functions? what about storing type_iterator begin,end,...
  		*	it could work as long as iterators don't get invalidated by container (resource::v) modification, it means
@@ -528,6 +529,7 @@ namespace objrdf{
 		void get_output(ostream& os) const;
 		static CONST_CLASS_PTR get_class();	
 		#ifdef NATIVE
+		//alternatively could be pointer to class, would be same size as vtable pointer
 		virtual CONST_CLASS_PTR _get_class() const{return get_class();}
 		#endif
 		template<typename U> U& get(){return helper<base_resource,U>::hget(*this);}
@@ -545,17 +547,20 @@ namespace objrdf{
 		template<typename T> base_resource::type_iterator end(RESOURCE_PTR r){return base_resource::type_iterator(r,T::v.end());}
 		template<typename T> base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,T::v.cbegin());}
 		template<typename T> base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r){return base_resource::const_type_iterator(r,T::v.cend());}
-		template<typename T> RESOURCE_PTR allocate(){
-			//typename T::allocator_type a;
-			//return a.allocate(1);
-			return 0;
-		}
 		#ifdef NATIVE
+		template<typename T> RESOURCE_PTR allocate(){
+			std::allocator<T> a;
+			return a.allocate(1);
+		}
 		template<typename T> void deallocate(RESOURCE_PTR r){
-			//typename T::allocator_type a;
-			//a.deallocate(static_cast<T*>(r),1);
+			std::allocator<T> a;
+			a.deallocate(static_cast<T*>(r),1);
 		}
 		#else
+		template<typename T> RESOURCE_PTR allocate(){
+			typename T::allocator_type a;
+			return a.allocate(1);
+		}
 		template<typename T> void deallocate(CONST_RESOURCE_PTR r){
 			typename T::allocator_type a;
 			a.deallocate(r,1);//why don't we need casting????
@@ -593,7 +598,7 @@ namespace objrdf{
 		typename NAME,
 		typename _PROPERTIES_=tuple<>, //MUST BE A tuple !!
 		typename SUBCLASS=NIL,//default should be resource
-		typename _SUPERCLASS_=base_resource,
+		typename _SUPERCLASS_=base_resource,//could we have more than 1 super-class
 		typename TRIGGER=tuple<>, //if you define a trigger you must derive the class to add the handlers
 		typename ALLOCATOR=typename _SUPERCLASS_::allocator_type
 	>
@@ -822,6 +827,22 @@ namespace objrdf{
 			t=static_cast<RANGE*>(object);
 		}
 		void erase(){set_object(0);}
+	};
+	/*
+ 	*	can we store an object locally, it is mainly for optimization:
+ 	*		.no need to store a pointer if only one owner
+ 	*		.convenience: no need to manage the lifecycle
+ 	*	RANGE will need a default constructor
+ 	*	note: parsing needs to be modified when dealing with local
+ 	*/
+	template<typename> struct local{};
+	template<typename RANGE> struct base_property<local<RANGE>>{
+		enum{TYPE=0|LOCAL};
+		RANGE t;
+		base_property():t(uri("")){}
+		//trickier when using fancy pointers, could be implemented with offset
+		RESOURCE_PTR get_object(){return &t;}
+		CONST_RESOURCE_PTR get_const_object() const{return &t;}
 	};
 
 	#else
@@ -1153,6 +1174,7 @@ namespace objrdf{
 				is>>static_cast<IMPLEMENTATION*>((void*)((char*)subject+offset))->t;
 			};
 			t.out_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset,ostream& os,size_t index){
+				//cerr<<"address:"<<static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))<<endl;
 				os<<static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))->t;
 			};
 #else
@@ -1218,17 +1240,16 @@ namespace objrdf{
 			function_table t;
 #ifdef __GNUG__
 			t.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
-				return (CONST_RESOURCE_PTR) static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))->t;
+				return static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))->get_const_object();
 			};
 			t.get_object_generic=[](RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
-				return (RESOURCE_PTR) static_cast<IMPLEMENTATION*>((void*)((char*)subject+offset))->t;
+				return static_cast<IMPLEMENTATION*>((void*)((char*)subject+offset))->get_object();
 			};
 			t.set_object_generic=[](RESOURCE_PTR subject,RESOURCE_PTR object,ptrdiff_t offset,size_t index){
 				static_cast<IMPLEMENTATION*>((void*)((char*)subject+offset))->set_object(object);
 			};
 			t.get_size_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset){
-				//std::cerr<<"get_size_generic"<<std::endl;
-				return size_t(static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))->t!=0);
+				return static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))->get_size();
 			};
 #else
 			t.cget_object_generic=lambda0;
@@ -1236,6 +1257,33 @@ namespace objrdf{
 			t.set_object_generic=lambda2;
 			t.get_size_generic=lambda3;
 #endif
+			t.add_property_generic=function_table::default_f::add_property_generic_def;
+			return t;
+		}
+	};
+	template<typename IMPLEMENTATION> struct get_ftable<LOCAL,IMPLEMENTATION>{//local storage
+#ifndef __GNUG__
+		static CONST_RESOURCE_PTR lambda0(CONST_RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
+			return (CONST_RESOURCE_PTR) static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))->t;
+		};
+		static RESOURCE_PTR lambda1(RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
+			return (RESOURCE_PTR) static_cast<IMPLEMENTATION*>((void*)((char*)subject+offset))->t;
+		};
+#endif
+		static function_table go(){
+			function_table t;
+#ifdef __GNUG__
+			t.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
+				return static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))->get_const_object();
+			};
+			t.get_object_generic=[](RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
+				return static_cast<IMPLEMENTATION*>((void*)((char*)subject+offset))->get_object();
+			};
+#else
+			t.cget_object_generic=lambda0;
+			t.get_object_generic=lambda1;
+#endif
+			t.get_size_generic=function_table::default_f::always_1;
 			t.add_property_generic=function_table::default_f::add_property_generic_def;
 			return t;
 		}
@@ -1634,7 +1682,6 @@ namespace objrdf{
 	OBJRDF_PROPERTY(hashOf,hex_adapter<size_t>);
 }
 namespace objrdf{
-	#ifndef NATIVE
 	/*
  	*	users have privileges on classes and the associated properties
  	*	user 1 is root
@@ -1645,7 +1692,11 @@ namespace objrdf{
 	PROPERTY(on,rdfs::Class::allocator_type::const_pointer);
 	CLASS(Privilege,tuple<type,array<on>>);
 	*/
+	#ifdef NATIVE
+	OBJRDF_CLASS(User,tuple<>,NIL,base_resource,tuple<>);
+	#else
 	OBJRDF_CLASS(User,tuple<>,NIL,base_resource,tuple<>,persistent_allocator_managed<void>);
+	#endif
 	/*
 	char _User[]="User";
 	struct User:objrdf::resource<_rdfs_namespace,_User,tuple<>,User>{
@@ -1671,7 +1722,6 @@ namespace objrdf{
 	*	we need a way to store external references
 	*
 	*/
-	#endif
 }
 namespace rdfs{
 	struct Class:objrdf::resource<rdfs_namespace,Class,
@@ -1852,6 +1902,10 @@ namespace objrdf{
 		typedef get_Literal<RANGE> ResultT;
 		enum{IS_LITERAL=1};
 	};
+	template<typename RANGE> struct selector<local<RANGE>>{
+		typedef RANGE ResultT;
+		enum{IS_LITERAL=0};
+	};
 	#ifdef NATIVE
 	template<typename RANGE> struct selector<RANGE*>{
 		typedef RANGE ResultT;
@@ -1979,6 +2033,9 @@ namespace objrdf{
 	> struct help_validate_store<SUBJECT,PROPERTY,true>{enum{value=1};};
 	*/	
 
+	template<typename PROPERTY> property_info property_info::go(ptrdiff_t offset){
+		return property_info(PROPERTY::get_property(),get_ftable<PROPERTY::TYPE,typename PROPERTY::IMPLEMENTATION>::go(),offset);
+	}
 	template<
 		typename SUBJECT,
 		typename PROPERTY
