@@ -143,83 +143,80 @@ namespace objrdf{
  	*	this function table can be used to modify privileges
  	*/ 
 	struct function_table{
-		typedef void (*set_string_f)(RESOURCE_PTR,string,size_t);
+	#ifdef NEW_FUNC_TABLE
 		typedef void (*set_string_generic_f)(RESOURCE_PTR,string,ptrdiff_t,size_t);
-		typedef void (*in_f)(RESOURCE_PTR,istream&,size_t);
 		typedef void (*in_generic_f)(RESOURCE_PTR,ptrdiff_t,istream&,size_t);
-		typedef void (*out_f)(CONST_RESOURCE_PTR,ostream&,size_t);
 		typedef void (*out_generic_f)(CONST_RESOURCE_PTR,ptrdiff_t offset,ostream&,size_t);
-		typedef RESOURCE_PTR (*get_object_f)(RESOURCE_PTR,size_t);//could we use CONST_RESOURCE_PTR?
 		typedef RESOURCE_PTR (*get_object_generic_f)(RESOURCE_PTR,ptrdiff_t,size_t);//could we use CONST_RESOURCE_PTR?
-		typedef CONST_RESOURCE_PTR (*cget_object_f)(CONST_RESOURCE_PTR,size_t);
 		typedef CONST_RESOURCE_PTR (*cget_object_generic_f)(CONST_RESOURCE_PTR,ptrdiff_t,size_t);
-		typedef void (*set_object_f)(RESOURCE_PTR,RESOURCE_PTR,size_t);
 		typedef void (*set_object_generic_f)(RESOURCE_PTR,RESOURCE_PTR,ptrdiff_t,size_t);
-		typedef size_t (*get_size_f)(CONST_RESOURCE_PTR);
 		typedef size_t (*get_size_generic_f)(CONST_RESOURCE_PTR,ptrdiff_t);
-		typedef void (*add_property_f)(RESOURCE_PTR,PROVENANCE);
 		typedef void (*add_property_generic_f)(RESOURCE_PTR,ptrdiff_t);
+		set_string_generic_f set_string_generic=0;
+		in_generic_f in_generic=0;
+		get_object_generic_f get_object_generic=0;
+		cget_object_generic_f cget_object_generic=0;
+		set_object_generic_f set_object_generic=0;
+		get_size_generic_f get_size_generic=0;
+		add_property_generic_f add_property_generic=0;
+	#else
+		typedef void (*set_string_f)(RESOURCE_PTR,string,size_t);
+		typedef void (*in_f)(RESOURCE_PTR,istream&,size_t);
+		typedef void (*out_f)(CONST_RESOURCE_PTR,ostream&,size_t);
+		typedef RESOURCE_PTR (*get_object_f)(RESOURCE_PTR,size_t);//could we use CONST_RESOURCE_PTR?
+		typedef CONST_RESOURCE_PTR (*cget_object_f)(CONST_RESOURCE_PTR,size_t);
+		typedef void (*set_object_f)(RESOURCE_PTR,RESOURCE_PTR,size_t);
+		typedef size_t (*get_size_f)(CONST_RESOURCE_PTR);
+		typedef void (*add_property_f)(RESOURCE_PTR,PROVENANCE);
+		set_string_f set_string=0;
+		in_f in=0;
+		out_f out=0;
+		get_object_f get_object=0;
+		cget_object_f cget_object=0;
+		set_object_f set_object=0;
+		get_size_f get_size=0;
+		add_property_f add_property=0;
+	#endif
 		typedef void (*erase_f)(RESOURCE_PTR,size_t,size_t);
 		//let's make this more general using reification 
 		typedef PROVENANCE (*get_provenance_f)(CONST_RESOURCE_PTR,size_t);
 		typedef RESOURCE_PTR (*get_statement_f)(CONST_RESOURCE_PTR,size_t);
 		typedef int (*compare_f)(CONST_RESOURCE_PTR,size_t,CONST_RESOURCE_PTR,size_t);//should be with literal but we are still using indices 
-		//set_string_f set_string;
-		set_string_generic_f set_string_generic=0;
-		//in_f in;
-		in_generic_f in_generic=0;
-		//out_f out;
-		//attempt to reuse as many functions as possible to reduce executable size and possibly compile time
-		out_generic_f out_generic=0;
-		//get_object_f get_object;
-		get_object_generic_f get_object_generic=0;
-		//cget_object_f cget_object;
-		cget_object_generic_f cget_object_generic=0;
-		//set_object_f set_object;
-		set_object_generic_f set_object_generic=0;
-		//get_size_f get_size;
-		get_size_generic_f get_size_generic=0;
-		//add_property_f add_property;
-		add_property_generic_f add_property_generic=0;
 		erase_f erase=0;
 		get_provenance_f get_provenance=0;
 		get_statement_f get_statement=0;
 		compare_f compare=0;
 		//let's define a few functions
 		struct default_f{
-			static size_t get_size(CONST_RESOURCE_PTR){return 1;}
+			#ifdef NEW_FUNCTION_TABLE
 			static size_t always_1(CONST_RESOURCE_PTR,ptrdiff_t){return 1;}
 			static void add_property_generic_def(RESOURCE_PTR,ptrdiff_t){}
+			#else
+			static size_t always_1(CONST_RESOURCE_PTR){return 1;}
+			static void add_property_def(RESOURCE_PTR){}
+			#endif
 		};
-		//function_table():set_string(0),in(0),out(0),out_generic(0),get_object(0),cget_object(0),set_object(0),get_size(0),add_property(0),erase(0),get_provenance(0),get_statement(0),compare(0){}
-		//we can have different constructors depending on type
-		/*
-		static function_table literal(in_f _in,out_f _out,get_size_f _get_size){
-			function_table t;
-			t.in=_in;
-			t.out=_out;
-			t.get_size=_get_size;
-			return t;
-		}
-		*/
 		friend ostream& operator<<(ostream& os,const function_table& f){
-			//os<<"in\t"<<(void*)f.in<<"\n";
+			#ifdef NEW_FUNCTION_TABLE
 			os<<"in_generic\t"<<(void*)f.in_generic<<"\n";
-			//os<<"out\t"<<(void*)f.out<<"\n";
 			os<<"out_generic\t"<<(void*)f.out_generic<<"\n";
-			//os<<"get_object\t"<<(void*)f.get_object<<"\n";
 			os<<"get_object_generic\t"<<(void*)f.get_object_generic<<"\n";
-			//os<<"cget_object\t"<<(void*)f.cget_object<<"\n";
 			os<<"cget_object_generic\t"<<(void*)f.cget_object_generic<<"\n";
-			//os<<"set_object\t"<<(void*)f.set_object<<"\n";
 			os<<"set_object_generic\t"<<(void*)f.set_object_generic<<"\n";
-			//os<<"get_size\t"<<(void*)f.get_size<<"\n";
 			os<<"get_size_generic\t"<<(void*)f.get_size_generic<<"\n";
-			//os<<"add_property\t"<<(void*)f.add_property<<"\n";
-			//os<<"erase\t"<<(void*)f.erase<<"\n";
-			//os<<"get_provenance\t"<<(void*)f.get_provenance<<"\n";
-			//os<<"get_statement\t"<<(void*)f.get_statement<<"\n";
-			//os<<"compare\t"<<(void*)f.compare;
+			#else
+			os<<"in\t"<<(void*)f.in<<"\n";
+			os<<"out\t"<<(void*)f.out<<"\n";
+			os<<"get_object\t"<<(void*)f.get_object<<"\n";
+			os<<"cget_object\t"<<(void*)f.cget_object<<"\n";
+			os<<"set_object\t"<<(void*)f.set_object<<"\n";
+			os<<"get_size\t"<<(void*)f.get_size<<"\n";
+			#endif
+			os<<"add_property\t"<<(void*)f.add_property<<"\n";
+			os<<"erase\t"<<(void*)f.erase<<"\n";
+			os<<"get_provenance\t"<<(void*)f.get_provenance<<"\n";
+			os<<"get_statement\t"<<(void*)f.get_statement<<"\n";
+			os<<"compare\t"<<(void*)f.compare;
 			return os;
 		}
 	};
@@ -228,7 +225,9 @@ namespace objrdf{
 		/*const*/ CONST_PROPERTY_PTR p;
 		function_table t;
 		/*const*/ bool literalp;
+		#ifdef NEW_FUNC_TABLE
 		ptrdiff_t offset=0;//offset of property within class
+		#endif
 		property_info(CONST_PROPERTY_PTR p,function_table t);
 	};
 	/*
@@ -960,7 +959,7 @@ namespace objrdf{
 		os<<hex<<"_"<<_id;
 		return uri(os.str().c_str());
 	}
-	#if 0
+	#ifndef NEW_FUNC_TABLE 
 	template<
 		typename SUBJECT,
 		typename PROPERTY
@@ -1057,15 +1056,6 @@ namespace objrdf{
 			return static_cast<typename SUBJECT::allocator_type::const_derived_pointer>(subject)->template get_const<ARRAY>()[index];
 			#endif
 		}
-		//we need to separate LITERAL from NON-LITERAL
-		/*
-		RESOURCE_PTR get_object_generic(CONST_RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
-			return static_cast<ARRAY&>(*((void*)subject+offset))[index];
-		}
-		CONST_RESOURCE_PTR cget_object_generic(CONST_RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
-			return static_cast<const ARRAY&>(*((const void*)subject+offset))[index];
-		}
-		*/
 		static size_t get_size(CONST_RESOURCE_PTR subject){
 			return get_const(subject).size();
 		}
@@ -1088,7 +1078,159 @@ namespace objrdf{
 			return t;	
 		}
 	};
-	#endif
+	template<
+		typename SUBJECT,
+		typename PROPERTY,
+		size_t TYPE=PROPERTY::TYPE&0x7
+	> struct functions;
+
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONSTP|LITERAL>:base_f<SUBJECT,PROPERTY>{
+		typedef base_f<SUBJECT,PROPERTY> BASE;
+		static void out(CONST_RESOURCE_PTR subject,ostream& os,size_t index){
+			/*
+ 			*	at this stage we can detect if out has been overriden in a base class
+ 			*/ 
+			BASE::get_const(subject,index).out(os);
+		}	
+		static int compare(CONST_RESOURCE_PTR a,size_t index_a,CONST_RESOURCE_PTR b,size_t index_b){
+			return BASE::get_const(a,index_a).compare(BASE::get_const(b,index_b));
+		}
+		static function_table get_table(){
+			auto t=BASE::get_table();
+			t.out=out;
+			t.compare=compare;
+			return t;
+		}
+	};
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,LITERAL>:functions<SUBJECT,PROPERTY,CONSTP|LITERAL>{
+		typedef functions<SUBJECT,PROPERTY,CONSTP|LITERAL> BASE;
+		static void in(RESOURCE_PTR subject,istream& is,size_t index){
+			BASE::get(subject,index).in(is);
+		}
+		template<typename LEAF> struct trigger{
+			static void in(RESOURCE_PTR subject,istream& is,size_t index){
+				PROPERTY tmp;
+				tmp.in(is);
+				//add pointer because `this' cannot be converted to pointer
+				static_cast<typename LEAF::allocator_type::derived_pointer>(subject)->set_p(tmp,static_cast<typename LEAF::allocator_type::derived_pointer>(subject));
+			}
+			static function_table patch(function_table t){
+				t.in=in;
+				return t;
+			}
+		};
+		static function_table get_table(){
+			auto t=BASE::get_table();//we could drop T here
+			t.in=in;
+			return t;	
+		}
+	};
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,STRING|LITERAL>:functions<SUBJECT,PROPERTY,LITERAL>{
+		typedef functions<SUBJECT,PROPERTY,LITERAL> BASE;
+		static void set_string(RESOURCE_PTR subject,string s,size_t index){BASE::get(subject,index).set_string(s);}
+		static function_table get_table(){
+			auto t=BASE::get_table();
+			t.set_string=set_string;
+			return t;	
+		}
+	};
+	//what if set_object is invoked on const property?
+	static void set_const_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){cerr<<"error: const property"<<endl;}
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONSTP>:base_f<SUBJECT,PROPERTY>{
+		typedef base_f<SUBJECT,PROPERTY> BASE;
+		static CONST_RESOURCE_PTR get_const_object(CONST_RESOURCE_PTR subject,size_t index){
+			return BASE::get_const(subject,index).get_const_object();
+		}
+		static function_table get_table(){
+			auto t=BASE::get_table();
+			t.cget_object=get_const_object;
+			t.set_object=set_const_object;//???
+			return t;	
+		}
+	};	
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,0>:functions<SUBJECT,PROPERTY,CONSTP>{
+		typedef functions<SUBJECT,PROPERTY,CONSTP> BASE;
+		static RESOURCE_PTR get_object(RESOURCE_PTR subject,size_t index){return BASE::get(subject,index).get_object();}
+		static void set_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
+			BASE::get(subject,index).set_object(object);
+		}
+		template<typename LEAF> struct trigger{
+			static void set_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
+				typename BASE::PP tmp;
+				tmp.set_object(object);
+				static_cast<typename LEAF::allocator_type::derived_pointer>(subject)->set_p(tmp,static_cast<typename LEAF::allocator_type::derived_pointer>(subject));
+			}
+			static function_table patch(function_table t){
+				t.set_object=set_object;
+				return t;
+			}
+		};
+		static function_table get_table(){
+			auto t=BASE::get_table();
+			t.get_object=get_object;
+			t.set_object=set_object;
+			return t;	
+		}
+	};
+	/*
+ 	*	properties are constant, how can we tell the parser?
+ 	*	one way is to group constant properties and put offset in type_iterator, but awkward with derived classes,
+ 	*	we could also return a fake property so that parsing can be carried on but will not modify the document
+ 	*	we can just sort by constness: interesting idea...
+ 	*
+ 	*/
+	template<
+		typename SUBJECT,
+		typename NAMESPACE,
+		typename NAME,
+		typename IMPLEMENTATION
+	> struct functions<SUBJECT,property<NAMESPACE,NAME,NIL,IMPLEMENTATION>,LITERAL>{
+		static size_t get_size(CONST_RESOURCE_PTR subject){return 1;}
+		static void out(CONST_RESOURCE_PTR subject,ostream& os,size_t index){
+			property<NAMESPACE,NAME,NIL,IMPLEMENTATION> tmp;
+			static_cast<typename SUBJECT::allocator_type::const_derived_pointer>(subject)->out_p(tmp,os);
+		}
+		static function_table get_table(){
+			function_table t;
+			t.out=out;
+			t.set_object=set_const_object;
+			t.get_size=get_size;
+			return t;
+		}
+	};
+	template<
+		typename SUBJECT,
+		typename NAMESPACE,
+		typename NAME,
+		typename RANGE
+	> struct functions<SUBJECT,property<NAMESPACE,NAME,RANGE,NIL>,LITERAL>{
+		static size_t get_size(CONST_RESOURCE_PTR subject){return 1;}
+		/*static void set_string(RESOURCE_PTR subject,string s,size_t index){
+			property<NAMESPACE,NAME,RANGE,NIL> tmp;//very awkward
+			static_cast<SUBJECT*>(subject)->set_string_p(tmp,s);//won't find function if in super-class
+		}*/
+		static void in(RESOURCE_PTR subject,istream& is,size_t index){
+			property<NAMESPACE,NAME,RANGE,NIL> tmp;//very awkward
+			static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->in_p(tmp,is);//won't find function if in super-class
+		}
+		static void out(CONST_RESOURCE_PTR subject,ostream& os,size_t index){
+			property<NAMESPACE,NAME,RANGE,NIL> tmp;//very awkward
+			static_cast<typename SUBJECT::allocator_type::const_derived_pointer>(subject)->out_p(tmp,os);
+		}
+		static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
+		static void erase(RESOURCE_PTR subject,size_t first,size_t last){}//idem
+		static function_table get_table(){
+			function_table t;
+			t.in=in;
+			t.out=out;
+			//t.set_object=set_const_object;
+			t.get_size=get_size;
+			t.add_property=add_property;
+			t.erase=erase;
+			return t;
+		}
+	};
+	#else
 	template<
 		char TYPE,/* 0-F */
 		typename IMPLEMENTATION
@@ -1211,199 +1353,7 @@ namespace objrdf{
 			return t;
 		}
 	};
-	#if 0
-	template<bool IS_ARRAY> struct is_array;
-	template<> struct is_array<false>{	
-		template<typename IMPLEMENTATION> static void in_generic(RESOURCE_PTR subject,ptrdiff_t offset,istream& is,size_t index){
-			is>>static_cast<IMPLEMENTATION*>((void*)((char*)subject+offset))->t;
-		}
-		template<typename IMPLEMENTATION> static void out_generic(CONST_RESOURCE_PTR subject,ptrdiff_t offset,ostream& os,size_t index){
-			os<<static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))->t;
-		}
-		template<typename IMPLEMENTATION> static CONST_RESOURCE_PTR cget_object_generic(CONST_RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
-			return static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))->t;
-		}
-		template<typename IMPLEMENTATION> static RESOURCE_PTR get_object_generic(RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
-			return static_cast<IMPLEMENTATION*>((void*)((char*)subject+offset))->t;
-		}
-	};
 
-	template<> struct is_array<true>{	
-		//a bit more complicated because we need to know the type of the container
-		//not optimal because depends on property type so array<property<ns,A,int>> will be different from array<property<ns,B,int>>
-		//so maybe not worth it
-		
-		template<typename ARRAY> static void in_generic(RESOURCE_PTR subject,ptrdiff_t offset,istream& is,size_t index){
-			is>>(*static_cast<ARRAY*>((void*)((char*)subject+offset)))[index].t;
-		}
-		template<typename ARRAY> static void out_generic(CONST_RESOURCE_PTR subject,ptrdiff_t offset,ostream& os,size_t index){
-			os<<(*static_cast<const ARRAY*>((const void*)((const char*)subject+offset)))[index].t;
-		}
-		template<typename ARRAY> static CONST_RESOURCE_PTR cget_object_generic(CONST_RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
-			cerr<<"cget_object_generic"<<subject<<"\t"<<offset<<"\t"<<index<<endl;
-			return (*static_cast<const ARRAY*>((const void*)((const char*)subject+offset)))[index].t;
-		}
-		template<typename ARRAY> static RESOURCE_PTR get_object_generic(RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
-			cerr<<"get_object_generic"<<subject<<"\t"<<offset<<"\t"<<index<<endl;
-			return (*static_cast<ARRAY*>((void*)((char*)subject+offset)))[index].t;
-		}
-	};
-	template<
-		typename SUBJECT,
-		typename PROPERTY,
-		size_t TYPE=PROPERTY::TYPE&0x7
-	> struct functions;
-
-	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONSTP|LITERAL>:base_f<SUBJECT,PROPERTY>{
-		typedef base_f<SUBJECT,PROPERTY> BASE;
-		static void out(CONST_RESOURCE_PTR subject,ostream& os,size_t index){
-			/*
- 			*	at this stage we can detect if out has been overriden in a base class
- 			*/ 
-			BASE::get_const(subject,index).out(os);
-		}	
-		static int compare(CONST_RESOURCE_PTR a,size_t index_a,CONST_RESOURCE_PTR b,size_t index_b){
-			return BASE::get_const(a,index_a).compare(BASE::get_const(b,index_b));
-		}
-		static function_table get_table(){
-			auto t=BASE::get_table();
-			t.out=out;
-			t.out_generic=is_array<PROPERTY::TYPE&ARRY>::template out_generic<typename PROPERTY::IMPLEMENTATION>;//no longer depends on SUBJECT or PROPERTY
-			t.compare=compare;
-			return t;
-		}
-	};
-	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,LITERAL>:functions<SUBJECT,PROPERTY,CONSTP|LITERAL>{
-		typedef functions<SUBJECT,PROPERTY,CONSTP|LITERAL> BASE;
-		static void in(RESOURCE_PTR subject,istream& is,size_t index){
-			BASE::get(subject,index).in(is);
-		}
-		template<typename LEAF> struct trigger{
-			static void in(RESOURCE_PTR subject,istream& is,size_t index){
-				PROPERTY tmp;
-				tmp.in(is);
-				//add pointer because `this' cannot be converted to pointer
-				static_cast<typename LEAF::allocator_type::derived_pointer>(subject)->set_p(tmp,static_cast<typename LEAF::allocator_type::derived_pointer>(subject));
-			}
-			static function_table patch(function_table t){
-				t.in=in;
-				return t;
-			}
-		};
-		static function_table get_table(){
-			auto t=BASE::get_table();//we could drop T here
-			t.in=in;
-			t.in_generic=is_array<PROPERTY::TYPE&ARRY>::template in_generic<typename PROPERTY::IMPLEMENTATION>;//no longer depends on SUBJECT or PROPERTY
-			return t;	
-		}
-	};
-	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,STRING|LITERAL>:functions<SUBJECT,PROPERTY,LITERAL>{
-		typedef functions<SUBJECT,PROPERTY,LITERAL> BASE;
-		static void set_string(RESOURCE_PTR subject,string s,size_t index){BASE::get(subject,index).set_string(s);}
-		static function_table get_table(){
-			auto t=BASE::get_table();
-			t.set_string=set_string;
-			return t;	
-		}
-	};
-	//what if set_object is invoked on const property?
-	static void set_const_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){cerr<<"error: const property"<<endl;}
-	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONSTP>:base_f<SUBJECT,PROPERTY>{
-		typedef base_f<SUBJECT,PROPERTY> BASE;
-		static CONST_RESOURCE_PTR get_const_object(CONST_RESOURCE_PTR subject,size_t index){
-			return BASE::get_const(subject,index).get_const_object();
-		}
-		static function_table get_table(){
-			auto t=BASE::get_table();
-			t.cget_object=get_const_object;
-			t.cget_object_generic=is_array<PROPERTY::TYPE&ARRY>::template cget_object_generic<typename PROPERTY::IMPLEMENTATION>;
-			t.set_object=set_const_object;//???
-			return t;	
-		}
-	};	
-	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,0>:functions<SUBJECT,PROPERTY,CONSTP>{
-		typedef functions<SUBJECT,PROPERTY,CONSTP> BASE;
-		static RESOURCE_PTR get_object(RESOURCE_PTR subject,size_t index){return BASE::get(subject,index).get_object();}
-		static void set_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
-			BASE::get(subject,index).set_object(object);
-		}
-		template<typename LEAF> struct trigger{
-			static void set_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
-				typename BASE::PP tmp;
-				tmp.set_object(object);
-				static_cast<typename LEAF::allocator_type::derived_pointer>(subject)->set_p(tmp,static_cast<typename LEAF::allocator_type::derived_pointer>(subject));
-			}
-			static function_table patch(function_table t){
-				t.set_object=set_object;
-				return t;
-			}
-		};
-		static function_table get_table(){
-			auto t=BASE::get_table();
-			t.get_object=get_object;
-			t.get_object_generic=is_array<PROPERTY::TYPE&ARRY>::template get_object_generic<typename PROPERTY::IMPLEMENTATION>;
-			t.set_object=set_object;
-			return t;	
-		}
-	};
-	/*
- 	*	properties are constant, how can we tell the parser?
- 	*	one way is to group constant properties and put offset in type_iterator, but awkward with derived classes,
- 	*	we could also return a fake property so that parsing can be carried on but will not modify the document
- 	*	we can just sort by constness: interesting idea...
- 	*
- 	*/
-	template<
-		typename SUBJECT,
-		typename NAMESPACE,
-		typename NAME,
-		typename IMPLEMENTATION
-	> struct functions<SUBJECT,property<NAMESPACE,NAME,NIL,IMPLEMENTATION>,LITERAL>{
-		static size_t get_size(CONST_RESOURCE_PTR subject){return 1;}
-		static void out(CONST_RESOURCE_PTR subject,ostream& os,size_t index){
-			property<NAMESPACE,NAME,NIL,IMPLEMENTATION> tmp;
-			static_cast<typename SUBJECT::allocator_type::const_derived_pointer>(subject)->out_p(tmp,os);
-		}
-		static function_table get_table(){
-			function_table t;
-			t.out=out;
-			t.set_object=set_const_object;
-			t.get_size=get_size;
-			return t;
-		}
-	};
-	template<
-		typename SUBJECT,
-		typename NAMESPACE,
-		typename NAME,
-		typename RANGE
-	> struct functions<SUBJECT,property<NAMESPACE,NAME,RANGE,NIL>,LITERAL>{
-		static size_t get_size(CONST_RESOURCE_PTR subject){return 1;}
-		/*static void set_string(RESOURCE_PTR subject,string s,size_t index){
-			property<NAMESPACE,NAME,RANGE,NIL> tmp;//very awkward
-			static_cast<SUBJECT*>(subject)->set_string_p(tmp,s);//won't find function if in super-class
-		}*/
-		static void in(RESOURCE_PTR subject,istream& is,size_t index){
-			property<NAMESPACE,NAME,RANGE,NIL> tmp;//very awkward
-			static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->in_p(tmp,is);//won't find function if in super-class
-		}
-		static void out(CONST_RESOURCE_PTR subject,ostream& os,size_t index){
-			property<NAMESPACE,NAME,RANGE,NIL> tmp;//very awkward
-			static_cast<typename SUBJECT::allocator_type::const_derived_pointer>(subject)->out_p(tmp,os);
-		}
-		static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
-		static void erase(RESOURCE_PTR subject,size_t first,size_t last){}//idem
-		static function_table get_table(){
-			function_table t;
-			t.in=in;
-			t.out=out;
-			//t.set_object=set_const_object;
-			t.get_size=get_size;
-			t.add_property=add_property;
-			t.erase=erase;
-			return t;
-		}
-	};
 	#endif
 	//schema
 	typedef base_resource* (*fpt)(uri);
@@ -1528,7 +1478,6 @@ namespace objrdf{
 	OBJRDF_PROPERTY(hashOf,hex_adapter<size_t>);
 }
 namespace objrdf{
-	#ifndef NATIVE
 	/*
  	*	users have privileges on classes and the associated properties
  	*	user 1 is root
@@ -1539,7 +1488,11 @@ namespace objrdf{
 	PROPERTY(on,rdfs::Class::allocator_type::const_pointer);
 	CLASS(Privilege,std::tuple<type,array<on>>);
 	*/
+	#ifndef NATIVE
 	OBJRDF_CLASS(User,std::tuple<>,NIL,base_resource,std::tuple<>,persistent_allocator_managed<void>);
+	#else
+	OBJRDF_CLASS(User,std::tuple<>,NIL,base_resource,std::tuple<>);
+	#endif
 	/*
 	char _User[]="User";
 	struct User:objrdf::resource<_rdfs_namespace,_User,std::tuple<>,User>{
@@ -1565,7 +1518,6 @@ namespace objrdf{
 	*	we need a way to store external references
 	*
 	*/
-	#endif
 }
 namespace rdfs{
 	struct Class:objrdf::resource<rdfs_namespace,Class,
@@ -1878,11 +1830,14 @@ namespace objrdf{
 	> property_info get_property_info(){
 		//what happens when array of properties?
 		PROPERTY::get_property()->get<rdf::Property::domains>().push_back(rdfs::domain(SUBJECT::get_class()));
-		//auto p=property_info(PROPERTY::get_property(),functions<SUBJECT,PROPERTY>::get_table());
+		#ifdef NEW_FUNC_TABLE
 		auto p=property_info(PROPERTY::get_property(),get_ftable<PROPERTY::TYPE,typename PROPERTY::IMPLEMENTATION>::go());
 		//calculate offset
 		SUBJECT* t=0;
 		p.offset=(char*)&(t->get<PROPERTY>())-(char*)t;
+		#else
+		auto p=property_info(PROPERTY::get_property(),functions<SUBJECT,PROPERTY>::get_table());
+		#endif
 		return p;
 	};
 	template<
@@ -1903,17 +1858,18 @@ namespace objrdf{
 		static V go(){
 			LOG<<"get_generic_property:`base_resource'"<<endl;
 			function_table rdf_type,objrdf_self,objrdf_id;
+			#ifdef NEW_FUNC_TABLE
 			rdf_type.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t,size_t){return (CONST_RESOURCE_PTR)base_resource::get_class();};
 			rdf_type.get_size_generic=function_table::default_f::always_1;
-			//annoying that we need cast here
-			//objrdf_self.cget_object=[](CONST_RESOURCE_PTR subject,size_t index){return subject;};
 			objrdf_self.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t,size_t index){return subject;};
 			objrdf_self.get_size_generic=function_table::default_f::always_1;
-			//why this??????
-			//objrdf_id.cget_object=[](CONST_RESOURCE_PTR,size_t){return (CONST_RESOURCE_PTR)base_resource::get_class();};
-			//objrdf_id.get_size=function_table::default_f::get_size;
+			objrdf_id.out_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t,ostream& os,size_t){os<<subject->id;};	
 			objrdf_id.get_size_generic=function_table::default_f::always_1;
-			/*
+			#else
+			rdf_type.cget_object=[](CONST_RESOURCE_PTR subject,size_t){return (CONST_RESOURCE_PTR)base_resource::get_class();};
+			rdf_type.get_size=function_table::default_f::always_1;
+			objrdf_self.cget_object=[](CONST_RESOURCE_PTR subject,size_t index){return subject;};
+			objrdf_self.get_size=function_table::default_f::always_1;
 			objrdf_id.set_string=[](RESOURCE_PTR subject,string s,size_t){
 				if(subject->id.is_local()) //only makes sense with local resources
 					subject->id=uri(s);//could add code to detect duplicate id's
@@ -1925,9 +1881,8 @@ namespace objrdf{
 					subject->id=uri(tmp);//could add code to detect duplicate id's
 			};	
 			objrdf_id.out=[](CONST_RESOURCE_PTR subject,ostream& os,size_t){os<<subject->id;};	
-			*/
-			objrdf_id.out_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t,ostream& os,size_t){os<<subject->id;};	
-			//objrdf_id.get_size=function_table::default_f::get_size;
+			objrdf_id.get_size=function_table::default_f::always_1;
+			#endif
 #ifdef __GNUG__
 			V v={
 				property_info(rdf::type::get_property(),rdf_type),
@@ -1952,7 +1907,9 @@ namespace objrdf{
 			auto i=find_if(v.begin(),v.end(),[](property_info& p){return p.p==PROPERTY::get_property();});
 			if(i!=v.end()){
 				cerr<<"patching function table for `"<<i->p->id.local<<"'"<<endl;
-				//i->t=functions<SUBJECT,PROPERTY>::template trigger<SUBJECT>::patch(i->t);				
+				#ifndef NEW_FUNC_TABLE
+				i->t=functions<SUBJECT,PROPERTY>::template trigger<SUBJECT>::patch(i->t);				
+				#endif
 			}
 		}
 	};
@@ -1978,8 +1935,13 @@ namespace objrdf{
  			* for now the best is a single property
  			*/
 			function_table rdf_type;
+			#ifdef NEW_FUNC_TABLE
 			rdf_type.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t,size_t){return (CONST_RESOURCE_PTR)RESOURCE::get_class();};
 			rdf_type.get_size_generic=function_table::default_f::always_1;
+			#else
+			rdf_type.cget_object=[](CONST_RESOURCE_PTR subject,size_t){return (CONST_RESOURCE_PTR)RESOURCE::get_class();};
+			rdf_type.get_size=function_table::default_f::always_1;
+			#endif
 			v.front()=property_info(rdf::type::get_property(),rdf_type);
 			//filter properties for convenience, we need to store index of first non-const property somewhere
 			auto r=concat(v,std::static_for_each<PROPERTIES>(_meta_<TMP>()).v);

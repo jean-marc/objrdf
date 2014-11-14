@@ -7,7 +7,11 @@ namespace objrdf{
 	char start_id[]="\033[32m";
 	char stop_id[]="\033[m";
 	ostream& operator<<(ostream& os,const property_info& i){
+		#ifdef NEW_FUNC_TABLE
 		return os<<"\n"<<i.p->id<<"\t("<<i.offset<<")\n******************\n"<<i.t;
+		#else
+		return os<<"\n"<<i.p->id<<"\n******************\n"<<i.t;
+		#endif
 	}
 }
 using namespace objrdf;
@@ -36,24 +40,33 @@ base_resource::~base_resource(){
 }
 CONST_PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}//strange syntax
 CONST_PROPERTY_PTR base_resource::const_type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}
-//size_t base_resource::type_iterator::get_size() const{return static_cast<V::const_iterator>(*this)->t.get_size(subject);}
-//size_t base_resource::const_type_iterator::get_size() const{return static_cast<V::const_iterator>(*this)->t.get_size(subject);}
 size_t base_resource::type_iterator::get_size() const{
 	auto tmp=*static_cast<V::const_iterator>(*this);
+	#ifdef NEW_FUNC_TABLE
 	assert(tmp.t.get_size_generic);
 	return tmp.t.get_size_generic(subject,tmp.offset);
-	//return static_cast<V::const_iterator>(*this)->t.get_size_generic(subject,(*this)->offset);
+	#else
+	return tmp.t.get_size(subject);
+	#endif
 }
 size_t base_resource::const_type_iterator::get_size() const{
 	auto tmp=*static_cast<V::const_iterator>(*this);
+	#ifdef NEW_FUNC_TABLE
 	assert(tmp.t.get_size_generic);
 	return tmp.t.get_size_generic(subject,tmp.offset);
-	//return static_cast<V::const_iterator>(*this)->t.get_size_generic(subject,(*this)->offset);
+	#else
+	return tmp.t.get_size(subject);
+	#endif
 }
 bool base_resource::type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
 bool base_resource::const_type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
+#ifdef NEW_FUNC_TABLE
 bool base_resource::type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property_generic;}
 bool base_resource::const_type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property_generic;}
+#else
+bool base_resource::type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property;}
+bool base_resource::const_type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property;}
+#endif
 void base_resource::patch(V& v){}
 
 map<uri,RESOURCE_PTR>& base_resource::get_index(){
@@ -171,23 +184,27 @@ RESOURCE_PTR base_resource::nil=base_resource::allocator_type::construct_allocat
 V base_resource::v=get_generic_property<base_resource>::go();
 CONST_PROPERTY_PTR base_resource::instance_iterator::get_Property() const{return i->p;}
 CONST_PROPERTY_PTR base_resource::const_instance_iterator::get_Property() const{return i->p;}
-
 bool base_resource::instance_iterator::literalp() const{return i->literalp;}
 bool base_resource::const_instance_iterator::literalp() const{return i->literalp;}
-void base_resource::instance_iterator::in(istream& is){
-	//i->t.in(subject,is,index);
-	i->t.in_generic(subject,i->offset,is,index);
-}
-void base_resource::instance_iterator::out(ostream& os) const{
-	//i->t.out(subject,os,index);
-	//cerr<<"out"<<i->t.out_generic<<endl;
-	i->t.out_generic(subject,i->offset,os,index);
-}
-void base_resource::const_instance_iterator::out(ostream& os) const{
-	//i->t.out(subject,os,index);
-	//cerr<<"out"<<i->t.out_generic<<endl;
-	i->t.out_generic(subject,i->offset,os,index);
-}
+#ifdef NEW_FUNC_TABLE
+void base_resource::instance_iterator::in(istream& is){i->t.in_generic(subject,i->offset,is,index);}
+void base_resource::instance_iterator::out(ostream& os) const{i->t.out_generic(subject,i->offset,os,index);}
+void base_resource::const_instance_iterator::out(ostream& os) const{i->t.out_generic(subject,i->offset,os,index);}
+void base_resource::instance_iterator::set_string(string s){i->t.set_string_generic(subject,s,i->offset,index);}
+RESOURCE_PTR base_resource::instance_iterator::get_object() const{return i->t.get_object_generic(subject,i->offset,index);}
+CONST_RESOURCE_PTR base_resource::instance_iterator::get_const_object() const{return i->t.cget_object_generic(subject,i->offset,index);}
+CONST_RESOURCE_PTR base_resource::const_instance_iterator::get_const_object() const{return i->t.cget_object_generic(subject,i->offset,index);}
+void base_resource::instance_iterator::set_object(RESOURCE_PTR r){i->t.set_object_generic(subject,r,i->offset,index);}
+#else
+void base_resource::instance_iterator::in(istream& is){i->t.in(subject,is,index);}
+void base_resource::instance_iterator::out(ostream& os) const{i->t.out(subject,os,index);}
+void base_resource::const_instance_iterator::out(ostream& os) const{i->t.out(subject,os,index);}
+void base_resource::instance_iterator::set_string(string s){i->t.set_string(subject,s,index);}
+RESOURCE_PTR base_resource::instance_iterator::get_object() const{return i->t.get_object(subject,index);}
+CONST_RESOURCE_PTR base_resource::instance_iterator::get_const_object() const{return i->t.cget_object(subject,index);}
+CONST_RESOURCE_PTR base_resource::const_instance_iterator::get_const_object() const{return i->t.cget_object(subject,index);}
+void base_resource::instance_iterator::set_object(RESOURCE_PTR r){i->t.set_object(subject,r,index);}
+#endif
 string base_resource::instance_iterator::str() const{
 	ostringstream os;
 	out(os);
@@ -216,29 +233,6 @@ int base_resource::const_instance_iterator::compare(const base_resource::const_i
 	if(!literalp()&&!j.literalp()) return get_const_object()->id.compare(j.get_const_object()->id);	
 	return (literalp()&&!j.literalp())? -1 : 1; //some default rule
 }
-void base_resource::instance_iterator::set_string(string s){
-	i->t.set_string_generic(subject,s,i->offset,index);
-}
-RESOURCE_PTR base_resource::instance_iterator::get_object() const{
-	//return i->t.get_object(subject,index);
-	//assert(i->t.get_object_generic);
-	return i->t.get_object_generic(subject,i->offset,index);
-}
-CONST_RESOURCE_PTR base_resource::instance_iterator::get_const_object() const{
-	//return i->t.cget_object(subject,index);
-	//assert(i->t.cget_object_generic);
-	return i->t.cget_object_generic(subject,i->offset,index);
-}
-CONST_RESOURCE_PTR base_resource::const_instance_iterator::get_const_object() const{
-	//assert(i->t.cget_object);
-	//return i->t.cget_object(subject,index);
-	//assert(i->t.cget_object_generic);
-	return i->t.cget_object_generic(subject,i->offset,index);
-}
-void base_resource::instance_iterator::set_object(RESOURCE_PTR r){
-	//i->t.set_object(subject,r,index);
-	i->t.set_object_generic(subject,r,i->offset,index);
-}
 RESOURCE_PTR base_resource::instance_iterator::get_statement() const{
 	return i->t.get_statement(subject,index);
 }
@@ -260,8 +254,13 @@ base_resource::instance_iterator base_resource::type_iterator::add_property(PROV
 	#endif
 	//awkward
 	auto tmp=*static_cast<V::const_iterator>(*this);
+	#ifdef NEW_FUNC_TABLE
 	assert(tmp.t.add_property_generic);
 	tmp.t.add_property_generic(subject,tmp.offset);
+	#else
+	assert(tmp.t.add_property);
+	tmp.t.add_property(subject,0);
+	#endif
 	return instance_iterator(subject,*this,get_size()-1);
 }
 int base_resource::p_to_xml_size(const CONST_PROPERTY_PTR p){return 1;}
