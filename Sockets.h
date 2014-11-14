@@ -133,6 +133,7 @@ private:
 // this class serves as a socket wrapper
 class TCPSocketWrapper : public BaseSocketWrapper
 {
+public:
     typedef BaseSocketWrapper::AcceptedSocket<sockaddr_in, TCPSocketWrapper>
     TCPAcceptedSocket;
 

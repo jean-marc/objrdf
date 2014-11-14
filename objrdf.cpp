@@ -7,7 +7,7 @@ namespace objrdf{
 	char start_id[]="\033[32m";
 	char stop_id[]="\033[m";
 	ostream& operator<<(ostream& os,const property_info& i){
-		return os<<i.p->id<<"\n******************\n"<<i.t;
+		return os<<"\n"<<i.p->id<<"\t("<<i.offset<<")\n******************\n"<<i.t;
 	}
 }
 using namespace objrdf;
@@ -36,12 +36,24 @@ base_resource::~base_resource(){
 }
 CONST_PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}//strange syntax
 CONST_PROPERTY_PTR base_resource::const_type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}
-size_t base_resource::type_iterator::get_size() const{return static_cast<V::const_iterator>(*this)->t.get_size(subject);}
-size_t base_resource::const_type_iterator::get_size() const{return static_cast<V::const_iterator>(*this)->t.get_size(subject);}
+//size_t base_resource::type_iterator::get_size() const{return static_cast<V::const_iterator>(*this)->t.get_size(subject);}
+//size_t base_resource::const_type_iterator::get_size() const{return static_cast<V::const_iterator>(*this)->t.get_size(subject);}
+size_t base_resource::type_iterator::get_size() const{
+	auto tmp=*static_cast<V::const_iterator>(*this);
+	assert(tmp.t.get_size_generic);
+	return tmp.t.get_size_generic(subject,tmp.offset);
+	//return static_cast<V::const_iterator>(*this)->t.get_size_generic(subject,(*this)->offset);
+}
+size_t base_resource::const_type_iterator::get_size() const{
+	auto tmp=*static_cast<V::const_iterator>(*this);
+	assert(tmp.t.get_size_generic);
+	return tmp.t.get_size_generic(subject,tmp.offset);
+	//return static_cast<V::const_iterator>(*this)->t.get_size_generic(subject,(*this)->offset);
+}
 bool base_resource::type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
 bool base_resource::const_type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
-bool base_resource::type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property;}
-bool base_resource::const_type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property;}
+bool base_resource::type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property_generic;}
+bool base_resource::const_type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property_generic;}
 void base_resource::patch(V& v){}
 
 map<uri,RESOURCE_PTR>& base_resource::get_index(){
@@ -79,19 +91,21 @@ rdfs::Class::Class(
 	rdfs::subClassOf s,
 	objrdf::base_resource::class_function_table t,
 	string comment_str,
-	objrdf::sizeOf size,
-	objrdf::hashOf h
+	objrdf::sizeOf size
+#ifndef NATIVE
+	,objrdf::hashOf h
+#endif
 ):SELF(id),t(t){
 	#ifdef OBJRDF_VERB
 	cerr<<"create rdfs::Class `"<<id<<"'\t"<<this<</*"\t"<<t<<*/endl;
 	#endif
 	get<comment>().set_string(comment_str);
 	get<objrdf::sizeOf>()=size;
-	get<objrdf::hashOf>()=h;
 	#ifdef NATIVE
 	do_index(this);
 	if(s.t){
 	#else
+	get<objrdf::hashOf>()=h;
 	if(s){
 	#endif
 		get<array_subClassOf>().push_back(s);
@@ -161,13 +175,18 @@ CONST_PROPERTY_PTR base_resource::const_instance_iterator::get_Property() const{
 bool base_resource::instance_iterator::literalp() const{return i->literalp;}
 bool base_resource::const_instance_iterator::literalp() const{return i->literalp;}
 void base_resource::instance_iterator::in(istream& is){
-	i->t.in(subject,is,index);
+	//i->t.in(subject,is,index);
+	i->t.in_generic(subject,i->offset,is,index);
 }
 void base_resource::instance_iterator::out(ostream& os) const{
-	i->t.out(subject,os,index);
+	//i->t.out(subject,os,index);
+	//cerr<<"out"<<i->t.out_generic<<endl;
+	i->t.out_generic(subject,i->offset,os,index);
 }
 void base_resource::const_instance_iterator::out(ostream& os) const{
-	i->t.out(subject,os,index);
+	//i->t.out(subject,os,index);
+	//cerr<<"out"<<i->t.out_generic<<endl;
+	i->t.out_generic(subject,i->offset,os,index);
 }
 string base_resource::instance_iterator::str() const{
 	ostringstream os;
@@ -198,20 +217,27 @@ int base_resource::const_instance_iterator::compare(const base_resource::const_i
 	return (literalp()&&!j.literalp())? -1 : 1; //some default rule
 }
 void base_resource::instance_iterator::set_string(string s){
-	i->t.set_string(subject,s,index);
+	i->t.set_string_generic(subject,s,i->offset,index);
 }
 RESOURCE_PTR base_resource::instance_iterator::get_object() const{
-	return i->t.get_object(subject,index);
+	//return i->t.get_object(subject,index);
+	//assert(i->t.get_object_generic);
+	return i->t.get_object_generic(subject,i->offset,index);
 }
 CONST_RESOURCE_PTR base_resource::instance_iterator::get_const_object() const{
-	return i->t.cget_object(subject,index);
+	//return i->t.cget_object(subject,index);
+	//assert(i->t.cget_object_generic);
+	return i->t.cget_object_generic(subject,i->offset,index);
 }
 CONST_RESOURCE_PTR base_resource::const_instance_iterator::get_const_object() const{
-	assert(i->t.cget_object);
-	return i->t.cget_object(subject,index);
+	//assert(i->t.cget_object);
+	//return i->t.cget_object(subject,index);
+	//assert(i->t.cget_object_generic);
+	return i->t.cget_object_generic(subject,i->offset,index);
 }
 void base_resource::instance_iterator::set_object(RESOURCE_PTR r){
-	i->t.set_object(subject,r,index);
+	//i->t.set_object(subject,r,index);
+	i->t.set_object_generic(subject,r,i->offset,index);
 }
 RESOURCE_PTR base_resource::instance_iterator::get_statement() const{
 	return i->t.get_statement(subject,index);
@@ -233,8 +259,9 @@ base_resource::instance_iterator base_resource::type_iterator::add_property(PROV
 	cerr<<"add_property `"<<get_Property()->id<<"' to resource `"<<subject->id<<"'"<<endl;
 	#endif
 	//awkward
-	assert(static_cast<V::const_iterator>(*this)->t.add_property);
-	static_cast<V::const_iterator>(*this)->t.add_property(subject,p);
+	auto tmp=*static_cast<V::const_iterator>(*this);
+	assert(tmp.t.add_property_generic);
+	tmp.t.add_property_generic(subject,tmp.offset);
 	return instance_iterator(subject,*this,get_size()-1);
 }
 int base_resource::p_to_xml_size(const CONST_PROPERTY_PTR p){return 1;}
@@ -302,7 +329,7 @@ namespace objrdf{
 			default:os<<rdf::about<<"='";r->id.to_uri(os);os<<"'>";break;
 		}
 		for(auto i=cbegin(r);i!=cend(r);++i){
-			if(i->get_Property()!=objrdf::self::get_property()){//let's skip objrdf::self, can we just increase index?
+			//if(i->get_Property()!=objrdf::self::get_property()){//let's skip objrdf::self, can we just increase index?
 				for(base_resource::const_instance_iterator j=i->cbegin();j!=i->cend();++j){
 					//should test if constant or not
 					if(i->literalp())
@@ -316,7 +343,7 @@ namespace objrdf{
 						}
 					}
 				}
-			}
+			//}
 		}
 		os<<"\n</"<<get_class(r)->id<<">";
 	}
