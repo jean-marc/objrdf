@@ -136,7 +136,7 @@ RESULT subject::run(size_t n){
 		if(get_class(i->object->r)!=rdfs::Class::get_class()) return RESULT();
 		CONST_CLASS_PTR c(static_cast<CONST_CLASS_PTR>(i->object->r));
 		//check if the pool exists
-		pool::POOL_PTR p(c.index);
+		pool::POOL_PTR p(c.index,0);
 		//not needed anymore
 		LOG<<"assert pool `"<<c->id<<"'..."<<endl;
 		assert(p->type_id);
@@ -151,7 +151,7 @@ RESULT subject::run(size_t n){
 		}
 		//now we have to find all the subclasses: we use superClassOf
 		for(auto k=c->get_const<rdfs::Class::array_superClassOf>().begin();k<c->get_const<rdfs::Class::array_superClassOf>().end();++k){
-			pool::POOL_PTR p((*k).index);
+			pool::POOL_PTR p((*k).index,0);
 			LOG<<"assert pool `"<<(*k)->id<<"'..."<<endl;
 			assert(p->type_id);
 			//iterate through the cells
@@ -202,7 +202,7 @@ RESULT subject::run(size_t n){
 			auto _end=a.cend();//so we are not affected by rdfs::Class created during parsing
 			//for(auto i=a.cbegin();i!=a.cend();++i){
 			for(auto i=a.cbegin();i!=_end;++i){
-				pool::POOL_PTR p(i.get_cell_index()); //there is a mapping between Class and pools except when creating new Class!!!
+				pool::POOL_PTR p(i.get_cell_index(),0); //there is a mapping between Class and pools except when creating new Class!!!
 				for(auto j=pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
 					RESULT tmp=run(get_const_self_iterator(j),0);
 					if(bound&&tmp.size()) return tmp;

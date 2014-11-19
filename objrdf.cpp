@@ -269,7 +269,7 @@ namespace objrdf{
 		#ifdef NATIVE
 		return r->_get_class();
 		#else
-		CONST_CLASS_PTR p(r.pool_ptr.index);
+		CONST_CLASS_PTR p(r.pool_ptr.index,0);
 		try{
 			auto r=p.operator->();
 		}catch(std::out_of_range& e){
@@ -365,7 +365,7 @@ void objrdf::to_rdf_xml(ostream& os){
 	#else
 	rdfs::Class::allocator_type a;
 	for(auto i=a.cbegin();i!=a.cend();++i){
-		pool_allocator::pool::POOL_PTR p(i.get_cell_index()); //there is a mapping between Class and pools
+		pool_allocator::pool::POOL_PTR p(i.get_cell_index(),0); //there is a mapping between Class and pools
 		if(p->iterable){
 			for(auto j=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool_allocator::pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
 				to_rdf_xml(j,cout);
@@ -381,7 +381,7 @@ void objrdf::to_rdf_xml(ostream& os){
 void objrdf::generate_index(){
 	rdfs::Class::allocator_type a;
 	for(auto i=a.cbegin();i!=a.cend();++i){
-		pool_allocator::pool::POOL_PTR p(i.get_cell_index()); //there is a mapping between Class and pools
+		pool_allocator::pool::POOL_PTR p(i.get_cell_index(),0); //there is a mapping between Class and pools
 		for(auto j=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool_allocator::pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
 			base_resource::get_index()[j->id]=j;
 		}
@@ -393,11 +393,7 @@ RESOURCE_PTR objrdf::find(uri u){
 	auto i=base_resource::get_index().find(u);
 	if(i==base_resource::get_index().end()){
 		cerr<<"not found"<<endl;
-		#ifdef NATIVE
-		return RESOURCE_PTR(0);
-		#else
-		return RESOURCE_PTR(0,0);
-		#endif
+		return RESOURCE_PTR(nullptr);
 	}
 	cerr<<"found"<<endl;
 	return i->second;
@@ -409,11 +405,7 @@ RESOURCE_PTR objrdf::create_by_type(CONST_CLASS_PTR c,uri id){
 }
 RESOURCE_PTR objrdf::create_by_type(uri type,uri id){
 	CONST_CLASS_PTR c=find_t<rdfs::Class>(type);
-	#ifdef NATIVE
-	return c ? objrdf::create_by_type(c,id) : RESOURCE_PTR(0);
-	#else
-	return c ? objrdf::create_by_type(c,id) : RESOURCE_PTR(0,0);
-	#endif
+	return c ? objrdf::create_by_type(c,id) : RESOURCE_PTR(nullptr);
 }
 RESOURCE_PTR objrdf::create_by_type_blank(CONST_CLASS_PTR c){
 	RESOURCE_PTR rp(c->t.allocate());
@@ -442,11 +434,7 @@ RESOURCE_PTR objrdf::clone_and_swap(RESOURCE_PTR r){
 }
 RESOURCE_PTR objrdf::create_by_type_blank(uri type){
 	CONST_CLASS_PTR c=find_t<rdfs::Class>(type);
-	#ifdef NATIVE
-	return c ? objrdf::create_by_type_blank(c) : RESOURCE_PTR(0);
-	#else
-	return c ? objrdf::create_by_type_blank(c) : RESOURCE_PTR(0,0);
-	#endif
+	return c ? objrdf::create_by_type_blank(c) : RESOURCE_PTR(nullptr);
 }
 
 /*

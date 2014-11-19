@@ -154,6 +154,7 @@ namespace objrdf{
 		typedef void (*add_property_generic_f)(RESOURCE_PTR,ptrdiff_t);
 		set_string_generic_f set_string_generic=0;
 		in_generic_f in_generic=0;
+		out_generic_f out_generic=0;
 		get_object_generic_f get_object_generic=0;
 		cget_object_generic_f cget_object_generic=0;
 		set_object_generic_f set_object_generic=0;
@@ -188,7 +189,7 @@ namespace objrdf{
 		compare_f compare=0;
 		//let's define a few functions
 		struct default_f{
-			#ifdef NEW_FUNCTION_TABLE
+			#ifdef NEW_FUNC_TABLE
 			static size_t always_1(CONST_RESOURCE_PTR,ptrdiff_t){return 1;}
 			static void add_property_generic_def(RESOURCE_PTR,ptrdiff_t){}
 			#else
@@ -197,13 +198,14 @@ namespace objrdf{
 			#endif
 		};
 		friend ostream& operator<<(ostream& os,const function_table& f){
-			#ifdef NEW_FUNCTION_TABLE
+			#ifdef NEW_FUNC_TABLE
 			os<<"in_generic\t"<<(void*)f.in_generic<<"\n";
 			os<<"out_generic\t"<<(void*)f.out_generic<<"\n";
 			os<<"get_object_generic\t"<<(void*)f.get_object_generic<<"\n";
 			os<<"cget_object_generic\t"<<(void*)f.cget_object_generic<<"\n";
 			os<<"set_object_generic\t"<<(void*)f.set_object_generic<<"\n";
 			os<<"get_size_generic\t"<<(void*)f.get_size_generic<<"\n";
+			os<<"add_property_generic\t"<<(void*)f.add_property_generic<<"\n";
 			#else
 			os<<"in\t"<<(void*)f.in<<"\n";
 			os<<"out\t"<<(void*)f.out<<"\n";
@@ -211,8 +213,8 @@ namespace objrdf{
 			os<<"cget_object\t"<<(void*)f.cget_object<<"\n";
 			os<<"set_object\t"<<(void*)f.set_object<<"\n";
 			os<<"get_size\t"<<(void*)f.get_size<<"\n";
-			#endif
 			os<<"add_property\t"<<(void*)f.add_property<<"\n";
+			#endif
 			os<<"erase\t"<<(void*)f.erase<<"\n";
 			os<<"get_provenance\t"<<(void*)f.get_provenance<<"\n";
 			os<<"get_statement\t"<<(void*)f.get_statement<<"\n";
@@ -272,6 +274,7 @@ namespace objrdf{
 		~array(){
 			//cerr<<"~array()"<<this->size()<<endl;
 		}
+		//for some reason no assignment operator defined????
 	};
 	struct match_property{
 		CONST_PROPERTY_PTR p;
@@ -297,11 +300,11 @@ namespace objrdf{
 			RESOURCE_PTR subject;
 			V::const_iterator i;
 			size_t index;
-			#ifdef NATIVE
-			instance_iterator():subject(0),index(0){}
-			#else
-			instance_iterator():subject(0,0),index(0){}
-			#endif
+			//#ifdef NATIVE
+			instance_iterator():subject(nullptr),index(0){}
+			//#else
+			//instance_iterator():subject(0,0),index(0){}
+			//#endif
 			instance_iterator(RESOURCE_PTR subject,V::const_iterator i,size_t index):subject(subject),i(i),index(index){}
 			instance_iterator& operator+=(const unsigned int& i){index+=i;return *this;}
 			instance_iterator& operator++(){++index;return *this;}
@@ -342,11 +345,11 @@ namespace objrdf{
 			CONST_RESOURCE_PTR subject;
 			V::const_iterator i;
 			size_t index;
-			#ifdef NATIVE
-			const_instance_iterator():subject(0),index(0){}//should use nullptr
-			#else
-			const_instance_iterator():subject(0,0),index(0){}//should use nullptr
-			#endif
+			//#ifdef NATIVE
+			const_instance_iterator():subject(nullptr),index(0){}
+			//#else
+			//const_instance_iterator():subject(0,0),index(0){}//should use nullptr
+			//#endif
 			const_instance_iterator(CONST_RESOURCE_PTR subject,V::const_iterator i,size_t index):subject(subject),i(i),index(index){}
 			const_instance_iterator(const instance_iterator& _i):subject(_i.subject),i(_i.i),index(_i.index){}
 			const_instance_iterator& operator+=(const unsigned int& i){index+=i;return *this;}
@@ -781,7 +784,7 @@ namespace objrdf{
 	};
 
 	#else
-	//could we make this generic using traits? yes: type_traits
+	//could we make this generic using traits? yes: type_traits::is_pointer
 	template<
 		typename INDEX,
 		typename VALUE_TYPE,	
@@ -824,7 +827,8 @@ namespace objrdf{
 			//downcasting from RESOURCE_PTR to base_property	
 			*this=static_cast<PTR>(object);
 		}
-		void erase(){set_object(RESOURCE_PTR(0,0));}
+		//void erase(){set_object(RESOURCE_PTR(0,0));}
+		void erase(){set_object(RESOURCE_PTR(nullptr));}
 	};
 
 	template<
@@ -838,7 +842,8 @@ namespace objrdf{
 	public:
 		enum{TYPE=0};
 		typedef pool_allocator::pool::ptr_d<VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
-		base_property():PTR(0,0){}
+		//base_property():PTR(0,0){}
+		base_property():PTR(nullptr){}
 		base_property(const PTR& s):PTR(s){}
 		size_t get_size() const{return (bool)PTR(*this);}//dangerous notation
 		RESOURCE_PTR get_object() const{return *this;}
@@ -847,7 +852,8 @@ namespace objrdf{
 			//downcasting from RESOURCE_PTR to base_property	
 			*this=static_cast<PTR>(object);
 		}
-		void erase(){set_object(PTR(0,0));}
+		//void erase(){set_object(PTR(0,0));}
+		void erase(){set_object(PTR(nullptr));}
 		/*
 		base_property& operator=(const PTR& ptr){
 			
@@ -865,7 +871,8 @@ namespace objrdf{
 	public:
 		enum{TYPE=CONSTP};
 		typedef pool_allocator::pool::ptr_d<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
-		base_property():PTR(0,0){}
+		//base_property():PTR(0,0){}
+		base_property():PTR(nullptr){}
 		base_property(const PTR& s):PTR(s){}
 		size_t get_size() const{return (bool)PTR(*this);}//dangerous notation
 		//RESOURCE_PTR get_object() const{return *this;}
@@ -874,7 +881,8 @@ namespace objrdf{
 			//downcasting from RESOURCE_PTR to base_property	
 			*this=static_cast<PTR>(object);
 		}
-		void erase(){set_object(PTR(0,0));}
+		//void erase(){set_object(PTR(0,0));}
+		void erase(){set_object(PTR(nullptr));}
 	};
 	#endif
 	template<
@@ -1324,6 +1332,7 @@ namespace objrdf{
 		static function_table go(){
 			function_table t;
 			t.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
+				//this does not compile when using fancy pointers
 				return (CONST_RESOURCE_PTR)(*static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset)))[index].t;
 			};
 			t.get_size_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset){
@@ -1584,11 +1593,11 @@ namespace rdfs{
 			#ifndef NATIVE
 			for(auto i=c->cget<array_subClassOf>().cbegin();i<c->cget<array_subClassOf>().end();++i){
 				//problem *i is CONST_CLASS_PTR, we need to cast away constness
-				rdfs::Class::allocator_type::pointer tmp((*i).index);
+				rdfs::Class::allocator_type::pointer tmp((*i).index,0);
 				tmp->get<array_superClassOf>().push_back(objrdf::superClassOf(c));
 			}
 			//let us index the new class here
-			Class::do_index(rdfs::Class::allocator_type::pointer(c.index));//cast away constness
+			Class::do_index(rdfs::Class::allocator_type::pointer(c.index,0));//cast away constness
 			#else
 			//problem here: not allowed to cast away constness with native pointers
 			#endif
@@ -1898,9 +1907,9 @@ namespace objrdf{
 			return v;
 		}
 	};
-	template<typename SUBJECT> struct patch{
+	template<typename SUBJECT> struct add_trigger{
 		V v;
-		patch(const V& v):v(v){}
+		add_trigger(const V& v):v(v){}
 		template<typename PROPERTY> void operator()(){
 			cerr<<"trigger on property `"<<PROPERTY::get_property()->id.local<<"'"<<endl;
 			//look-up property in array
@@ -1947,7 +1956,7 @@ namespace objrdf{
 			auto r=concat(v,std::static_for_each<PROPERTIES>(_meta_<TMP>()).v);
 			//need to process triggers at this stage: 
 			cerr<<"listing triggers for class `"<<NAME::name()<<"'"<<endl;
-			r=std::static_for_each<TRIGGER>(patch<TMP>(r)).v;
+			r=std::static_for_each<TRIGGER>(add_trigger<TMP>(r)).v;
 			//make sure we only invoke once
 			if(TMP::patch!=SUPERCLASS::patch){
 				TMP::patch(r);//each class can decide to modify table: add pseudo-properties,...
@@ -1977,7 +1986,7 @@ namespace objrdf{
 		cerr<<"looking up uri `"<<u<<"' in pool `"<<T::get_class()->id<<"'"<<endl;
 		typename T::allocator_type a;
 		auto r=find_if(a.cbegin(),a.cend(),test_by_uri(u));
-		return typename T::allocator_type::pointer(r!=a.cend() ? r.get_cell_index() : 0);	
+		return typename T::allocator_type::pointer((r!=a.cend() ? r.get_cell_index() : 0),0);	
 		#endif
 	}
 	ostream& operator<<(ostream& os,const property_info& i);
