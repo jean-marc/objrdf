@@ -75,7 +75,7 @@ void BaseSocketWrapper::write(const void *buf, size_t len)
     int written;
     while (len != 0)
     {
-        if ((written = send(sock_, (const char*)buf, (int)len, 0))
+        if ((written = send(sock_, (const char*)buf, (int)len, MSG_NOSIGNAL))
             == SOCKET_ERROR)
         {
             throw SocketRunTimeException("write failed");
