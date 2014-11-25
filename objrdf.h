@@ -160,6 +160,7 @@ namespace objrdf{
 		typedef void (*set_object_generic_f)(RESOURCE_PTR,RESOURCE_PTR,ptrdiff_t,size_t);
 		typedef size_t (*get_size_generic_f)(CONST_RESOURCE_PTR,ptrdiff_t);
 		typedef void (*add_property_generic_f)(RESOURCE_PTR,ptrdiff_t);
+#ifdef __GNUG__
 		set_string_generic_f set_string_generic=0;
 		in_generic_f in_generic=0;
 		out_generic_f out_generic=0;
@@ -168,6 +169,16 @@ namespace objrdf{
 		set_object_generic_f set_object_generic=0;
 		get_size_generic_f get_size_generic=0;
 		add_property_generic_f add_property_generic=0;
+#else
+		set_string_generic_f set_string_generic;
+		in_generic_f in_generic;
+		out_generic_f out_generic;
+		get_object_generic_f get_object_generic;
+		cget_object_generic_f cget_object_generic;
+		set_object_generic_f set_object_generic;
+		get_size_generic_f get_size_generic;
+		add_property_generic_f add_property_generic;
+#endif
 	#else
 		typedef void (*set_string_f)(RESOURCE_PTR,string,size_t);
 		typedef void (*in_f)(RESOURCE_PTR,istream&,size_t);
@@ -191,10 +202,17 @@ namespace objrdf{
 		typedef PROVENANCE (*get_provenance_f)(CONST_RESOURCE_PTR,size_t);
 		typedef RESOURCE_PTR (*get_statement_f)(CONST_RESOURCE_PTR,size_t);
 		typedef int (*compare_f)(CONST_RESOURCE_PTR,size_t,CONST_RESOURCE_PTR,size_t);//should be with literal but we are still using indices 
+#ifdef __GNUG__
 		erase_f erase=0;
 		get_provenance_f get_provenance=0;
 		get_statement_f get_statement=0;
 		compare_f compare=0;
+#else
+		erase_f erase;
+		get_provenance_f get_provenance;
+		get_statement_f get_statement;
+		compare_f compare;
+#endif
 		//let's define a few functions
 		struct default_f{
 			#ifdef NEW_FUNC_TABLE
