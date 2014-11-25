@@ -345,11 +345,7 @@ namespace objrdf{
 			CONST_RESOURCE_PTR subject;
 			V::const_iterator i;
 			size_t index;
-			//#ifdef NATIVE
 			const_instance_iterator():subject(nullptr),index(0){}
-			//#else
-			//const_instance_iterator():subject(0,0),index(0){}//should use nullptr
-			//#endif
 			const_instance_iterator(CONST_RESOURCE_PTR subject,V::const_iterator i,size_t index):subject(subject),i(i),index(index){}
 			const_instance_iterator(const instance_iterator& _i):subject(_i.subject),i(_i.i),index(_i.index){}
 			const_instance_iterator& operator+=(const unsigned int& i){index+=i;return *this;}
@@ -1300,7 +1296,11 @@ namespace objrdf{
 		static function_table go(){
 			function_table t;
 			t.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
+				#ifdef NATIVE
 				return (CONST_RESOURCE_PTR) static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset))->t;
+				#else
+				return (CONST_RESOURCE_PTR) static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject.operator->()+offset))->t;
+				#endif
 			};
 			t.get_size_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset){
 				//cerr<<"get_size_generic"<<endl;
@@ -1332,11 +1332,22 @@ namespace objrdf{
 		static function_table go(){
 			function_table t;
 			t.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset,size_t index){
+				return CONST_RESOURCE_PTR();
+				/*
+				#ifndef NATIVE
 				//this does not compile when using fancy pointers
+				return (CONST_RESOURCE_PTR)(*static_cast<const IMPLEMENTATION*>((const void*)((const char*)(subject.operator->())+offset)))[index].t;
+				#else
 				return (CONST_RESOURCE_PTR)(*static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset)))[index].t;
+				#endif
+				*/
 			};
 			t.get_size_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset){
+				#ifdef NATIVE
 				return (static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject+offset)))->size();
+				#else
+				return (static_cast<const IMPLEMENTATION*>((const void*)((const char*)subject.operator->()+offset)))->size();
+				#endif
 			};
 			return t;
 		}
