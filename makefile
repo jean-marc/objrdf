@@ -1,7 +1,7 @@
 CC = g++
 ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ 
 
-CFLAGS = -O3 -std=c++0x -I. -UOBJRDF_VERB -UREF_COUNT -UNEW_HEADER -UNATIVE
+CFLAGS = -O3 -std=c++0x -I. -UOBJRDF_VERB -UREF_COUNT -UNEW_HEADER -UNATIVE -UOBJRDF_TUPLE
 OBJ1 = objrdf.o uri.o
 OBJ5 = Sockets.o
 OBJ7 = sparql_engine.o
@@ -24,12 +24,14 @@ test%:test%.cpp $(OBJ1) $(OBJ8) objrdf.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) -o $@ 
 examples/%:examples/%.cpp $(OBJ1) $(OBJ8) $(OBJ9) objrdf.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) $(OBJ9) -o $@ 
+doc/%:doc/%.cpp $(OBJ1) $(OBJ8) $(OBJ9) objrdf.h
+	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) $(OBJ9) -o $@ 
 #examples/%:examples/%.cpp $(OBJ1) $(OBJ7) $(OBJ8) $(OBJ9) objrdf.h
 	#$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ7) $(OBJ8) $(OBJ9) -o $@ 
 _example.%:example.%.cpp libobjrdf.so
 	$(CC) $(CFLAGS) $< libobjrdf.so -o $@ 
-example%:example%.cpp $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) objrdf.h
-	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) -lpthread -o $@ 
+#example%:example%.cpp $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) objrdf.h
+#	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) -lpthread -o $@ 
 tests = $(basename $(wildcard test*.cpp))
 examples = $(basename $(wildcard example.*.cpp))
 

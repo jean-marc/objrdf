@@ -2,31 +2,42 @@
 #define TUPLE_HELPER_H
 /*
  *	extra function to help tuple handling
- *
+ *	let's put in different namespace to be safe
  */
-#include <tuple>
-namespace std{
+namespace objrdf{
 #ifdef __GNUG__
 	template<typename _T,typename _Tp> struct tuple_index{
 		enum{value=0};//we have reached end of tuple shouldn't the value be >0???
 	};
-	template<typename _T,typename _Head,typename... _Tail> struct tuple_index<_T, tuple<_Head, _Tail...> >{
-		enum{value=1+tuple_index<_T,tuple<_Tail...> >::value};
+	template<typename _T,typename _Head,typename... _Tail> struct tuple_index<_T, std::tuple<_Head, _Tail...> >{
+		enum{value=1+tuple_index<_T,std::tuple<_Tail...> >::value};
 	};
-	template<typename _Head, typename... _Tail> struct tuple_index<_Head, tuple<_Head, _Tail...> >{
+	template<typename _Head, typename... _Tail> struct tuple_index<_Head, std::tuple<_Head, _Tail...> >{
 		enum{value=0};
 	};
 	template<typename _Tp,typename F> struct static_for_each_impl{
 		static F go(F f){return f;}//no-op
 	};
-	template<typename _Head,typename... _Tail,typename F> struct static_for_each_impl<tuple<_Head,_Tail...>,F>{
+	template<typename _Head,typename... _Tail,typename F> struct static_for_each_impl<std::tuple<_Head,_Tail...>,F>{
 		static F go(F f){
 			f.template operator()<_Head>();
-			return static_for_each_impl<tuple<_Tail...>,F>::go(f);
-			//return f;
+			return static_for_each_impl<std::tuple<_Tail...>,F>::go(f);
 		}
 	};
+	template<typename _Tp,typename F> F static_for_each(F f){return static_for_each_impl<_Tp,F>::go(f);}
+	template<
+		typename _T,
+		typename _Tp
+	> struct in_tuple{
+		enum{value=tuple_index<_T,_Tp>::value < std::tuple_size<_Tp>::value};
+	};
 #else
+#if 0
+	/*
+ 	*	this does not well in MSVC because of recursive template instantiation
+ 	*	note: there might be smarter way to iterate through tuple but the 10 element
+ 	*	limit is a major problem
+ 	*/ 
 	template<
 		typename _T,
 		typename _Tp
@@ -71,13 +82,8 @@ namespace std{
 		static FUNC go(FUNC f){return f;}
 	};
 #endif
-	template<typename _Tp,typename F> F static_for_each(F f){return static_for_each_impl<_Tp,F>::go(f);}
-	template<
-		typename _T,
-		typename _Tp
-	> struct in_tuple{
-		enum{value=tuple_index<_T,_Tp>::value < tuple_size<_Tp>::value};
-	};
+#endif
+	
 
 }
 #endif

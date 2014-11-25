@@ -15,6 +15,7 @@ namespace objrdf{
 	}
 }
 using namespace objrdf;
+using namespace std;
 
 //template<> void f_ptr::constructor<rdfs::Class>(RESOURCE_PTR p,uri u){assert(0);}//we might actually need that for sparql
 template<> void f_ptr::constructor<rdf::Property>(RESOURCE_PTR p,uri u){assert(0);}
@@ -77,7 +78,11 @@ void base_resource::do_index(RESOURCE_PTR p){
 	LOG<<"indexing resource `"<<p->id<<"'"<<endl;
 	get_index()[p->id]=p;
 }
+#ifdef NEW_FUNC_TABLE
+property_info::property_info(CONST_PROPERTY_PTR p,function_table t,ptrdiff_t offset):p(p),t(t),literalp(p->literalp),offset(offset){}
+#else
 property_info::property_info(CONST_PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}
+#endif
 void base_resource::get_output(ostream& os) const{
 	os<<"HTTP/1.1 200 OK"<<"\r\n";
 	ostringstream out;

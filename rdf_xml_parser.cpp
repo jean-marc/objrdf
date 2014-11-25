@@ -38,16 +38,25 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 			auto cl=current_property->get_Property()->cget<rdfs::range>();
 			#endif
 			auto j=att.find(rdf::ID);
-			RESOURCE_PTR r=(j!=att.end()) ? create_by_type(cl,uri(j->second)):create_by_type_blank(cl);
-			auto k=att.find(rdf::nodeID);
-			if(k!=att.end()){
-				//there might be reference to that blank node but the ID is different now	
-				blank_node[k->second]=r;	
+			//if resource stored inside property, do not allocate memory but constructor
+			RESOURCE_PTR r;
+			#ifdef NEW_FUNC_TABLE
+			if((*current_property).t.set_object_generic){
+			#else
+			if((*current_property).t.set_object){
+			#endif
+				/*RESOURCE_PTR*/ r=(j!=att.end()) ? create_by_type(cl,uri(j->second)):create_by_type_blank(cl);
+				auto k=att.find(rdf::nodeID);
+				if(k!=att.end()){
+					//there might be reference to that blank node but the ID is different now	
+					blank_node[k->second]=r;	
+				}
+				current_property->add_property(p)->set_object(r);
+				set_missing_object(r);
+			}else{
+				r=current_property->add_property(p)->get_object();	
+				cl->t.ctor(r,(j!=att.end()) ? uri(j->second):get_uri(r));
 			}
-			//RESOURCE_PTR r=create_by_type(current_property->get_Property()->cget<rdfs::range>(),uri(att[rdf::ID]));
-			//LOG<<"new resource:"<<r->id<<endl;
-			current_property->add_property(p)->set_object(r);
-			set_missing_object(r);
 			st.push(r);
 			for(base_resource::type_iterator i=begin(r);i!=end(r);++i){
 				ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
