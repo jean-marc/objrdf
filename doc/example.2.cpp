@@ -9,6 +9,6 @@ int main(){
 	base_resource::do_index(&t);
 	Target d(uri("dest"));
 	base_resource::do_index(&d);
-	t.get<a>().t=&d;
+	t.get<a>()=&d;
 	to_rdf_xml(cout);
 }

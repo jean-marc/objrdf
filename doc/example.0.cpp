@@ -7,7 +7,7 @@ typedef resource<rdfs_namespace,str<'T','e','s','t'>,std::tuple<a,b>> Test;
 int main(){
 	Test t(uri("test"));
 	base_resource::do_index(&t);
-	t.get<a>().t=123;
-	t.get<b>().t=.123;
+	t.get<a>()=123;
+	t.get<b>()=.123;
 	to_rdf_xml(cout);
 }

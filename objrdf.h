@@ -689,6 +689,7 @@ namespace objrdf{
 		//should it be constant?
 		base_property(RANGE t=RANGE()):t(t){}
 		//sometime we want to override those functions, eg:hex type: see struct hex_adapter
+		//do we need those functions now that we have cast operator?
 		void in(istream& is){is>>t;}
 		void out(ostream& os) const{os<<t;}
 		size_t get_size() const{return 1;}//would be nice to have a bit to tell us if it has been set or not
@@ -698,6 +699,8 @@ namespace objrdf{
 			return sgn(t-a.t);
 		}
 		void erase(){t=0;}
+		operator RANGE&(){return t;}
+		operator const RANGE&() const{return t;}
 	};
 	
 	template<typename T> struct hex_adapter{};
@@ -870,6 +873,25 @@ namespace objrdf{
 		}
 		void erase(){set_object(PTR());}
 	};
+	/*
+	class base_property<pool_allocator::pool::ptr<VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>{
+	public:
+		enum{TYPE=0};
+		typedef pool_allocator::pool::ptr<VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
+		PTR t;
+		base_property(const PTR& s=PTR()):t(s){}
+		size_t get_size() const{return t!=PTR(nullptr);}
+		RESOURCE_PTR get_object() const{return t;}
+		CONST_RESOURCE_PTR get_const_object() const{return t;}
+		void set_object(RESOURCE_PTR object){t=(PTR)object;}
+		void erase(){t=nullptr;}
+		//does not pass a reference to the pointer
+		//have to be careful with this: should make sure it does not get modified
+		//operator VALUE_TYPE*(){return t;}
+		//operator const VALUE_TYPE*() const{return t;}
+		operator PTR&() {return t;}
+	};
+	*/
 	template<
 		typename INDEX,
 		typename VALUE_TYPE,	
@@ -877,6 +899,20 @@ namespace objrdf{
 		typename RAW_ALLOCATOR,
 		typename MANAGEMENT
 	>
+/*
+	class base_property<pool_allocator::pool::ptr<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>{
+	public:
+		enum{TYPE=CONSTP};
+		typedef pool_allocator::pool::ptr<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
+		PTR t;
+		base_property(const PTR& s=PTR()):t(s){}
+		size_t get_size() const{return t!=PTR(nullptr);}
+		CONST_RESOURCE_PTR get_const_object() const{return t;}
+		void set_object(RESOURCE_PTR object){t=(PTR)(object);}
+		void erase(){t=nullptr;}
+		operator const VALUE_TYPE*(){return t;}
+	};
+*/
 	class base_property<pool_allocator::pool::ptr<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool_allocator::pool::ptr<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
 	public:
 		enum{TYPE=CONSTP};
@@ -893,7 +929,6 @@ namespace objrdf{
 		//void erase(){set_object(RESOURCE_PTR(0,0));}
 		void erase(){set_object(RESOURCE_PTR(nullptr));}
 	};
-
 	template<
 		typename INDEX,
 		typename VALUE_TYPE,	
