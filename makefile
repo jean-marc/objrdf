@@ -1,7 +1,7 @@
 CC = g++
 ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ 
 
-CFLAGS = -O3 -std=c++0x -I. -UOBJRDF_VERB -UREF_COUNT -UNEW_HEADER -UNATIVE -UOBJRDF_TUPLE
+CFLAGS = -O3 -std=c++0x -I. -UOBJRDF_VERB -UREF_COUNT -UNEW_HEADER -UOBJRDF_TUPLE
 OBJ1 = objrdf.o uri.o
 OBJ5 = Sockets.o
 OBJ7 = sparql_engine.o
@@ -9,6 +9,9 @@ OBJ6 = httpd.o $(OBJ5) $(OBJ7)
 OBJ8 = rdf_xml_parser.o
 OBJ9 = ebnf.o
 OBJS = $(OBJ1) $(OBJ2) $(OBJ3)
+NATIVE_BASIC = native/objrdf.o native/uri.o
+NATIVE_PARSER = native/rdf_xml_parser.o native/ebnf.o
+
 %.o:%.cpp %.h
 	$(CC) -c $(CFLAGS) $< -o $@
 %.pic.o:%.cpp %.h
@@ -17,6 +20,8 @@ OBJS = $(OBJ1) $(OBJ2) $(OBJ3)
 	$(ARM) -c $(CFLAGS) $< -o $@
 %.arm.pic.o:%.cpp %.h
 	$(ARM) -c $(CFLAGS) -fpic $< -o $@
+native/%.o:%.cpp %.h
+	$(CC) -c $(CFLAGS) -DNATIVE $< -o $@
 #all:test0 test1
 #clean:
 #	rm $(OBJS)
@@ -24,14 +29,12 @@ test%:test%.cpp $(OBJ1) $(OBJ8) objrdf.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) -o $@ 
 examples/%:examples/%.cpp $(OBJ1) $(OBJ8) $(OBJ9) objrdf.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) $(OBJ9) -o $@ 
-doc/%:doc/%.cpp $(OBJ1) $(OBJ8) $(OBJ9) objrdf.h
-	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) $(OBJ9) -o $@ 
+doc/%:doc/%.cpp $(NATIVE_BASIC) $(NATIVE_PARSER) objrdf.h
+	$(CC) $(CFLAGS) -DNATIVE $< $(NATIVE_BASIC) $(NATIVE_PARSER) -o $@ 
 #examples/%:examples/%.cpp $(OBJ1) $(OBJ7) $(OBJ8) $(OBJ9) objrdf.h
 	#$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ7) $(OBJ8) $(OBJ9) -o $@ 
 _example.%:example.%.cpp libobjrdf.so
 	$(CC) $(CFLAGS) $< libobjrdf.so -o $@ 
-#example%:example%.cpp $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) objrdf.h
-#	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) -lpthread -o $@ 
 tests = $(basename $(wildcard test*.cpp))
 examples = $(basename $(wildcard example.*.cpp))
 
@@ -105,6 +108,6 @@ arm_install:libobjrdf.arm.so
 	cp char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h /opt/ioplex_mx/usr/arm-buildroot-linux-gnueabihf/sysroot/usr/include/objrdf/
 %.schema.so:%.schema.pic.o objrdf.o
 	$(CC) $(CFLAGS) $< -shared -o $@ 
-clean:
-	rm -f $(OBJS) $(OBJ8)
+#clean:
+#	rm -f $(OBJS) $(OBJ8)
 
