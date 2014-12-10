@@ -63,7 +63,7 @@ namespace objrdf{
 		static const char* name(){
 			char tmp[]={A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,0};
 #endif
-			char* s=new char[strlen(tmp)];
+			char* s=new char[strlen(tmp)+1];
 			strcpy(s,tmp);
 			return s;
 		}
