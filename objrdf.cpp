@@ -139,6 +139,17 @@ rdfs::Class::Class(
 		);
 	}
 }
+#ifndef NATIVE
+void rdfs::Class::patch(V& _v){
+	function_table t;
+	t.out=[](CONST_RESOURCE_PTR subject,ostream& os,size_t index){
+		pool_allocator::pool::POOL_PTR p(subject.index,0); 
+		os<<p->get_size_generic(*p);
+	};
+	t.get_size=function_table::default_f::always_1;
+	_v.push_back(property_info(objrdf::cardinality::get_property(),t));
+}
+#endif
 CONST_CLASS_PTR base_resource::get_class(){
 	#ifdef NATIVE
 	static CONST_CLASS_PTR p=new rdfs::Class(

@@ -71,9 +71,9 @@ namespace objrdf{
 }
 
 #define PROPERTY(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::property<rdfs_namespace,n_##n,__VA_ARGS__> n
-#define OBJRDF_PROPERTY(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::property<_rdfs_namespace,n_##n,__VA_ARGS__> n
+#define OBJRDF_PROPERTY(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::property<objrdf_rdfs_ns,n_##n,__VA_ARGS__> n
 #define CLASS(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::resource<rdfs_namespace,n_##n,__VA_ARGS__> n
-#define OBJRDF_CLASS(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::resource<_rdfs_namespace,n_##n,__VA_ARGS__> n
+#define OBJRDF_CLASS(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::resource<objrdf_rdfs_ns,n_##n,__VA_ARGS__> n
 /*
  *	could we define lightweight classes? to reuse code?, that would all use the same pool because they are identical
  *	they only differ by their rdfs::type
@@ -97,7 +97,7 @@ namespace objrdf{
  *	hash namespace vs slash namespace, use hash for now because of optimization, could catch non hash uri at compile-time or run-time
  */
 #define RDFS_NAMESPACE(uri,prefix) struct rdfs_namespace{static std::pair<const char*,const char*> name(){return std::pair<const char*,const char*>(uri,prefix);}};
-#define OBJRDF_RDFS_NAMESPACE(uri,prefix) struct _rdfs_namespace{static std::pair<const char*,const char*> name(){return std::pair<const char*,const char*>(uri,prefix);}};
+#define OBJRDF_RDFS_NAMESPACE(uri,prefix) struct objrdf_rdfs_ns{static std::pair<const char*,const char*> name(){return std::pair<const char*,const char*>(uri,prefix);}};
 
 namespace rdf{
 	RDFS_NAMESPACE("http://www.w3.org/1999/02/22-rdf-syntax-ns#","rdf");
@@ -319,7 +319,6 @@ namespace objrdf{
 		~array(){
 			//std::cerr<<"~array()"<<this->size()<<std::endl;
 		}
-		//for some reason no assignment operator defined????
 	};
 	struct match_property{
 		CONST_PROPERTY_PTR p;
@@ -346,11 +345,7 @@ namespace objrdf{
 			RESOURCE_PTR subject;
 			V::const_iterator i;
 			size_t index;
-			//#ifdef NATIVE
 			instance_iterator():subject(nullptr),index(0){}
-			//#else
-			//instance_iterator():subject(0,0),index(0){}
-			//#endif
 			instance_iterator(RESOURCE_PTR subject,V::const_iterator i,size_t index):subject(subject),i(i),index(index){}
 			instance_iterator& operator+=(const unsigned int& i){index+=i;return *this;}
 			instance_iterator& operator++(){++index;return *this;}
@@ -564,7 +559,7 @@ namespace objrdf{
 		}
 		template<typename T> void deallocate(CONST_RESOURCE_PTR r){
 			typename T::allocator_type a;
-			a.deallocate(r,1);//why don't we need casting????
+			a.deallocate(r,1);//why don't we need casting???? should behave same as NATIVE
 		}
 		#endif
 		template<typename T> void get_output(CONST_RESOURCE_PTR r,ostream& os){
@@ -1712,6 +1707,10 @@ namespace objrdf{
  	*/ 
 	OBJRDF_PROPERTY(sizeOf,size_t);
 	OBJRDF_PROPERTY(hashOf,hex_adapter<size_t>);
+	#ifndef NATIVE
+	//how many instances of a class, pseudo-property of rdfs::Class, only possible when using pools
+	typedef property<objrdf_rdfs_ns,str<'c','a','r','d','i','n','a','l','i','t','y'>,size_t> cardinality;
+	#endif
 }
 namespace objrdf{
 	/*
@@ -1731,7 +1730,7 @@ namespace objrdf{
 	#endif
 	/*
 	char _User[]="User";
-	struct User:objrdf::resource<_rdfs_namespace,_User,tuple<>,User>{
+	struct User:objrdf::resource<objrdf_rdfs_ns,_User,tuple<>,User>{
 		//could also be made transient and users are created at run time for security
 		typedef persistent_allocator_managed<User> allocator_type;
 		User(objrdf::uri id):SELF(id){}
@@ -1831,6 +1830,9 @@ namespace rdfs{
 			return c;
 		}
 		COMMENT("The class of classes.");
+		#ifndef NATIVE
+		static void patch(objrdf::V& v);
+		#endif
 	};
 }//end namespace rdfs
 namespace objrdf{
