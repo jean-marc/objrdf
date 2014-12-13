@@ -1965,6 +1965,17 @@ namespace objrdf{
 		typedef PAYLOAD ResultT;
 		enum{IS_LITERAL=0};
 	};
+	template<
+		typename INDEX,
+		typename PAYLOAD,
+		typename ALLOCATOR,
+		typename RAW_ALLOCATOR,
+		typename MANAGEMENT
+	>struct selector<pool_allocator::pool::ptr_d<PAYLOAD,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>{
+		typedef PAYLOAD ResultT;
+		enum{IS_LITERAL=0};
+	};
+
 	#endif
 	/*
  	*	we need to be able to tell if the property is an array

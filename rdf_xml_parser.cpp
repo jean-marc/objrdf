@@ -125,36 +125,41 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 			}
 		}else{//could be a sub-class
 			RESOURCE_PTR r=find(name);
-			if(r&&r->get_Class()==rdfs::Class::get_class()){
-				#ifdef NATIVE
-				CONST_CLASS_PTR c=static_cast<CONST_CLASS_PTR>(r);
-				if(is_subclass(c,current_property->get_Property()->cget<rdfs::range>().t)){
-				#else
-				CONST_CLASS_PTR c(r);
-				if(is_subclass(c,current_property->get_Property()->cget<rdfs::range>())){
-				#endif
-					RESOURCE_PTR r=create_by_type(c,uri(att[rdf::ID]));
-					//LOG<<"new resource:"<<r->id<<endl;
-					//r->id=att[rdf::ID];
-					current_property->add_property(p)->set_object(r);
-					st.push(r);
-					for(base_resource::type_iterator i=begin(r);i!=end(r);++i){
-						ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
-						if(j!=att.end()){
-							istringstream is(j->second);
-							i->add_property(p)->in(is);
+			if(r){
+				if(get_class(r)==rdfs::Class::get_class()){
+					#ifdef NATIVE
+					CONST_CLASS_PTR c=static_cast<CONST_CLASS_PTR>(r);
+					if(is_subclass(c,current_property->get_Property()->cget<rdfs::range>().t)){
+					#else
+					CONST_CLASS_PTR c(r);
+					if(is_subclass(c,current_property->get_Property()->cget<rdfs::range>())){
+					#endif
+						RESOURCE_PTR r=create_by_type(c,uri(att[rdf::ID]));
+						//LOG<<"new resource:"<<r->id<<endl;
+						//r->id=att[rdf::ID];
+						current_property->add_property(p)->set_object(r);
+						st.push(r);
+						for(base_resource::type_iterator i=begin(r);i!=end(r);++i){
+							ATTRIBUTES::iterator j=att.find(i->get_Property()->id);
+							if(j!=att.end()){
+								istringstream is(j->second);
+								i->add_property(p)->in(is);
+							}
 						}
+					}else{
+						#ifdef NATIVE
+						ERROR_PARSER<<name<<" not a sub-class of "<<current_property->get_Property()->cget<rdfs::range>().t->id<<endl;
+						#else
+						ERROR_PARSER<<name<<" not a sub-class of "<<current_property->get_Property()->cget<rdfs::range>()->id<<endl;
+						#endif
+						st.push(placeholder);
 					}
 				}else{
-					#ifdef NATIVE
-					ERROR_PARSER<<name<<" not a sub-class of "<<current_property->get_Property()->cget<rdfs::range>().t->id<<endl;
-					#else
-					ERROR_PARSER<<name<<" not a sub-class of "<<current_property->get_Property()->cget<rdfs::range>()->id<<endl;
-					#endif
+					ERROR_PARSER<<"resource `"<<name<<"' is not a rdfs:Class\n";
 					st.push(placeholder);
 				}
 			}else{
-				ERROR_PARSER<<"Class `"<<name<<"' not found\n";
+				ERROR_PARSER<<"resource `"<<name<<"' not found\n";
 				st.push(placeholder);
 			}
 		}
@@ -378,7 +383,7 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 		}
 	}else{
 		ERROR_PARSER<<"property `"<<name<<"' not found"<<endl;
-		if((name==rdf::type::get_property()->id)&&(st.top()->get_Class()==base_resource::get_class())){
+		if((name==rdf::type::get_property()->id)&&(get_class(st.top())==base_resource::get_class())){
 			/*
  			*	we have a generic resource, we can maybe swap it for a typed resource
  			*	all XML attributes have been lost
@@ -386,7 +391,7 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 			ATTRIBUTES::iterator j=att.find(rdf::resource);
 			if(j!=att.end()){
 				RESOURCE_PTR r=find(uri::hash_uri(j->second));
-				if(r&&r->get_Class()==rdfs::Class::get_class()){
+				if(r&&get_class(r)==rdfs::Class::get_class()){
 					RESOURCE_PTR subject=create_by_type(CONST_CLASS_PTR(r),st.top()->id);
 					//LOG<<"new resource:"<<subject.get()<<endl;
 					set_missing_object(subject);
