@@ -1,7 +1,7 @@
 CC = g++
 ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ 
 
-CFLAGS = -O3 -std=c++0x -I. -UOBJRDF_VERB -UREF_COUNT -UNEW_HEADER -UOBJRDF_TUPLE
+CFLAGS = -O3 -std=c++0x -I. -DOBJRDF_VERB -UREF_COUNT -UNEW_HEADER -UOBJRDF_TUPLE
 OBJ1 = objrdf.o uri.o
 OBJ5 = Sockets.o
 OBJ7 = sparql_engine.o
@@ -11,6 +11,9 @@ OBJ9 = ebnf.o
 OBJS = $(OBJ1) $(OBJ2) $(OBJ3)
 NATIVE_BASIC = native/objrdf.o native/uri.o
 NATIVE_PARSER = native/rdf_xml_parser.o native/ebnf.o
+#otherwise gets deleted when target built
+.SECONDARY:
+#.PRECIOUS: NATIVE_BASIC NATIVE_PARSER 
 
 %.o:%.cpp %.h
 	$(CC) -c $(CFLAGS) $< -o $@
@@ -83,6 +86,8 @@ xml_signature.test:$(OBJ9) xml_signature.h uri.o
 	$(CC) $(CFLAGS) -I../../../license xml_signature.test.cpp $(OBJ9) uri.o -o xml_signature.test
 persistence.objrdf: persistence.objrdf.cpp objrdf.o uri.o rdf_xml_parser.o ebnf.h char_iterator.h
 	$(CC) $(CFLAGS) persistence.objrdf.cpp objrdf.o uri.o rdf_xml_parser.o -o persistence.objrdf
+readme.pdf:readme.md
+	pandoc -V geometry:margin=1in -o $@ $<
 
 #shared library experiment, total size is 25% bigger, could be improved
 #	ls -l libobjrdf.so example.inventory _example.inventory 
