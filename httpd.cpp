@@ -10,19 +10,18 @@
 #include <sys/stat.h>
 #include "popen_streambuf.h"
 using namespace objrdf;
+map<string,string> httpd::mimes={{"html","text/html"},{"xhtml","text/html"},
+					{"xml","text/xml"},{"xsd","text/xml"},{"xsl","text/xml"},
+					{"kml","application/vnd.google-earth.kml+xml"},
+					{"rdf","application/rdf+xml"},
+					{"svg","image/svg+xml"},
+					{"png","image/png"},
+					{"css","text/css"},
+					{"js","application/javascript"},
+					{"mat","application/octet-stream"}};
 string get_mime(string extension){
-	typedef std::pair<string,string> P;
-	static map<string,string> m={	P("html","text/html"),P("xhtml","text/html"),
-					P("xml","text/xml"),P("xsd","text/xml"),P("xsl","text/xml"),
-					P("kml","application/vnd.google-earth.kml+xml"),
-					P("rdf","application/rdf+xml"),
-					P("svg","image/svg+xml"),
-					P("png","image/png"),
-					P("css","text/css"),
-					P("js","application/javascript"),
-					P("mat","application/octet-stream")};
-	auto i=m.find(extension);
-	return i==m.end() ? "text/plain" : i->second;
+	auto i=httpd::mimes.find(extension);
+	return i==httpd::mimes.end() ? "text/plain" : i->second;
 }
 string url_decode(string in){
 	istringstream is(in);//we need to make the parser more generic

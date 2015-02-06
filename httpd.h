@@ -32,6 +32,7 @@ namespace objrdf{
 		typedef pair<httpd*,TCPSocketWrapper*> request_info;
 		short port;
 		static string file_path;
+		static map<string,string> mimes;
 		pthread_mutex_t mutex;	
 		httpd(short port=1080):port(port){
 			socketsInit();
