@@ -106,6 +106,7 @@ libobjrdf.arm.so:objrdf.arm.pic.o uri.arm.pic.o sparql_engine.arm.pic.o ebnf.arm
 install:libobjrdf.so
 	strip libobjrdf.so
 	cp libobjrdf.so /usr/local/lib/
+	mkdir -p /usr/local/include/objrdf/
 	cp char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h /usr/local/include/objrdf/
 arm_install:libobjrdf.arm.so
 	/opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-strip libobjrdf.arm.so
