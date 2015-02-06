@@ -6,11 +6,6 @@
 #include "turtle_parser.h"
 #include "uri.h"
 #include "objrdf.h"
-#ifdef OBJRDF_VERB
-#define LOG cerr
-#else
-#define LOG if(0) cerr
-#endif
 /*
  * 	http://www.w3.org/TR/rdf-sparql-query/
  *
