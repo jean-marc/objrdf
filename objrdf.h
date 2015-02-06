@@ -33,6 +33,7 @@ using objrdf::tuple_element;
 #define LOG if(0) std::cerr
 #endif
 #ifndef NATIVE
+#define FIX_AMBIGUITY
 #include <pool_allocator/pool_allocator.h>
 #endif
 template<typename T> std::vector<T> concat(/*const*/ std::vector<T>& a,const std::vector<T>& b){
@@ -1588,7 +1589,13 @@ namespace objrdf{
 	typedef base_resource* (*fpt)(uri);
 	namespace f_ptr{
 		template<typename T> void constructor(RESOURCE_PTR _p,uri u){
+			//why don't we use allocator::construct?
+			#ifdef FIX_AMBIGUITY
+			typename T::allocator_type a;
+			a.construct(_p,u);
+			#else
 			new(_p)T(u);
+			#endif
 			T::do_index(_p);
 		}
 		template<typename T> void destructor(RESOURCE_PTR p){
@@ -1902,7 +1909,7 @@ namespace objrdf{
 			objrdf::base_resource::class_function_table(
 				f_ptr::constructor<TMP>,
 				f_ptr::destructor<TMP>,
-				0/*f_ptr::copy_constructor<TMP>*/,
+				0/*f_ptr::copy_constructor<TMP>*/,//why is it 0???
 				f_ptr::begin<TMP>,
 				#ifdef NATIVE
 				f_ptr::end<TMP>,

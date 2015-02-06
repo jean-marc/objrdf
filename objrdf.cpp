@@ -190,6 +190,7 @@ rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp,rdfs::s
 /*
  *	problem: no garbage collection so a new resource `nil' is created at each run, creating duplicates 
  *	one solution is to not persist base_resources but we might need them as cheap symbols 
+ *	better would be to have a true null_ptr resource, but it can't be newed
  *
  */
 #ifdef NATIVE
@@ -308,6 +309,7 @@ namespace objrdf{
 		#endif
 		return i!=a->cget<rdfs::Class::array_subClassOf>().cend();
 	}
+	//this is dangerous, because it will throw if a is not a rdfs::Class pointer, down-casting should be explicit?
 	bool is_a(CONST_CLASS_PTR a,CONST_CLASS_PTR b){
 		return a==b||is_subclass(a,b);
 	}
@@ -437,15 +439,24 @@ RESOURCE_PTR objrdf::clone(CONST_RESOURCE_PTR r){
 	LOG<<"cloning resource `"<<r->id<<"'"<<endl;
 	CONST_CLASS_PTR c=get_class(r);
 	RESOURCE_PTR rp(c->t.allocate());
+	#ifdef FIX_AMBIGUITY
+	c->t.cctor((base_resource*)rp,r);
+	#else
 	c->t.cctor(rp,r);
+	#endif
 	return rp;
 }
 RESOURCE_PTR objrdf::clone_and_swap(RESOURCE_PTR r){
 	LOG<<"cloning resource `"<<r->id<<"'"<<endl;
 	CONST_CLASS_PTR c=get_class(r);
 	RESOURCE_PTR rp(c->t.allocate());
+	#ifdef FIX_AMBIGUITY
+	memcpy((base_resource*)rp,(base_resource*)r,c->cget<sizeOf>().t);//this could go very wrong if we don't have the right size
+	c->t.cctor((base_resource*)r,rp);
+	#else
 	memcpy(rp,r,c->cget<sizeOf>().t);//this could go very wrong if we don't have the right size
 	c->t.cctor(r,rp);
+	#endif	
 	return rp;
 }
 RESOURCE_PTR objrdf::create_by_type_blank(uri type){
