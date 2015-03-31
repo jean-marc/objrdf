@@ -120,7 +120,7 @@ protected:
         : sock_(as.sock_), sockstate_(ACCEPTED)
     {
     }
-
+public:
     socket_type sock_;
     sockstate_type sockstate_;
 
