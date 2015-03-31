@@ -171,18 +171,18 @@ template<typename SAX_HANDLER> struct xml_parser:char_iterator{
 	};
 	void print_ns(){
 		for(typename list<ns>::iterator i=ns_v.begin();i!=ns_v.end();++i)
-			cerr<<"\t"<<i->p<<"\t"<<i->s<<"\t"<<i->depth<<endl;
+			LOG<<"\t"<<i->p<<"\t"<<i->s<<"\t"<<i->depth<<endl;
 	}
 	bool callback(start_tag,string s){
 		//need to retrieve all the namespaces
 		//print_ns();
 		for(typename vector<att_stage>::iterator i=att_v.begin();i<att_v.end();++i){
-			//cerr<<i->prefix<<" "<<i->name<<" "<<i->val<<endl;
+			//LOG<<i->prefix<<" "<<i->name<<" "<<i->val<<endl;
 			typename list<ns>::iterator j=find_if(ns_v.begin(),ns_v.end(),cmp(i->prefix));	
 			if(j!=ns_v.end()){
 				att_list[objrdf::uri(j->s,i->name)]=i->val;
 			}else{
-				cerr<<"Namespace prefix:`"<<i->prefix<<"' no defined"<<endl;
+				LOG<<"Namespace prefix:`"<<i->prefix<<"' no defined"<<endl;
 			}	
 		}
 		att_v.clear();
@@ -191,7 +191,7 @@ template<typename SAX_HANDLER> struct xml_parser:char_iterator{
 			if(j!=ns_v.end()){
 				static_cast<SAX_HANDLER*>(this)->start_element(objrdf::uri(j->s,element_name_s),att_list);
 			}else{
-				cerr<<"Namespace prefix:`"<<element_name_p<<"' no defined"<<endl;
+				LOG<<"Namespace prefix:`"<<element_name_p<<"' no defined"<<endl;
 			}	
 		//}else
 		//	static_cast<SAX_HANDLER*>(this)->start_element(element_name_p,att_list);
@@ -202,7 +202,7 @@ template<typename SAX_HANDLER> struct xml_parser:char_iterator{
 		const int d;
 		deeper(int _d):d(_d){}
 		bool operator()(ns& s) const{
-			//cerr<<"deeper? "<<d<<" "<<s.p<<" "<<s.s<<" "<<s.depth<<endl;
+			//LOG<<"deeper? "<<d<<" "<<s.p<<" "<<s.s<<" "<<s.depth<<endl;
 			return d<s.depth;
 		}
 	};
@@ -224,10 +224,11 @@ template<typename SAX_HANDLER> struct xml_parser:char_iterator{
 		return true;
 	}
 };
+//why is it so convoluted?
 template<template<typename SAX_HANDLER> class PARSER> struct quiet:PARSER<quiet<PARSER> >{
 	quiet(istream& is):PARSER<quiet<PARSER> >(is){}
 	bool start_element(objrdf::uri name,ATTRIBUTES att){return true;}
-	bool end_element(string name){return true;}
+	bool end_element(objrdf::uri name){return true;}
 	bool characters(string s){return true;}
 
 };
@@ -240,7 +241,7 @@ template<template<typename SAX_HANDLER> class PARSER> struct generic_xml_parser:
 			cout<<"\t"<<i->first<<"->"<<i->second<<"\n";
 		return true;
 	}
-	bool end_element(string name){
+	bool end_element(objrdf::uri name){
 		cout<<"end element `"<<name<<"'"<<endl;
 		return true;
 	}
@@ -267,14 +268,14 @@ template<template<typename SAX_HANDLER> class PARSER> struct xml_xml:PARSER<xml_
 			{istringstream i(att["sodipodi:ry"]);i>>ry;}
 			{istringstream i(att["sodipodi:start"]);i>>start;}
 			{istringstream i(att["sodipodi:end"]);i>>end;}
-			cerr<<cx<<" "<<cy<<" "<<rx<<" "<<ry<<" "<<start<<" "<<end<<endl;
+			LOG<<cx<<" "<<cy<<" "<<rx<<" "<<ry<<" "<<start<<" "<<end<<endl;
 			ostringstream o;
 			float x_axis_rotation=0;
 			int large_arc_flag=0;
 			int sweep_flag=(start<end);
 			o<<"M "<<cx+rx*cos(start)<<" "<<cy+ry*sin(start)<<" A "<<rx<<" "<<ry<<" "<<x_axis_rotation<<" "<<large_arc_flag<<" "<<sweep_flag<<" "<<cx+rx*cos(end)<<" "<<cy+ry*sin(end);
-			cerr<<o.str()<<endl;
-			cerr<<att["d"]<<endl<<endl;
+			LOG<<o.str()<<endl;
+			LOG<<att["d"]<<endl<<endl;
 			att["d"]=o.str();
 		}
 		cout<<"<"<<name; 

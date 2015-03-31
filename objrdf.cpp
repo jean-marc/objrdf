@@ -31,12 +31,12 @@ bool type_p::operator()(RESOURCE_PTR r) const{
 base_resource::base_resource(uri id):id(id){
 	//note: not indexed by default, we couldn't anyway because we only have `this' pointer
 	#ifdef OBJRDF_VERB
-	cerr<<"create base_resource `"<<id<<"' "<<this<<endl;
+	LOG<<"create base_resource `"<<id<<"' "<<this<<endl;
 	#endif
 }
 base_resource::~base_resource(){
 	#ifdef OBJRDF_VERB
-	cerr<<"delete base_resource `"<<id<<"' "<<this<<endl;
+	LOG<<"delete base_resource `"<<id<<"' "<<this<<endl;
 	#endif
 }
 CONST_PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}//strange syntax
@@ -115,7 +115,7 @@ rdfs::Class::Class(
 #endif
 ):SELF(id),t(t){
 	#ifdef OBJRDF_VERB
-	cerr<<"create rdfs::Class `"<<id<<"'\t"<<this<</*"\t"<<t<<*/endl;
+	LOG<<"create rdfs::Class `"<<id<<"'\t"<<this<</*"\t"<<t<<*/endl;
 	#endif
 	get<comment>().set_string(comment_str);
 	get<objrdf::sizeOf>()=size;
@@ -267,7 +267,7 @@ base_resource::instance_iterator base_resource::type_iterator::add_property(PROV
  	*	if the add_property is not defined we can just return an iterator to a constant property
  	*/
 	#ifdef OBJRDF_VERB
-	cerr<<"add_property `"<<get_Property()->id<<"' to resource `"<<subject->id<<"'"<<endl;
+	LOG<<"add_property `"<<get_Property()->id<<"' to resource `"<<subject->id<<"'"<<endl;
 	#endif
 	//awkward
 	auto tmp=*static_cast<V::const_iterator>(*this);
@@ -290,7 +290,7 @@ namespace objrdf{
 		try{
 			auto r=p.operator->();
 		}catch(std::out_of_range& e){
-			cerr<<"rdfs::Class not defined yet!"<<endl;
+			LOG<<"rdfs::Class not defined yet!"<<endl;
 			exit(1);
 		}
 		return p;
@@ -389,7 +389,7 @@ void objrdf::to_rdf_xml(ostream& os){
 				to_rdf_xml(j,cout);
 			}
 		}else{
-			cerr<<"pool `"<<i->id<<"' not iterable "<<p->payload_offset<<endl;
+			LOG<<"pool `"<<i->id<<"' not iterable "<<p->payload_offset<<endl;
 		}
 	}
 	#endif
@@ -407,13 +407,13 @@ void objrdf::generate_index(){
 }
 #endif
 RESOURCE_PTR objrdf::find(uri u){
-	cerr<<"looking up uri `"<<u<<"'...";
+	LOG<<"looking up uri `"<<u<<"'...";
 	auto i=base_resource::get_index().find(u);
 	if(i==base_resource::get_index().end()){
-		cerr<<"not found"<<endl;
+		LOG<<"not found"<<endl;
 		return RESOURCE_PTR(nullptr);
 	}
-	cerr<<"found"<<endl;
+	LOG<<"found"<<endl;
 	return i->second;
 }
 RESOURCE_PTR objrdf::create_by_type(CONST_CLASS_PTR c,uri id){

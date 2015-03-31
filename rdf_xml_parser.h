@@ -22,7 +22,7 @@
 
 
 */
-#define ERROR_PARSER cerr<<"ERROR:"
+//#define ERROR_PARSER cerr<<"ERROR:"
 namespace objrdf{
 	struct rdf_xml_parser:xml_parser<rdf_xml_parser>{
 		PROVENANCE p;

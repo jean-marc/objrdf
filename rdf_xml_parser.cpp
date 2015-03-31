@@ -20,11 +20,11 @@ rdf_xml_parser::rdf_xml_parser(std::istream& is,PROVENANCE p):xml_parser<rdf_xml
 bool rdf_xml_parser::go(){
 	bool r=xml_parser<rdf_xml_parser>::go();
 	for(MISSING_OBJECT::iterator i=missing_object.begin();i!=missing_object.end();++i)
-		cerr<<"missing objects: `"<<i->first<<"'"<<endl;
+		LOG<<"missing objects: `"<<i->first<<"'"<<endl;
 	return r;
 };
 bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& to spare a map copy?
-	cerr<<"start resource "<<name<<endl;
+	LOG<<"start resource "<<name<<endl;
 	if(current_property!=end(st.top())){
 		#ifdef NATIVE
 		if(current_property->get_Property()->cget<rdfs::range>().t->id==name && !current_property->constp()){
@@ -103,7 +103,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 					st.push(placeholder);
 				}
 				ERROR_PARSER<<"un-typed resource"<<endl;
-				cerr<<"placeholder ";st.top()->id.to_uri(cerr); cerr<<endl;
+				//LOG<<"placeholder ";st.top()->id.to_uri(cerr); cerr<<endl;
 				/*
 				placeholder->id=uri();//reset
 				ATTRIBUTES::iterator i=att.find(rdf::ID);
@@ -210,7 +210,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 					st.push(placeholder);
 				}
 				ERROR_PARSER<<"un-typed resource"<<endl;
-				cerr<<"placeholder ";st.top()->id.to_uri(cerr); cerr<<endl;
+				//cerr<<"placeholder ";st.top()->id.to_uri(cerr); cerr<<endl;
 				//st.push(placeholder);
 			}
 		}else{
@@ -312,7 +312,7 @@ void rdf_xml_parser::set_missing_object(RESOURCE_PTR object){
 	//need to distinguish blank nodes
 	LOG<<"missing object:"<</*(void*)object.get()<<"\t`"<<*/object->id<<"'"<<endl;
 	MISSING_OBJECT::iterator first=missing_object.find(object->id),last=missing_object.upper_bound(object->id);
-	cerr<<(first==missing_object.end())<<"\t"<<(last==missing_object.end())<<"\t"<<(first==last)<<endl;
+	LOG<<(first==missing_object.end())<<"\t"<<(last==missing_object.end())<<"\t"<<(first==last)<<endl;
 	if(first!=missing_object.end()){//why do we need that???
 		for(MISSING_OBJECT::iterator i=first;i!=last;++i){
 			//LOG<<"setting object of resource `"<<i->first<<"'"<<endl;
@@ -324,14 +324,14 @@ void rdf_xml_parser::set_missing_object(RESOURCE_PTR object){
 	}
 } 
 bool rdf_xml_parser::end_resource(uri name){
-	cerr<<"end resource "<<name<<endl;
+	LOG<<"end resource "<<name<<endl;
 	st.top()->end_resource();
 	st.pop();
 	current_property=end(placeholder);
 	return true;
 }
 bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
-	cerr<<"start property "<<name<<endl;
+	LOG<<"start property "<<name<<endl;
 	current_property=std::find_if(begin(st.top()),end(st.top()),name_p(name));
 	if(current_property!=end(st.top())){
 		if(current_property.constp()){
@@ -362,7 +362,7 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 				}else{
 					//problem with current_property->add_property()
 					auto pr=current_property->add_property(p);
-					cerr<<"stowing away property `"<<pr.get_Property()->id<<"' of resource `"<<pr.subject->id<<"' "<<endl;
+					LOG<<"stowing away property `"<<pr.get_Property()->id<<"' of resource `"<<pr.subject->id<<"' "<<endl;
 					//missing_object.insert(MISSING_OBJECT::value_type(uri::hash_uri(i->second),current_property->add_property(p)));
 					missing_object.insert(MISSING_OBJECT::value_type(uri::hash_uri(i->second),pr));
 					//ERROR_PARSER<<"resource "<<i->second<<" not found"<<endl;
@@ -411,7 +411,7 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 }
 bool rdf_xml_parser::end_property(uri name){
 	string_property=false;
-	cerr<<"end property "<<name<<endl;
+	LOG<<"end property "<<name<<endl;
 	return true;
 }
 bool rdf_xml_parser::start_element(uri name,ATTRIBUTES att){
@@ -427,7 +427,7 @@ bool rdf_xml_parser::end_element(uri name){
 }
 //there should ne multiple calls if the buffer fills up
 bool rdf_xml_parser::characters(string s){
-	cerr<<"characters "<<s<<endl;
+	LOG<<"characters "<<s<<endl;
 	if(string_property){
 		current_property->add_property(p)->set_string(s);
 		/*istringstream is(s);
