@@ -26,23 +26,30 @@
 #include "http_parser.h"
 #include "objrdf.h"
 #include "Sockets.h"
+#ifdef PTHREAD
 #include <pthread.h>
+#else
+#include <thread>
+#include <mutex>
+#endif
 namespace objrdf{
 	struct httpd{
-		typedef pair<httpd*,TCPSocketWrapper*> request_info;
+		httpd(short port=1080);
+		void run();//blocking
 		short port;
-		static string file_path;
-		static map<string,string> mimes;
+		#ifdef PTHREAD
+		typedef pair<httpd*,TCPSocketWrapper*> request_info;
 		pthread_mutex_t mutex;	
-		httpd(short port=1080):port(port){
-			socketsInit();
-			pthread_mutex_init(&mutex,NULL);
-		}
 		static void* server(void* s);
 		static void* request(void* s);
-		typedef void (*fpt)(http_parser&,iostream&);
-		void run();//blocking
 		void start();//non-blocking
+		#else
+		std::mutex m;
+		void process(TCPSocketWrapper::TCPAcceptedSocket sock);
+		#endif
+		static string file_path;
+		static map<string,string> mimes;
+		typedef void (*fpt)(http_parser&,iostream&);
 		void get(http_parser& h,iostream& io);
 		void post(http_parser& h,iostream& io);
 		void put(http_parser& h,iostream& io);	

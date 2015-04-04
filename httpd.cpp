@@ -30,6 +30,13 @@ string url_decode(string in){
 	return u.decoded;	
 }
 string httpd::file_path="www/";
+httpd::httpd(short port):port(port){
+	socketsInit();
+	#ifdef PTHREAD
+	pthread_mutex_init(&mutex,NULL);
+	#endif
+}
+#ifdef PTHREAD
 void httpd::run(){
 	server(this);
 }
@@ -51,6 +58,52 @@ void* httpd::server(void* s){
 		pthread_create(&shell_t,NULL,request,r);
 	}
 }
+#else
+void httpd::run(){
+	TCPSocketWrapper sockserver;
+	sockserver.listen(port);
+	for(;;){
+		TCPSocketWrapper::TCPAcceptedSocket sock(sockserver.accept());
+		auto t=std::thread(&httpd::process,this,sock);
+		t.detach();
+	}
+}
+void httpd::process(TCPSocketWrapper::TCPAcceptedSocket sock){
+	try{
+		TCPSocketWrapper _sock(sock);
+		LOG<<"HTTPD accepted connection from: "<<_sock.address()<<" port:"<<_sock.port()<<endl;
+		TCPStream stream(_sock);
+		stream.exceptions(iostream::eofbit|iostream::badbit);
+		while(stream.good()){
+			LOG<<"peek: "<<stream.peek()<<endl;
+			http_parser p(stream);
+			if(p.go()){//blocking
+				if(p.current_method=="GET") get(p,stream);
+				else if(p.current_method=="POST") post(p,stream);
+				else{
+					stream<<"HTTP/1.1 400 Bad Request\r\n";
+					stream.setstate(ios::badbit);//maybe not needed
+					stream.flush();
+				}
+			}else{
+				LOG<<"could not parse http header\n";
+				stream<<"HTTP/1.1 400 Bad Request\r\n";
+				stream.setstate(ios::badbit);
+				stream.flush();
+			}
+			LOG<<"done!"<<endl;
+		}
+		LOG<<"ending thread"<<endl;
+	}catch(SocketRunTimeException& e){
+		LOG<<"****** "<<e.what()<<endl;
+	}catch(SocketLogicException& e){
+		LOG<<"****** "<<e.what()<<endl;
+	}catch(...){
+		LOG<<"****** exception!"<<endl;
+	}
+
+}
+#endif
 inline ostream& http_404(ostream& stream){
 	stream<<"HTTP/1.1 404 file not found"<<endl;
 	ostringstream o;
@@ -72,6 +125,7 @@ inline ostream& http_400(ostream& stream){
 	stream.flush();
 	return stream;
 }
+#ifdef PTHREAD
 void* httpd::request(void* s){
 	LOG<<"new request"<<endl;
 	request_info* r=static_cast<request_info*>(s);
@@ -110,6 +164,7 @@ void* httpd::request(void* s){
 	}
 	//return 0;
 }
+#endif
 void httpd::get(http_parser& h,iostream& io){
 	if(h.current_path.compare(0,6,"/data/")==0){
 	/*
@@ -292,7 +347,11 @@ void httpd::post(http_parser& h,iostream& io){
 	try{
 		io.exceptions(iostream::eofbit);
 		LOG<<"attempting to get mutex...";
+		#ifdef PTHREAD
 		pthread_mutex_lock(&mutex);
+		#else
+		std::lock_guard<std::mutex> lock(m);
+		#endif
 		LOG<<"ok"<<endl;
 		//problem: no EOF to tell the parser to stop
 		/*
@@ -344,15 +403,23 @@ void httpd::post(http_parser& h,iostream& io){
 				for(int i=0;i<l;++i) LOG<<(char)io.get();
 			}
 		}
+		#ifdef PTHREAD
 		pthread_mutex_unlock(&mutex);
+		#endif
 	}catch(SocketRunTimeException& e){
+		#ifdef PTHREAD
 		pthread_mutex_unlock(&mutex);
+		#endif
 		LOG<<"http::post "<<e.what()<<endl;
 	}catch(std::exception& e){
+		#ifdef PTHREAD
 		pthread_mutex_unlock(&mutex);
+		#endif
 		LOG<<"exception: "<<e.what()<<endl;
 	}catch(...){
+		#ifdef PTHREAD
 		pthread_mutex_unlock(&mutex);
+		#endif
 		LOG<<"unknown exception!!!!!"<<endl;
 	}
 }
