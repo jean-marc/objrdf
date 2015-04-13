@@ -135,11 +135,11 @@ namespace objrdf{
  	* all resource pointers will be cast to this type, so it must be able to handle any pointer size, let's
  	* set it to uint32_t for now, the problem is that the back conversion will cause problem
  	*/ 
-	//typedef volatile_allocator_unmanaged<base_resource,uint32_t>::derived_pointer RESOURCE_PTR;
-	//typedef volatile_allocator_unmanaged<base_resource,uint32_t>::const_derived_pointer CONST_RESOURCE_PTR;
+	//typedef volatile_allocator_unmanaged<base_resource,uint32_t>::generic_pointer RESOURCE_PTR;
+	//typedef volatile_allocator_unmanaged<base_resource,uint32_t>::const_generic_pointer CONST_RESOURCE_PTR;
 	//when did we decide to use managed???
-	typedef volatile_allocator_managed<base_resource,uint32_t>::derived_pointer RESOURCE_PTR;
-	typedef volatile_allocator_managed<base_resource,uint32_t>::const_derived_pointer CONST_RESOURCE_PTR;
+	typedef volatile_allocator_managed<base_resource,uint32_t>::generic_pointer RESOURCE_PTR;
+	typedef volatile_allocator_managed<base_resource,uint32_t>::const_generic_pointer CONST_RESOURCE_PTR;
 	//we don't store classes, why?
 	typedef volatile_allocator_managed<rdfs::Class,uint8_t>::pointer CLASS_PTR;
 	typedef volatile_allocator_managed<rdfs::Class,uint8_t>::const_pointer CONST_CLASS_PTR;
@@ -1079,7 +1079,7 @@ namespace objrdf{
 			return static_cast<SUBJECT*>(subject)->template get<PROPERTY>();
 			#else
 			//why is it derived?
-			return static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->template get<PROPERTY>();
+			return static_cast<typename SUBJECT::allocator_type::generic_pointer>(subject)->template get<PROPERTY>();
 			#endif
 		}
 		static inline const PROPERTY& get_const(CONST_RESOURCE_PTR subject,size_t){
@@ -1087,7 +1087,7 @@ namespace objrdf{
 			return static_cast<const SUBJECT*>(subject)->template cget<PROPERTY>();
 			#else
 			//why is it derived?
-			return static_cast<typename SUBJECT::allocator_type::const_derived_pointer>(subject)->template cget<PROPERTY>();
+			return static_cast<typename SUBJECT::allocator_type::const_generic_pointer>(subject)->template cget<PROPERTY>();
 			#endif
 		}
 		static size_t get_size(CONST_RESOURCE_PTR subject){return get_const(subject,0).get_size();}
@@ -1105,8 +1105,8 @@ namespace objrdf{
 				old._print(os);
 				old->id=uri(subject->id.ns(),string(subject->id.local)+"."+os.str());
 				//obj::next is wrong when more than 2 generations, should only use obj::prev for now
-				static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->template get<objrdf::prev>().set_object(old);
-				static_cast<typename SUBJECT::allocator_type::derived_pointer>(old)->template get<objrdf::next>().set_object(subject);
+				static_cast<typename SUBJECT::allocator_type::generic_pointer>(subject)->template get<objrdf::prev>().set_object(old);
+				static_cast<typename SUBJECT::allocator_type::generic_pointer>(old)->template get<objrdf::next>().set_object(subject);
 				get(subject,0).erase();
 			}	
 			#endif
@@ -1129,33 +1129,33 @@ namespace objrdf{
 	> struct base_f<SUBJECT,objrdf::array<PROPERTY,ALLOCATOR>>{
 		typedef objrdf::array<PROPERTY,ALLOCATOR> ARRAY;
 		typedef PROPERTY PP;
-		//why is it derived_pointer?
+		//why is it generic_pointer?
 		static inline ARRAY& get(RESOURCE_PTR subject){
 			#ifdef NATIVE
 			return static_cast<SUBJECT*>(subject)->template get<ARRAY>();
 			#else
-			return static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->template get<ARRAY>();
+			return static_cast<typename SUBJECT::allocator_type::generic_pointer>(subject)->template get<ARRAY>();
 			#endif
 		}
 		static inline const ARRAY& get_const(CONST_RESOURCE_PTR subject){
 			#ifdef NATIVE
 			return static_cast<const SUBJECT*>(subject)->template get_const<ARRAY>();
 			#else
-			return static_cast<typename SUBJECT::allocator_type::const_derived_pointer>(subject)->template get_const<ARRAY>();
+			return static_cast<typename SUBJECT::allocator_type::const_generic_pointer>(subject)->template get_const<ARRAY>();
 			#endif
 		}
 		static inline PROPERTY& get(RESOURCE_PTR subject,size_t index){
 			#ifdef NATIVE
 			return static_cast<SUBJECT*>(subject)->template get<ARRAY>()[index];
 			#else
-			return static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->template get<ARRAY>()[index];
+			return static_cast<typename SUBJECT::allocator_type::generic_pointer>(subject)->template get<ARRAY>()[index];
 			#endif
 		}
 		static inline const PROPERTY& get_const(CONST_RESOURCE_PTR subject,size_t index){
 			#ifdef NATIVE
 			return static_cast<const SUBJECT*>(subject)->template get_const<ARRAY>()[index];
 			#else
-			return static_cast<typename SUBJECT::allocator_type::const_derived_pointer>(subject)->template get_const<ARRAY>()[index];
+			return static_cast<typename SUBJECT::allocator_type::const_generic_pointer>(subject)->template get_const<ARRAY>()[index];
 			#endif
 		}
 		static size_t get_size(CONST_RESOURCE_PTR subject){
@@ -1214,7 +1214,7 @@ namespace objrdf{
 				PROPERTY tmp;
 				tmp.in(is);
 				//add pointer because `this' cannot be converted to pointer
-				static_cast<typename LEAF::allocator_type::derived_pointer>(subject)->set_p(tmp,static_cast<typename LEAF::allocator_type::derived_pointer>(subject));
+				static_cast<typename LEAF::allocator_type::generic_pointer>(subject)->set_p(tmp,static_cast<typename LEAF::allocator_type::generic_pointer>(subject));
 			}
 			static function_table patch(function_table t){
 				t.in=in;
@@ -1260,7 +1260,7 @@ namespace objrdf{
 			static void set_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
 				typename BASE::PP tmp;
 				tmp.set_object(object);
-				static_cast<typename LEAF::allocator_type::derived_pointer>(subject)->set_p(tmp,static_cast<typename LEAF::allocator_type::derived_pointer>(subject));
+				static_cast<typename LEAF::allocator_type::generic_pointer>(subject)->set_p(tmp,static_cast<typename LEAF::allocator_type::generic_pointer>(subject));
 			}
 			static function_table patch(function_table t){
 				t.set_object=set_object;
@@ -1290,7 +1290,7 @@ namespace objrdf{
 		static size_t get_size(CONST_RESOURCE_PTR subject){return 1;}
 		static void out(CONST_RESOURCE_PTR subject,ostream& os,size_t index){
 			property<NAMESPACE,NAME,NIL,IMPLEMENTATION> tmp;
-			static_cast<typename SUBJECT::allocator_type::const_derived_pointer>(subject)->out_p(tmp,os);
+			static_cast<typename SUBJECT::allocator_type::const_generic_pointer>(subject)->out_p(tmp,os);
 		}
 		static function_table get_table(){
 			function_table t;
@@ -1313,11 +1313,11 @@ namespace objrdf{
 		}*/
 		static void in(RESOURCE_PTR subject,istream& is,size_t index){
 			property<NAMESPACE,NAME,RANGE,NIL> tmp;//very awkward
-			static_cast<typename SUBJECT::allocator_type::derived_pointer>(subject)->in_p(tmp,is);//won't find function if in super-class
+			static_cast<typename SUBJECT::allocator_type::generic_pointer>(subject)->in_p(tmp,is);//won't find function if in super-class
 		}
 		static void out(CONST_RESOURCE_PTR subject,ostream& os,size_t index){
 			property<NAMESPACE,NAME,RANGE,NIL> tmp;//very awkward
-			static_cast<typename SUBJECT::allocator_type::const_derived_pointer>(subject)->out_p(tmp,os);
+			static_cast<typename SUBJECT::allocator_type::const_generic_pointer>(subject)->out_p(tmp,os);
 		}
 		static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
 		static void erase(RESOURCE_PTR subject,size_t first,size_t last){}//idem
@@ -2126,6 +2126,10 @@ namespace objrdf{
 		static void lambda2(CONST_RESOURCE_PTR subject,ptrdiff_t,ostream& os,size_t){os<<subject->id;};
 #endif
 		static V go(){
+			static V v=_go();
+			return v;	
+		}
+		static V _go(){
 			LOG<<"get_generic_property:`base_resource'"<<std::endl;
 			function_table rdf_type,objrdf_self,objrdf_id;
 		#ifdef NEW_FUNC_TABLE
@@ -2161,7 +2165,7 @@ namespace objrdf{
 		#endif
 			#ifdef __GNUG__
 			V v={
-				property_info(rdf::type::get_property(),rdf_type),
+				property_info(rdf::type::get_property(),rdf_type),//missing rdfs:domain
 				property_info(objrdf::self::get_property(),objrdf_self),
 				property_info(objrdf::id::get_property(),objrdf_id)
 			};
@@ -2171,6 +2175,11 @@ namespace objrdf{
 			v.push_back(property_info(objrdf::self::get_property(),objrdf_self));
 			v.push_back(property_info(objrdf::id::get_property(),objrdf_id));
 			#endif
+			/*
+ 			*	since we don't use get_property_info we need to set the rdfs::domain of rdf::type
+ 			*	we can not use property_info::p because it is a pointer to const
+ 			*/ 
+			rdf::type::get_property()->get<rdf::Property::domains>().push_back(rdfs::domain(base_resource::get_class()));
 			return v;
 		}
 	};
@@ -2206,6 +2215,10 @@ namespace objrdf{
 #endif
 		typedef typename IfThenElse<std::is_same<SUBCLASS,NIL>::value,RESOURCE,SUBCLASS>::ResultT TMP;
 		static V go(){
+			static V v=_go();
+			return v;	
+		}
+		static V _go(){
 			LOG<<"get_generic_property:`"<<NAME::name()<<"'"<<std::endl;
 			V v=get_generic_property<typename SUPERCLASS::SELF>::go();
 			/*
