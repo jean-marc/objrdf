@@ -1,4 +1,4 @@
-CC = g++
+CC = g++ -Wall
 ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ 
 
 CFLAGS = -O3 -std=c++0x -I. -DOBJRDF_VERB -UREF_COUNT -UNEW_HEADER -UOBJRDF_TUPLE -DERROR_PARSER=cerr -UPTHREAD
