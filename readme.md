@@ -196,6 +196,8 @@ int main(){
 	to_rdf_xml(cout);
 }
 ```
+The class `Test` inherits from `objrdf:resource<>`, the base class is made aware of its subclass via the `SUBCLASS` template parameter (with default value `objrdf::NIL`). If that parameter is not provided the user-defined class will _never_ be used and could cause confusion.
+
 ### Pseudo Properties
 ```cpp
 
@@ -245,7 +247,7 @@ Everytime the resource is serialized or queried (see sparql), the function store
 
 ## Queries
 
-The objects and properties being mapped to a RDF model, they can also be queried through SPARQL, [sparql_engine.cpp](sparql_engine.cpp) offers a limitedimplementation of the query language as well as SPARQL Update. 
+The objects and properties being mapped to a RDF model, they can also be queried through SPARQL, [sparql_engine.cpp](sparql_engine.cpp) offers a limited implementation of the query language as well as SPARQL Update. 
 
 
 ## Implementation
