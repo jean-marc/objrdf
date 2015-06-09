@@ -142,11 +142,19 @@ rdfs::Class::Class(
 #ifndef NATIVE
 void rdfs::Class::patch(V& _v){
 	function_table t;
+	#ifdef NEW_FUNC_TABLE
+	t.out_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset,ostream& os,size_t index){
+		pool_allocator::pool::POOL_PTR p(subject.index,0); 
+		os<<p->get_size_generic(*p);
+	};
+	t.get_size_generic=function_table::default_f::always_1;
+	#else
 	t.out=[](CONST_RESOURCE_PTR subject,ostream& os,size_t index){
 		pool_allocator::pool::POOL_PTR p(subject.index,0); 
 		os<<p->get_size_generic(*p);
 	};
 	t.get_size=function_table::default_f::always_1;
+	#endif
 	_v.push_back(property_info(objrdf::cardinality::get_property(),t));
 }
 #endif
