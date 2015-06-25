@@ -1,6 +1,7 @@
 #include "rdf_xml_parser.h"
 #include <sstream>
 #include <algorithm>
+#include "reification.h"
 using namespace objrdf;
 /*
  *	how do we parse XML content?, it is not valid RDF, is it the responsibility of the property to properly parse?
@@ -379,6 +380,38 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 				}else{
 					ERROR_PARSER<<"no attribute `rdf:resource' or `rdf:nodeID' present"<<endl;
 				}
+			}
+		}
+	}else if(get_class(st.top())==rdf::Statement::get_class()){
+		rdf::Statement::allocator_type::pointer t(st.top());
+		LOG<<"looking for statement..."<<endl;
+		//need to look through all subclasses of rdf::Statement
+		for(auto s:rdf::Statement::get_class()->cget<rdfs::Class::array_superClassOf>()){
+			LOG<<s->id<<endl;
+			pool_allocator::pool::POOL_PTR p(s.index,0); //there is a mapping between Class and pools
+			if(p->iterable){
+				for(auto j=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool_allocator::pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
+					to_rdf_xml(j,cerr);
+					rdf::Statement::allocator_type::generic_pointer r(j);
+					//let's compare subject/predicate/object
+					if(r->cget<rdf::subject>()==t->cget<rdf::subject>()&&
+						r->cget<rdf::predicate>()==t->cget<rdf::predicate>()&&
+						r->cget<rdf::object>()==t->cget<rdf::object>())
+					{
+						//now we can delete current statement and replace with this one
+						rdf::Statement::allocator_type a;
+						a.destroy(t);
+						a.deallocate(t,1);
+						st.top()=r;
+						LOG<<"swapping statement"<<endl;
+						return start_property(name,att);
+					}else{
+						ERROR_PARSER<<"no matching statement found"<<endl;
+					}
+				}
+
+			}else{
+				ERROR_PARSER<<"pool not iterable"<<endl;
 			}
 		}
 	}else{

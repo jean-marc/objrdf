@@ -1,0 +1,25 @@
+<?xml version='1.0'?>
+<rdf:RDF
+xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'
+xmlns:rdfs='http://www.w3.org/2000/01/rdf-schema#'
+xmlns:obj='http://www.example.org/objrdf#'
+xmlns:xsd='http://www.w3.org/2001/XMLSchema#'
+xmlns:test='http://test.example.org/#'
+>
+	<!--
+	<test:A rdf:ID='s'>
+		<test:b><test:B rdf:ID='o'/></test:b>
+	</test:A>
+	-->
+	<test:A rdf:ID='s'/>
+	<test:B rdf:ID='o'/>
+	<rdf:Description rdf:about='#s'>
+		<test:b rdf:resource='#o'/>
+	</rdf:Description>
+	<rdf:Statement>
+		<rdf:subject rdf:resource='#s'/>
+		<rdf:predicate rdf:resource='http://test.example.org/#b'/>
+		<rdf:object rdf:resource='#o'/>
+		<test:meta>12345</test:meta>
+	</rdf:Statement>
+</rdf:RDF>
