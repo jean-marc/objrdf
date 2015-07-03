@@ -39,6 +39,7 @@ base_resource::~base_resource(){
 	LOG<<"delete base_resource `"<<id<<"' "<<this<<endl;
 	#endif
 }
+base_resource& base_resource::operator=(const base_resource& r){}//so id not overriden when copying
 CONST_PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}//strange syntax
 CONST_PROPERTY_PTR base_resource::const_type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}
 size_t base_resource::type_iterator::get_size() const{

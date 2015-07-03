@@ -467,6 +467,7 @@ namespace objrdf{
 		void erase(instance_iterator first,instance_iterator last);
 		void erase(instance_iterator position);
 		base_resource(uri id);
+		base_resource& operator=(const base_resource&);
 		~base_resource();
 		//shouldn't be const?
 		uri id;//can we get rid of it sometime?, we could make it a property,
@@ -2161,6 +2162,9 @@ namespace objrdf{
 		#else
 			rdf_type.cget_object=[](CONST_RESOURCE_PTR subject,size_t){return (CONST_RESOURCE_PTR)base_resource::get_class();};
 			rdf_type.get_size=function_table::default_f::always_1;
+			//does not do anything but needed when creating new resources with INSERT DATA{}
+			rdf_type.add_property=[](RESOURCE_PTR subject,PROVENANCE p){};
+			rdf_type.set_object=[](RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){LOG<<"rdf:type property ignored"<<endl;};
 			objrdf_self.cget_object=[](CONST_RESOURCE_PTR subject,size_t index){return subject;};
 			objrdf_self.get_size=function_table::default_f::always_1;
 			objrdf_id.set_string=[](RESOURCE_PTR subject,string s,size_t){
@@ -2250,6 +2254,9 @@ namespace objrdf{
 		#else
 			rdf_type.cget_object=[](CONST_RESOURCE_PTR subject,size_t){return (CONST_RESOURCE_PTR)RESOURCE::get_class();};
 			rdf_type.get_size=function_table::default_f::always_1;
+			//does not do anything but needed when creating new resources with INSERT DATA{}
+			rdf_type.add_property=[](RESOURCE_PTR subject,PROVENANCE p){};
+			rdf_type.set_object=[](RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){LOG<<"rdf:type property ignored"<<endl;};
 		#endif
 			v.front()=property_info(rdf::type::get_property(),rdf_type);
 			//filter properties for convenience, we need to store index of first non-const property somewhere
