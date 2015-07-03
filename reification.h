@@ -37,7 +37,7 @@ namespace objrdf{
 				meta=a.allocate(1);
 				a.construct(meta,get_uri(meta));
 				meta->get<rdf::predicate>()=_PROPERTY_::get_property();
-				meta->get<rdf::object>()=r;
+				meta->get<rdf::object>()=r;//might not be ready!
 			}
 		}
 		reified(typename _PROPERTY_::RANGE r):_PROPERTY_(r){
