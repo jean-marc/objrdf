@@ -394,9 +394,9 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 					to_rdf_xml(j,cerr);
 					rdf::Statement::allocator_type::generic_pointer r(j);
 					//let's compare subject/predicate/object
-					if(r->cget<rdf::subject>()==t->cget<rdf::subject>()&&
-						r->cget<rdf::predicate>()==t->cget<rdf::predicate>()&&
-						r->cget<rdf::object>()==t->cget<rdf::object>())
+					if((r->cget<rdf::subject>()==t->cget<rdf::subject>())&&
+						(r->cget<rdf::predicate>()==t->cget<rdf::predicate>())&&
+						(r->cget<rdf::object>()==t->cget<rdf::object>()))
 					{
 						//now we can delete current statement and replace with this one
 						rdf::Statement::allocator_type a;
@@ -405,10 +405,9 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 						st.top()=r;
 						LOG<<"swapping statement"<<endl;
 						return start_property(name,att);
-					}else{
-						ERROR_PARSER<<"no matching statement found"<<endl;
 					}
 				}
+				ERROR_PARSER<<"\nno matching statement found"<<endl;
 
 			}else{
 				ERROR_PARSER<<"pool not iterable"<<endl;
