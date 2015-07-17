@@ -8,6 +8,8 @@
 #include "url_decoder.h"
 #include <fstream>
 #include <sys/stat.h>
+//#include <iomanip>
+#include <time.h>
 #include "popen_streambuf.h"
 using namespace objrdf;
 map<string,string> httpd::mimes={{"html","text/html"},{"xhtml","text/html"},
@@ -281,51 +283,62 @@ void httpd::get(http_parser& h,iostream& io){
 			io<<in.rdbuf();
 			io.flush();
 		}
+	#ifndef PTHREAD
+	}else if(h.current_path.compare(0,7,"/_test_")==0){
+		/* 
+		* how would we implement a basic comet-like function?
+		* let's just sleep for some time
+		* we could have some real triggering going on when a client ask to be notified when a property is modified/created/deleted
+		*/
+		std::this_thread::sleep_for(std::chrono::seconds(5));
+		io<<"HTTP/1.1 200 OK\r\n";
+		io<<"Content-Length:"<<0<<"\r\n";
+		io<<"\r\n"<<flush;
+	#endif		
 	}else{
 		//default to index.html
 		string path=h.current_path.substr(1);
 		if(path.empty()) path="index.html";
+		//need to add code to prevent https://en.wikipedia.org/wiki/Directory_traversal_attack
 		//ifstream file(h.current_path.substr(1).c_str(),ios_base::binary);
 		path=file_path+path;
-		LOG<<"opening file `"<<path<<"'"<<endl;
-		ifstream file(path.c_str(),ios_base::binary);
-		if(file){
-			struct stat results;
-			stat(path.c_str(),&results);
-			http_parser::M::iterator j=h.headers.find("If-Modified-Since");
-			time_t t=0;
+		struct stat results;
+		if(stat(path.c_str(),&results)==0){
+			tm* ptm;
+			ptm=gmtime(&results.st_mtime);//last modification time
+			bool stale=true;
+			auto j=h.headers.find("If-Modified-Since");
 			if(j!=h.headers.end()){
-				istringstream is(j->second);
-				is>>t;
+				std::tm t={};
+				//Last-Modified: Tue, 15 Nov 1994 12:45:26 GMT
+				strptime(j->second.c_str(), "%A, %d %B %Y %T %Z", &t);//time zone is parsed but not used	
+				//istringstream is(j->second);
+				//only implemented in gcc 5.0
+				//is >> std::get_time(&t, "%A, %d %B %T:%S");//what about time zone?
+				stale=(mktime(&t)<mktime(ptm));//does that modify ptm??
 			}
-			/*
-			if(t<results.st_mtime){				
-			*/
+			if(stale){
+				LOG<<"opening file `"<<path<<"'"<<endl;
+				ifstream file(path.c_str(),ios_base::binary);
 				string::size_type i=path.find_last_of('.');
 				string extension;
 				if(i!=string::npos) extension=path.substr(i+1);
 				io<<"HTTP/1.1 200 OK"<<"\r\n";
 				io<<"Content-Type:"<<get_mime(extension)<<"\r\n";
 				io<<"Content-Length:"<<results.st_size<<"\r\n";
-				//cache control
-				//convert to gmt
-				/*
-				tm* ptm;
-				ptm=gmtime(&results.st_mtime);
 				char buffer[80];
-				strftime(buffer,80,"%a, %d %b %Y %X %Z",ptm);
+				//just to be sure
+				ptm=gmtime(&results.st_mtime);//last modification time
+				strftime(buffer,80,"%A, %d %B %Y %T %Z",ptm);
+				LOG<<"time stamp:"<<buffer<<endl;
 				io<<"Last-Modified:"<<buffer<<"\r\n";
-				*/
-				io<<"Last-Modified:"<<results.st_mtime<<"\r\n";
 				io<<"\r\n";
 				io<<file.rdbuf();
-			/*
 			}else{
 				LOG<<"cached!"<<endl;
 				io<<"HTTP/1.1 304"<<"\r\n";
 				io<<"\r\n";
 			}
-			*/
 			io.flush();
 		}else{
 			io<<http_404;
