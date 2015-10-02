@@ -21,6 +21,7 @@ namespace objrdf{
  		*/ 
 		static uri hash_uri(std::string s);
 		static uri bnode_uri(std::string s);
+		static uri qname_uri(std::string s);
 		std::string ns() const;
 		bool empty() const;
 		bool is_local() const;

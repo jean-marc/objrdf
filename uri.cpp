@@ -97,6 +97,18 @@ uri uri::hash_uri(string s){
 	}
 #endif
 }
+//look up prefix
+uri uri::qname_uri(std::string s){
+	size_t i=s.find_first_of(':');
+	if(i==string::npos) return uri();
+	auto prefix=s.substr(0,i+1);//`kkk:'
+	auto j=find_if(ns_v().cbegin(),ns_v().cend(),[&](const ns_prefix& n){return n.second==prefix;});
+	if(j==ns_v().cend()) return uri();
+	uri u;
+	u.index=j-ns_v().cbegin();
+	strncpy(u.local,s.substr(i+1).c_str(),uri::STR_SIZE-1);
+	return u;
+}
 string uri::ns() const{
 	return ns_v()[index].first;
 }
