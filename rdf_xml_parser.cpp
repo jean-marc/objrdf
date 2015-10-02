@@ -19,9 +19,32 @@ rdf_xml_parser::rdf_xml_parser(std::istream& is,PROVENANCE p):xml_parser<rdf_xml
 	st.push(placeholder);
 }
 bool rdf_xml_parser::go(){
+	/*
+ 	*	a simpler way might be to keep a list of subjects and property that are not satified yet,
+ 	*	once the object is created those subjects will be updated, no need to remove properties
+ 	*/ 
 	bool r=xml_parser<rdf_xml_parser>::go();
-	for(MISSING_OBJECT::iterator i=missing_object.begin();i!=missing_object.end();++i)
-		LOG<<"missing objects: `"<<i->first<<"'"<<endl;
+	//we need to remove dangling pointers
+	for(auto i=missing_object.begin();i!=missing_object.end();++i){
+		LOG<<"removing statement `"<<i->second.subject->id<<"',`"<<i->second.get_Property()->id<<"',`"<<i->first<<"'"<<endl;
+		//first let's build a base_resource::type_iterator from base_resource::instance_iterator
+		base_resource::type_iterator j(i->second.subject,i->second.i);
+		//then let's iterate through all instances
+		//let's define a lambda to give us the first iterator 
+		auto func=[](base_resource::instance_iterator first,base_resource::instance_iterator last){
+			for (; first != last; ++first) {
+				if (first->get_const_object() == nullptr) {
+					return first;
+				}
+			}
+			return last;
+		};
+		//erase entries one at a time
+		for(auto k=func(j->begin(),j->end());k!=j->end();k=func(j->begin(),j->end())){
+			//cerr<<(k->get_const_object()==nullptr)<<endl;
+			erase(i->second.subject,k);
+		}
+	}
 	return r;
 };
 bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& to spare a map copy?
@@ -312,11 +335,10 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 void rdf_xml_parser::set_missing_object(RESOURCE_PTR object){
 	//need to distinguish blank nodes
 	LOG<<"missing object:"<</*(void*)object.get()<<"\t`"<<*/object->id<<"'"<<endl;
-	MISSING_OBJECT::iterator first=missing_object.find(object->id),last=missing_object.upper_bound(object->id);
+	auto first=missing_object.find(object->id),last=missing_object.upper_bound(object->id);
 	LOG<<(first==missing_object.end())<<"\t"<<(last==missing_object.end())<<"\t"<<(first==last)<<endl;
 	if(first!=missing_object.end()){//why do we need that???
-		for(MISSING_OBJECT::iterator i=first;i!=last;++i){
-			//LOG<<"setting object of resource `"<<i->first<<"'"<<endl;
+		for(auto i=first;i!=last;++i){
 			LOG<<"setting property `"<<i->second->get_Property()->id<<"' of resource `"<<i->second.subject->id<<"' "<<endl;
 			i->second->set_object(object);//???
 		}
