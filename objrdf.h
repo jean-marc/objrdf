@@ -441,6 +441,7 @@ namespace objrdf{
 			instance_iterator end(){return instance_iterator(subject,*this,get_size());}
 			const_instance_iterator cbegin(){return const_instance_iterator(subject,*this,0);}
 			const_instance_iterator cend(){return const_instance_iterator(subject,*this,get_size());}
+			//add_property and set_object should not be separated
 			instance_iterator add_property(PROVENANCE p);
 		};
 		struct const_type_iterator:V::const_iterator{
@@ -463,7 +464,7 @@ namespace objrdf{
 			const_instance_iterator cbegin(){return const_instance_iterator(subject,*this,0);}
 			const_instance_iterator cend(){return const_instance_iterator(subject,*this,get_size());}
 		};
-
+		//why isn't that a static member?
 		void erase(instance_iterator first,instance_iterator last);
 		void erase(instance_iterator position);
 		base_resource(uri id);
@@ -597,7 +598,7 @@ namespace objrdf{
 		typename _PROPERTIES_=tuple<>, //MUST BE A tuple !!
 		typename SUBCLASS=NIL,//default should be resource
 		typename _SUPERCLASS_=base_resource,//could we have more than 1 super-class
-		typename TRIGGER=tuple<>, //if you define a trigger you must derive the class to add the handlers
+		typename TRIGGER=tuple<>, //if you define a trigger you must derive the class to add the handlers: instead_of_insert() and instead_of_delete()
 		typename ALLOCATOR=typename _SUPERCLASS_::allocator_type
 	>
 	struct resource:_SUPERCLASS_{
@@ -1224,6 +1225,7 @@ namespace objrdf{
 			BASE::get(subject,index).in(is);
 		}
 		template<typename LEAF> struct trigger{
+			static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
 			static void in(RESOURCE_PTR subject,istream& is,size_t index){
 				PROPERTY tmp;
 				tmp.in(is);
@@ -1231,6 +1233,7 @@ namespace objrdf{
 				static_cast<typename LEAF::allocator_type::generic_pointer>(subject)->set_p(tmp,static_cast<typename LEAF::allocator_type::generic_pointer>(subject));
 			}
 			static function_table patch(function_table t){
+				t.add_property=add_property;
 				t.in=in;
 				return t;
 			}
@@ -1271,12 +1274,29 @@ namespace objrdf{
 			BASE::get(subject,index).set_object(object);
 		}
 		template<typename LEAF> struct trigger{
+			//let's override add_property so it does not modify 
+			//it is now the trigger's responsibility to add property
+			static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
 			static void set_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
 				typename BASE::PP tmp;
 				tmp.set_object(object);
-				static_cast<typename LEAF::allocator_type::generic_pointer>(subject)->set_p(tmp,static_cast<typename LEAF::allocator_type::generic_pointer>(subject));
+				//let's try to use SQL terminology instead_of_insert trigger?
+				static_cast<typename LEAF::allocator_type::generic_pointer>(subject)->set_p(
+					tmp,
+					static_cast<typename LEAF::allocator_type::generic_pointer>(subject)
+				);
+			}
+			static void erase(RESOURCE_PTR subject,size_t first,size_t last){
+				assert(last==first+1);//only one property at a time
+				static_cast<typename LEAF::allocator_type::generic_pointer>(subject)->instead_of_delete(
+					//BASE::get(subject).begin()+first,//iterator would be nice, or pointer?
+					BASE::get(subject,first),//not happy about this one
+					static_cast<typename LEAF::allocator_type::generic_pointer>(subject)	
+				);
 			}
 			static function_table patch(function_table t){
+				t.erase=erase;
+				t.add_property=add_property;
 				t.set_object=set_object;
 				return t;
 			}
@@ -2297,5 +2317,44 @@ namespace objrdf{
 		#endif
 	}
 	ostream& operator<<(ostream& os,const property_info& i);
+	//to get custom filenames when using persistent storage could apply to resource or property
+	template<
+		typename T/*,
+		typename S=typename T::SELF*/
+	> struct file_name{
+		template<typename OTHER_T> struct rebind{
+			typedef file_name<typename OTHER_T::SELF> other;
+		};
+	};
+	
+	template<
+		//typename T,
+		typename NAMESPACE,
+		typename NAME,
+		typename PROPERTIES,
+		typename SUBCLASS,
+		typename SUPERCLASS,
+		typename TRIGGER,
+		typename ALLOCATOR
+	> struct file_name</*T,*/resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,TRIGGER,ALLOCATOR>>{
+		static string get(){
+			auto tmp=string(NAMESPACE::name().first)+string(NAME::name());			
+			for_each(tmp.begin(),tmp.end(),[](char& c){if (c=='/') c='\\';});
+			return tmp;
+		}
+	};
+	template<
+		typename NAMESPACE,
+		typename NAME,
+		typename RANGE,
+		typename BASE_PROPERTY
+	> struct file_name<property<NAMESPACE,NAME,RANGE,BASE_PROPERTY>>{
+		static string get(){
+			auto tmp=string(NAMESPACE::name().first)+string(NAME::name());			
+			for_each(tmp.begin(),tmp.end(),[](char& c){if (c=='/') c='\\';});
+			return tmp;
+		}
+	};
+		
 }
 #endif

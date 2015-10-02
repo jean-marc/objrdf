@@ -77,7 +77,10 @@ map<uri,RESOURCE_PTR>& base_resource::get_index(){
 }
 void base_resource::do_index(RESOURCE_PTR p){
 	LOG<<"indexing resource `"<<p->id<<"'"<<endl;
-	get_index()[p->id]=p;
+	//throw if duplicate id
+	auto tmp=get_index().insert({p->id,p});
+	if(!tmp.second) throw std::logic_error(string("duplicate rdf:ID `")+p->id.local+"'");
+	//get_index()[p->id]=p;
 }
 #ifdef NEW_FUNC_TABLE
 property_info::property_info(CONST_PROPERTY_PTR p,function_table t,ptrdiff_t offset):p(p),t(t),literalp(p->literalp),offset(offset){}
@@ -328,9 +331,11 @@ namespace objrdf{
 	#endif
 
 	void erase(RESOURCE_PTR r,base_resource::instance_iterator first,base_resource::instance_iterator last){
+		assert(first.i->t.erase);
 		first.i->t.erase(r,first.index,last.index);
 	}
 	void erase(RESOURCE_PTR r,base_resource::instance_iterator position){
+		assert(position.i->t.erase);
 		position.i->t.erase(r,position.index,position.index+1);
 	}
 	base_resource::const_instance_iterator get_const_self_iterator(CONST_RESOURCE_PTR r){
