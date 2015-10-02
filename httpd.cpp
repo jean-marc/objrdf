@@ -80,7 +80,12 @@ void httpd::process(TCPSocketWrapper::TCPAcceptedSocket sock){
 			LOG<<"peek: "<<stream.peek()<<endl;
 			http_parser p(stream);
 			if(p.go()){//blocking
-				if(p.current_method=="GET") get(p,stream);
+				/*
+				*	we need to add modules here instead of this
+				*/ 
+				if(p.current_path.compare(0,5,"/rest")==0){
+					rest(p,stream);
+				}else if(p.current_method=="GET") get(p,stream);
 				else if(p.current_method=="POST") post(p,stream);
 				else{
 					stream<<"HTTP/1.1 400 Bad Request\r\n";
@@ -215,6 +220,7 @@ void httpd::get(http_parser& h,iostream& io){
 			sparql_parser p(is);
 			//modify the parser
 			//if(p.go()){
+			std::lock_guard<std::mutex> lock(m);
 			if(p._go<seqw<sparql_parser::document,char_p<EOF>>>()){
 				LOG<<"success!"<<endl;
 				io<<"HTTP/1.1 200 OK"<<"\r\n";
@@ -374,6 +380,7 @@ void httpd::post(http_parser& h,iostream& io){
 			in>>l;
 			string query;
 		*/		
+		//need to modify so we can only post to /sparql
 		sparql_parser p(io);
 		LOG<<"peek:`"<<io.peek()<<"'"<<endl;
 		//a lot of things happening in go, it can be interrupted anytime by socket exception
@@ -383,7 +390,7 @@ void httpd::post(http_parser& h,iostream& io){
 			ostringstream out;
 			//check if client want csv format
 			auto i=h.url_arguments.find("format");
-			if(i->second=="csv"){
+			if(i!=h.url_arguments.cend()&&i->second=="csv"){
 				p.out_csv(out);
 				io<<"Content-Type: "<<"text/plain"<<"\r\n";
 			}else{
@@ -436,6 +443,50 @@ void httpd::post(http_parser& h,iostream& io){
 		LOG<<"unknown exception!!!!!"<<endl;
 	}
 }
+void httpd::rest(http_parser& h,iostream& io){
+	//let's do some crude parsing of the path
+	vector<string> tokens;
+	istringstream in(h.current_path);
+	for(std::string each;std::getline(in,each,'/'); tokens.push_back(each));
+	for(auto t:tokens) cerr<<t<<"\n";
+	//we need to be able to detect array properties so we can serialize as [a,b,c,...]
+	//let's start with JSON serialization, let's select all rdfs::Classes
+	//always start with a rdfs:Class
+	vector<CONST_CLASS_PTR> _classes;
+	CONST_CLASS_PTR c=nullptr;	
+	if(tokens.size()>2) c=find_t<rdfs::Class>(uri::qname_uri(tokens[2]));
+	if(c){
+		_classes={c};
+	}else{//copy all classes
+		rdfs::Class::allocator_type a;
+		for(auto i=a.cbegin();i!=a.cend();++i) _classes.push_back(CONST_CLASS_PTR(i));
+	}
+	ostringstream out;
+	out<<"{\""<<rdfs::Class::get_class()->id<<"\" :{\n";
+	for(auto i=_classes.cbegin();i!=_classes.cend();++i){
+		if(i!=_classes.cbegin()) out<<",\n";
+		out<<"\t\""<<(*i)->id<<"\":{\n";//which attributes do we serialize?
+		//if it is a class we should list all instances
+		pool_allocator::pool::POOL_PTR p((*i).index,0); //there is a mapping between Class and pools
+		if(p->iterable){
+			for(
+				auto j=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);
+				j!=pool_allocator::pool::cend<base_resource::allocator_type::pointer::CELL>(p);
+				++j){
+					if(j!=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p)) out<<",\n";
+					out<<"\t\t\""<<j->id<<"\":{}";
+			}	
+		}
+		out<<"\n\t}";
+	}
+	out<<"\n}}\n";
+	io<<"HTTP/1.1 200 OK\r\n";
+	io<<"Content-Length: "<<out.str().size()<<"\r\n";
+	io<<"Content-Type: "<<"application/json"<<"\r\n";
+	io<<"\r\n";
+	io<<out.str();//for some reason throws here and not caught anywhere?
+	io.flush();
+}	
 void httpd::put(http_parser& h,iostream& io){}	
 void httpd::head(http_parser& h,iostream& io){}	
 void httpd::delete_(http_parser& h,iostream& io){}
