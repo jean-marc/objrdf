@@ -27,7 +27,7 @@ namespace objrdf{
 		*	we need to come up with derived class name, should have something to do with property name 
 		*/ 
 		typedef resource<rdf::rdfs_namespace,str<'R'>,STATEMENT_PROPERTY,NIL,rdf::Statement> R;
-		typename R::allocator_type::pointer meta;
+		typename R::allocator_type::pointer meta;//could we allocate on the stack?
 		reified(){
 			R::get_class();
 		}
@@ -49,6 +49,8 @@ namespace objrdf{
 				meta->get<rdf::object>()=r;
 			}
 		}
+		//not correct!
+		/*
 		~reified(){
 			if(meta){
 				typename R::allocator_type a;
@@ -56,6 +58,7 @@ namespace objrdf{
 				a.deallocate(meta,1);
 			}
 		}
+		*/
 		reified& operator=(const reified& r){
 			_PROPERTY_::operator=(r);
 			if(!meta&&r){
