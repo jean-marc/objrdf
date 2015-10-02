@@ -1,4 +1,4 @@
-CC = g++ -Wall
+CC = g++ -fdiagnostics-color -Wall
 ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ 
 
 CFLAGS = -O3 -std=c++0x -I. -DOBJRDF_VERB -UREF_COUNT -UNEW_HEADER -UOBJRDF_TUPLE -DERROR_PARSER=cerr -UPTHREAD
@@ -31,6 +31,8 @@ native/%.o:%.cpp %.h
 test%:test%.cpp $(OBJ1) $(OBJ8) objrdf.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) -o $@ 
 examples/%:examples/%.cpp $(OBJ1) $(OBJ8) $(OBJ9) objrdf.h
+	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) $(OBJ9) -o $@ 
+test/%:test/%.cpp $(OBJ1) $(OBJ8) $(OBJ9) objrdf.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) $(OBJ9) -o $@ 
 doc/%:doc/%.cpp $(NATIVE_BASIC) $(NATIVE_PARSER) objrdf.h
 	$(CC) $(CFLAGS) -DNATIVE $< $(NATIVE_BASIC) $(NATIVE_PARSER) -o $@ 
@@ -74,8 +76,8 @@ httpd.o:httpd.cpp httpd.h http_parser.h
 	$(CC) -c $(CFLAGS) $< -o $@
 http_parser.test:http_parser.test.cpp http_parser.h ebnf.h
 	$(CC) $(CFLAGS) http_parser.test.cpp $(OBJ5) -o http_parser.test 
-httpd.test:$(OBJ1) $(OBJ5) $(OBJ6) $(OBJ7) httpd.test.cpp httpd.h http_parser.h ebnf.h
-	$(CC) $(CFLAGS) httpd.test.cpp $(OBJ1) $(OBJ5) $(OBJ6) $(OBJ7) -lpthread -o httpd.test 
+httpd.test:$(OBJ1) $(OBJ6) $(OBJ9) httpd.test.cpp httpd.h http_parser.h ebnf.h
+	$(CC) $(CFLAGS) httpd.test.cpp $(OBJ1) $(OBJ6) $(OBJ9) -lpthread -o httpd.test 
 turtle_parser.test:$(OBJ1) ebnf.h turtle_parser.h
 	$(CC) $(CFLAGS) turtle_parser.test.cpp -o turtle_parser.test 
 sparql_engine.test: objrdf.o uri.o sparql_engine.o ebnf.o sparql_engine.test.cpp turtle_parser.h char_iterator.h
