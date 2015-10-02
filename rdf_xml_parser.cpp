@@ -421,7 +421,9 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 						(r->cget<rdf::object>()==t->cget<rdf::object>()))
 					{
 						//now we can delete current statement and replace with this one
+						//but we have to remove from index first
 						rdf::Statement::allocator_type a;
+						rdf::Statement::get_index().erase(t->id);
 						a.destroy(t);
 						a.deallocate(t,1);
 						st.top()=r;
