@@ -111,7 +111,7 @@ void httpd::process(TCPSocketWrapper::TCPAcceptedSocket sock){
 
 }
 #endif
-inline ostream& http_404(ostream& stream){
+inline ostream& httpd::http_404(ostream& stream){
 	stream<<"HTTP/1.1 404 file not found"<<endl;
 	ostringstream o;
 	char hostname[255];
@@ -444,24 +444,35 @@ void httpd::post(http_parser& h,iostream& io){
 	}
 }
 void httpd::rest(http_parser& h,iostream& io){
+	if(h.current_method!="GET"){
+		io<<"HTTP/1.1 405 Method Not Allowed"<<endl;
+		io<<"\r\n";
+		io.flush();
+		return;
+	}
 	//let's do some crude parsing of the path
 	vector<string> tokens;
 	istringstream in(h.current_path);
 	for(std::string each;std::getline(in,each,'/'); tokens.push_back(each));
-	for(auto t:tokens) cerr<<t<<"\n";
+	//for(auto t:tokens) cerr<<t<<"\n";
 	//we need to be able to detect array properties so we can serialize as [a,b,c,...]
 	//let's start with JSON serialization, let's select all rdfs::Classes
 	//always start with a rdfs:Class
 	vector<CONST_CLASS_PTR> _classes;
-	CONST_CLASS_PTR c=nullptr;	
-	if(tokens.size()>2) c=find_t<rdfs::Class>(uri::qname_uri(tokens[2]));
-	if(c){
-		_classes={c};
+	if(tokens.size()>2){
+		auto c=find_t<rdfs::Class>(uri::qname_uri(tokens[2]));
+		if(c){
+			 _classes={c};
+		}else{
+			io<<http_404;
+			return;
+		}
 	}else{//copy all classes
 		rdfs::Class::allocator_type a;
 		for(auto i=a.cbegin();i!=a.cend();++i) _classes.push_back(CONST_CLASS_PTR(i));
 	}
 	ostringstream out;
+	//out<<"<pre>";//so we can render svg
 	out<<"{\""<<rdfs::Class::get_class()->id<<"\" :{\n";
 	for(auto i=_classes.cbegin();i!=_classes.cend();++i){
 		if(i!=_classes.cbegin()) out<<",\n";
@@ -474,15 +485,36 @@ void httpd::rest(http_parser& h,iostream& io){
 				j!=pool_allocator::pool::cend<base_resource::allocator_type::pointer::CELL>(p);
 				++j){
 					if(j!=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p)) out<<",\n";
-					out<<"\t\t\""<<j->id<<"\":{}";
+					out<<"\t\t\""<<j->id<<"\":{\n";
+					for(auto k=cbegin(j);k!=cend(j);++k){
+						if(k->cbegin()!=k->cend()){
+							if(k!=cbegin(j)) out<<",\n";	
+							out<<"\t\t\t\""<<k->get_Property()->id<<"\":[";
+							if(k->literalp()){
+								for(base_resource::const_instance_iterator l=k->cbegin();l!=k->cend();++l){
+									if(l!=k->cbegin()) out<<",";
+									out<<"\""<<*l<<"\"";
+								}
+							}else{
+								for(base_resource::const_instance_iterator l=k->cbegin();l!=k->cend();++l){
+									if(l!=k->cbegin()) out<<",";
+									out<<"\""<<l->get_const_object()->id.local<<"\"";
+								}
+							}
+							out<<"]";
+						}
+					}
+					out<<"\n\t\t}";
 			}	
 		}
 		out<<"\n\t}";
 	}
 	out<<"\n}}\n";
+	//out<<"</pre>";
 	io<<"HTTP/1.1 200 OK\r\n";
 	io<<"Content-Length: "<<out.str().size()<<"\r\n";
 	io<<"Content-Type: "<<"application/json"<<"\r\n";
+	//io<<"Content-Type: "<<"text/html"<<"\r\n";
 	io<<"\r\n";
 	io<<out.str();//for some reason throws here and not caught anywhere?
 	io.flush();

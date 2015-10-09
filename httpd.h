@@ -56,6 +56,7 @@ namespace objrdf{
 		void head(http_parser& h,iostream& io);	
 		void delete_(http_parser& h,iostream& io);
 		void rest(http_parser& h,iostream& io);
+		static ostream& http_404(ostream& stream);
 	};
 }
 #endif
