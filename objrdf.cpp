@@ -287,6 +287,7 @@ base_resource::instance_iterator base_resource::type_iterator::add_property(PROV
 int base_resource::p_to_xml_size(const CONST_PROPERTY_PTR p){return 1;}
 namespace objrdf{
 	CONST_CLASS_PTR get_class(CONST_RESOURCE_PTR r){
+		assert(r!=nullptr);
 		#ifdef NATIVE
 		return r->_get_class();
 		#else
