@@ -1,6 +1,8 @@
 #include "uri.h"
 #include <sstream>
 #include <string.h>
+#include <iomanip>
+#include <parser/url_decoder.h>
 using namespace objrdf;
 using namespace std;
 /*
@@ -185,6 +187,32 @@ void uri::ns_declaration_pretty(ostream& os){
 void uri::to_uri(ostream& os) const{
 	static vector<ns_prefix>& _ns_v_=ns_v();
 	os<<_ns_v_[index].first<<local;
+}
+string _url_encode(const string& value){
+    ostringstream escaped;
+    escaped.fill('0');
+    escaped << hex;
+    for(auto c:value){
+        // Keep alphanumeric and other accepted characters intact
+        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~')
+			escaped << c;
+        else
+			// Any other characters are percent-encoded
+			escaped << '%' << setw(2) << int((unsigned char) c);
+	}
+	return escaped.str();
+}
+//let's only work on local part
+uri uri::url_encode(std::string s){
+	return uri(_url_encode(s));	
+}
+string uri::url_decode() const{
+	//we could also set a flag when it's encoded to save processing
+	//we could also store non valid URI'S (there are shorter) and only encode when needed
+	//would be nice if it was transparent to user
+	url_decoder::my_handler<const char*> h;
+	auto r=url_decoder::word::go(local,local+strlen(local),h);
+	return h.decoded;
 }
 namespace objrdf{
 	ostream& operator<<(ostream& os,const uri& u){

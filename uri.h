@@ -34,6 +34,8 @@ namespace objrdf{
 		static void ns_declaration(std::ostream& os);
 		static void ns_declaration_pretty(std::ostream& os);
 		void to_uri(std::ostream& os) const;
+		static uri url_encode(std::string s);//s is not a valid URI and needs to be encoded
+		std::string url_decode() const;//returns original name
 		/*
  		*	we can use a pool allocator instead of fixed size array but the problem is
  		*	the id lives in in base_resource that will be derived by persistent or volatile
@@ -49,7 +51,7 @@ namespace objrdf{
  		*/ 
 		uri(const uri& u);
 		uri& operator=(const uri& u);
-		enum{STR_SIZE=32};
+		enum{STR_SIZE=64};//not great but will switch to variable size very soon
 		char local[STR_SIZE];	
 	private:
 		//make sure all prefixes are different
