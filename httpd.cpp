@@ -487,7 +487,17 @@ void httpd::rest(http_parser& h,iostream& io){
 					if(j!=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p)) out<<",\n";
 					out<<"\t\t\""<<j->id<<"\":{\n";
 					for(auto k=cbegin(j);k!=cend(j);++k){
-						if(k->cbegin()!=k->cend()){
+						auto size=k.get_size();//iterator should support that
+						if(size==1){
+							if(k!=cbegin(j)) out<<",\n";	
+							out<<"\t\t\t\""<<k->get_Property()->id<<"\":";
+							if(k->get_Property()->cget<rdfs::range>()==rdfs::XML_Literal::get_class())
+								out<<"\"XML content...\"";
+							else if(k->literalp())
+								out<<"\""<<*k->cbegin()<<"\"";
+							else
+								out<<"\""<<k->cbegin()->get_const_object()->id.local<<"\"";
+						}else if(size>1){
 							if(k!=cbegin(j)) out<<",\n";	
 							out<<"\t\t\t\""<<k->get_Property()->id<<"\":[";
 							if(k->literalp()){
