@@ -532,8 +532,6 @@ namespace objrdf{
 		virtual CONST_CLASS_PTR _get_class() const{return get_class();}
 		#endif
 		template<typename U> U& get(){return helper<base_resource,U>::hget(*this);}
-		template<typename U> const U& get_const() const{return helper<base_resource,U>::hcget(*this);}
-		//shorter name
 		template<typename U> const U& cget() const{return helper<base_resource,U>::hcget(*this);}
 		static RESOURCE_PTR nil;
 		int p_to_xml_size(const CONST_PROPERTY_PTR p);
@@ -593,8 +591,8 @@ namespace objrdf{
 }
 namespace objrdf{
 	template<
-		typename NAMESPACE,
-		typename NAME,
+		typename _NAMESPACE_,
+		typename _NAME_,
 		typename _PROPERTIES_=tuple<>, //MUST BE A tuple !!
 		typename SUBCLASS=NIL,//default should be resource
 		typename _SUPERCLASS_=base_resource,//could we have more than 1 super-class
@@ -602,6 +600,8 @@ namespace objrdf{
 		typename ALLOCATOR=typename _SUPERCLASS_::allocator_type
 	>
 	struct resource:_SUPERCLASS_{
+		typedef _NAMESPACE_ NAMESPACE;
+		typedef _NAME_ NAME;
 		typedef _PROPERTIES_ PROPERTIES;
 		typedef _SUPERCLASS_ SUPERCLASS;
 		typedef resource SELF;
@@ -685,6 +685,7 @@ namespace objrdf{
 		typename _RANGE_
 	> struct base_property{
 		typedef _RANGE_ RANGE;
+		typedef _RANGE_ RDFS_RANGE;
 		enum{TYPE=LITERAL};
 		RANGE t;
 		//should it be constant?
@@ -714,6 +715,7 @@ namespace objrdf{
 	};
 	template<> struct base_property<std::string>{
 		typedef std::string RANGE;
+		typedef std::string RDFS_RANGE;
 		enum{TYPE=STRING|LITERAL};
 		std::string t;
 		base_property(std::string s=std::string()):t(s){}
@@ -732,6 +734,7 @@ namespace objrdf{
  	*/
 	template<> struct base_property<uri>{
 		typedef uri RANGE;
+		typedef uri RDFS_RANGE;
 		enum{TYPE=STRING|LITERAL};
 	};
 	/*
@@ -744,6 +747,7 @@ namespace objrdf{
 		typename _RANGE_
 	> struct base_property<const _RANGE_>{
 		typedef _RANGE_ RANGE;
+		typedef _RANGE_ RDFS_RANGE;
 		enum{TYPE=CONSTP|LITERAL};
 		const RANGE t;
 		base_property(const RANGE t=0):t(t){}
@@ -761,6 +765,7 @@ namespace objrdf{
 	>
 	struct base_property<pool_allocator::pool::ptr<char,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>{
 		typedef std::string RANGE;
+		typedef std::string RDFS_RANGE;
 		enum{TYPE=STRING|LITERAL};
 		typedef typename pool_allocator::pool::allocator<char,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> allocator_type;
 		typedef std::vector<char,allocator_type> STR;//to make our life easy
@@ -801,13 +806,14 @@ namespace objrdf{
 		size_t get_size() const{return strlen(t)>0;}
 		void erase(){t[0]=0;}
 	};
-	#ifdef NATIVE
+	#ifdef NATIVE //we should be able to use same code by replacing custom allocator by std::allocator
 	template<
 		typename _RANGE_
 	>
 	class base_property<_RANGE_*>{
 	public:
 		typedef _RANGE_ RANGE;
+		typedef _RANGE_ RDFS_RANGE;
 		RANGE* t;
 		enum{TYPE=0};
 		base_property():t(0){}
@@ -828,6 +834,7 @@ namespace objrdf{
 	class base_property<const _RANGE_*>{
 	public:
 		typedef _RANGE_ RANGE;
+		typedef _RANGE_ RDFS_RANGE;
 		const RANGE* t;
 		enum{TYPE=CONSTP};
 		base_property():t(0){}
@@ -871,6 +878,7 @@ namespace objrdf{
 	public:
 		typedef pool_allocator::pool::ptr<VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
 		typedef PTR RANGE;
+		typedef VALUE_TYPE RDFS_RANGE;
 		enum{TYPE=0};
 		base_property(){}
 		base_property(const PTR& s):PTR(s){}
@@ -927,6 +935,7 @@ namespace objrdf{
 	class base_property<pool_allocator::pool::ptr<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool_allocator::pool::ptr<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
 	public:
 		typedef pool_allocator::pool::ptr<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
+		typedef const VALUE_TYPE RDFS_RANGE;
 		typedef PTR RANGE;
 		enum{TYPE=CONSTP};
 		base_property(){}
@@ -951,6 +960,7 @@ namespace objrdf{
 	class base_property<pool_allocator::pool::ptr_d<VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool_allocator::pool::ptr_d<VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
 	public:
 		typedef pool_allocator::pool::ptr_d<VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
+		typedef VALUE_TYPE RDFS_RANGE;
 		typedef PTR RANGE;
 		enum{TYPE=0};
 		//base_property():PTR(0,0){}
@@ -981,6 +991,7 @@ namespace objrdf{
 	class base_property<pool_allocator::pool::ptr_d<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>>:public pool_allocator::pool::ptr_d<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT>{
 	public:
 		typedef pool_allocator::pool::ptr_d<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
+		typedef const VALUE_TYPE RDFS_RANGE;
 		typedef PTR RANGE;
 		enum{TYPE=CONSTP};
 		//base_property():PTR(0,0){}
@@ -2035,6 +2046,9 @@ namespace objrdf{
 		#endif
 				objrdf::get_uri<NAMESPACE,NAME>(),
 				rdfs::range(selector<RANGE>::ResultT::get_class()),
+				/* will get rid of selector soon
+				rdfs::range(BASE_PROPERTY::RDFS_RANGE::get_class()),
+				*/
 				property<NAMESPACE,NAME,RANGE,BASE_PROPERTY>::TYPE&LITERAL
 		);
 		return c;
