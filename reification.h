@@ -22,57 +22,13 @@ namespace objrdf{
 		typename STATEMENT_PROPERTY=std::tuple<>
 	>
 	struct reified:_PROPERTY_{
+		//what if we make just a wrapper and manage the meta member outside?
 		/*
 		*	only store information if pointer non-null
 		*	we need to come up with derived class name, should have something to do with property name 
 		*/ 
-		typedef resource<rdf::rdfs_namespace,str<'R'>,STATEMENT_PROPERTY,NIL,rdf::Statement> R;
+		typedef resource<rdf::rdfs_namespace,str<'R'>,STATEMENT_PROPERTY,NIL,rdf::Statement> R;//I guess we could call it statement too
 		typename R::allocator_type::pointer meta;//could we allocate on the stack?
-		reified(){
-			R::get_class();
-		}
-		reified(const reified& r):_PROPERTY_(r){
-			if(r){
-				typename R::allocator_type a;
-				meta=a.allocate(1);
-				a.construct(meta,get_uri(meta));
-				meta->get<rdf::predicate>()=_PROPERTY_::get_property();
-				meta->get<rdf::object>()=r;//might not be ready!
-			}
-		}
-		reified(typename _PROPERTY_::RANGE r):_PROPERTY_(r){
-			if(r){
-				typename R::allocator_type a;
-				meta=a.allocate(1);
-				a.construct(meta,get_uri(meta));
-				meta->get<rdf::predicate>()=_PROPERTY_::get_property();
-				meta->get<rdf::object>()=r;
-			}
-		}
-		//not correct!
-		/*
-		~reified(){
-			if(meta){
-				typename R::allocator_type a;
-				a.destroy(meta);
-				a.deallocate(meta,1);
-			}
-		}
-		*/
-		reified& operator=(const reified& r){
-			_PROPERTY_::operator=(r);
-			if(!meta&&r){
-				typename R::allocator_type a;
-				meta=a.allocate(1);
-				a.construct(meta,get_uri(meta));
-				meta->get<rdf::predicate>()=_PROPERTY_::get_property();
-				meta->get<rdf::object>()=r;
-			}
-			return *this;
-		}
-		void set_object(RESOURCE_PTR object){
-			operator=(static_cast<typename _PROPERTY_::RANGE>(object));
-		}
 	};
 	/*
 	template<
