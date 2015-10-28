@@ -937,7 +937,7 @@ namespace objrdf{
 		typedef pool_allocator::pool::ptr<const VALUE_TYPE,INDEX,ALLOCATOR,RAW_ALLOCATOR,MANAGEMENT> PTR;
 		typedef const VALUE_TYPE RDFS_RANGE;
 		typedef PTR RANGE;
-		enum{TYPE=CONSTP};
+		enum{TYPE=CONSTP};//the property can be modified, not the object!
 		base_property(){}
 		base_property(const PTR& s):PTR(s){}
 		size_t get_size() const{return (bool)PTR(*this);}//dangerous notation
@@ -1271,16 +1271,6 @@ namespace objrdf{
 		static CONST_RESOURCE_PTR get_const_object(CONST_RESOURCE_PTR subject,size_t index){
 			return BASE::get_const(subject,index).get_const_object();
 		}
-		static function_table get_table(){
-			auto t=BASE::get_table();
-			t.cget_object=get_const_object;
-			t.set_object=set_const_object;//???
-			return t;	
-		}
-	};	
-	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,0>:functions<SUBJECT,PROPERTY,CONSTP>{
-		typedef functions<SUBJECT,PROPERTY,CONSTP> BASE;
-		static RESOURCE_PTR get_object(RESOURCE_PTR subject,size_t index){return BASE::get(subject,index).get_object();}
 		static void set_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
 			BASE::get(subject,index).set_object(object);
 		}
@@ -1314,8 +1304,17 @@ namespace objrdf{
 		};
 		static function_table get_table(){
 			auto t=BASE::get_table();
+			t.cget_object=get_const_object;
+			t.set_object=set_object;//???
+			return t;	
+		}
+	};	
+	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,0>:functions<SUBJECT,PROPERTY,CONSTP>{
+		typedef functions<SUBJECT,PROPERTY,CONSTP> BASE;
+		static RESOURCE_PTR get_object(RESOURCE_PTR subject,size_t index){return BASE::get(subject,index).get_object();}
+		static function_table get_table(){
+			auto t=BASE::get_table();
 			t.get_object=get_object;
-			t.set_object=set_object;
 			return t;	
 		}
 	};
