@@ -700,7 +700,7 @@ namespace objrdf{
 			LOG<<"compare `"<<t<<"' and `"<<a.t<<"'"<<std::endl;
 			return sgn(t-a.t);
 		}
-		void erase(){t=0;}
+		void erase(){t={};}//valid default value
 		operator RANGE&(){return t;}
 		operator const RANGE&() const{return t;}
 	};
