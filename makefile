@@ -2,7 +2,7 @@ CC = g++ -fdiagnostics-color
 ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ 
 
 CFLAGS = -O3 -std=c++0x -Wall -I. -DOBJRDF_VERB -UREF_COUNT -UNEW_HEADER -UOBJRDF_TUPLE -DERROR_PARSER=cerr -UPTHREAD
-OBJ1 = objrdf.o uri.o
+OBJ1 = objrdf.o uri.o objrdf_time.o
 OBJ5 = Sockets.o
 OBJ7 = sparql_engine.o
 OBJ6 = httpd.o $(OBJ5) $(OBJ7)
@@ -98,22 +98,22 @@ readme.pdf:readme.md
 #	-rwxrwxr-x 1 user user  939032 Apr 18 10:55 libobjrdf.so
 #	run with /lib64/ld-linux-x86-64.so.2 --library-path /home/user/projects/objrdf/ _example.inventory
 
-libobjrdf.so:objrdf.pic.o uri.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o
-	$(CC) $(CFLAGS) objrdf.pic.o uri.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o -lpthread -shared -o $@
+libobjrdf.so:objrdf.pic.o uri.pic.o objrdf_time.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o
+	$(CC) $(CFLAGS) $? -lpthread -shared -o $@
 libobjrdf_min.so:objrdf.pic.o uri.pic.o ebnf.pic.o rdf_xml_parser.pic.o
 	$(CC) $(CFLAGS) objrdf.pic.o uri.pic.o ebnf.pic.o rdf_xml_parser.pic.o -shared -o $@
-libobjrdf.arm.so:objrdf.arm.pic.o uri.arm.pic.o sparql_engine.arm.pic.o ebnf.arm.pic.o httpd.arm.pic.o rdf_xml_parser.arm.pic.o Sockets.arm.pic.o
-	$(ARM) $(CFLAGS) objrdf.arm.pic.o uri.arm.pic.o sparql_engine.arm.pic.o ebnf.arm.pic.o httpd.arm.pic.o rdf_xml_parser.arm.pic.o Sockets.arm.pic.o -lpthread -shared -o $@
+libobjrdf.arm.so:objrdf.arm.pic.o uri.arm.pic.o objrdf_time.arm.pic.o sparql_engine.arm.pic.o ebnf.arm.pic.o httpd.arm.pic.o rdf_xml_parser.arm.pic.o Sockets.arm.pic.o
+	$(ARM) $(CFLAGS) $? -lpthread -shared -o $@
 #too many include files, need to reorganize the code
 install:libobjrdf.so
 	strip libobjrdf.so
 	cp libobjrdf.so /usr/local/lib/
 	mkdir -p /usr/local/include/objrdf/
-	cp char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h reification.h versioned.h /usr/local/include/objrdf/
+	cp char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h objrdf_time.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h reification.h versioned.h /usr/local/include/objrdf/
 arm_install:libobjrdf.arm.so
 	/opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-strip libobjrdf.arm.so
 	cp libobjrdf.arm.so /opt/ioplex_mx/usr/arm-buildroot-linux-gnueabihf/sysroot/usr/lib/libobjrdf.so
-	cp char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h reification.h versioned.h /opt/ioplex_mx/usr/arm-buildroot-linux-gnueabihf/sysroot/usr/include/objrdf/
+	cp char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h objrdf_time.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h reification.h versioned.h /opt/ioplex_mx/usr/arm-buildroot-linux-gnueabihf/sysroot/usr/include/objrdf/
 %.schema.so:%.schema.pic.o objrdf.o
 	$(CC) $(CFLAGS) $< -shared -o $@ 
 #clean:
