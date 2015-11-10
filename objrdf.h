@@ -506,7 +506,7 @@ namespace objrdf{
 			#else
 			typedef void (*deallocate_f)(CONST_RESOURCE_PTR);
 			#endif
-			typedef void (*get_output_f)(CONST_RESOURCE_PTR,ostream& os);
+			typedef void (*get_output_f)(CONST_RESOURCE_PTR,const map<string,string>&,ostream& os);
 			ctor_f ctor;
 			dtor_f dtor;
 			cctor_f cctor;
@@ -525,7 +525,7 @@ namespace objrdf{
 		*	is there a reason we can't store everything in Class: one more level of indirection, 
 		*	the best would be the pool, we could assign some space (char[n]) and just copy over
 		*/	
-		void get_output(ostream& os) const;
+		void get_output(const map<string,string>&,ostream& os) const;
 		static CONST_CLASS_PTR get_class();	
 		#ifdef NATIVE
 		//alternatively could be pointer to class, would be same size as vtable pointer
@@ -563,8 +563,8 @@ namespace objrdf{
 			a.deallocate(r,1);//why don't we need casting???? should behave same as NATIVE
 		}
 		#endif
-		template<typename T> void get_output(CONST_RESOURCE_PTR r,ostream& os){
-			static_cast<const T&>(*r).get_output(os);
+		template<typename T> void get_output(CONST_RESOURCE_PTR r,const map<string,string>& m,ostream& os){
+			static_cast<const T&>(*r).get_output(m,os);
 		}
 	}
 	base_resource::instance_iterator operator+(const base_resource::instance_iterator& a,const unsigned int& b);
@@ -1793,7 +1793,7 @@ namespace objrdf{
 	base_resource::type_iterator end(RESOURCE_PTR r,CONST_USER_PTR u);
 	base_resource::const_type_iterator cbegin(CONST_RESOURCE_PTR r,CONST_USER_PTR u);
 	base_resource::const_type_iterator cend(CONST_RESOURCE_PTR r,CONST_USER_PTR u);
-	void get_output(CONST_RESOURCE_PTR r,ostream& os);
+	void get_output(CONST_RESOURCE_PTR r,const map<string,string>& m,ostream& os);
 	//to investigate new method to store indices
 	OBJRDF_CLASS(Test_class,tuple<>);
 	/*	version control, use the git commit hash + date

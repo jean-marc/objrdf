@@ -87,7 +87,7 @@ property_info::property_info(CONST_PROPERTY_PTR p,function_table t,ptrdiff_t off
 #else
 property_info::property_info(CONST_PROPERTY_PTR p,function_table t):p(p),t(t),literalp(p->literalp){}
 #endif
-void base_resource::get_output(ostream& os) const{
+void base_resource::get_output(const map<string,string>& m,ostream& os) const{
 	os<<"HTTP/1.1 200 OK"<<"\r\n";
 	ostringstream out;
 	out<<"empty"<<endl;
@@ -371,8 +371,8 @@ namespace objrdf{
 		}
 		os<<"\n</"<<get_class(r)->id<<">";
 	}
-	void get_output(CONST_RESOURCE_PTR r,ostream& os){
-		get_class(r)->t.get_output(r,os);
+	void get_output(CONST_RESOURCE_PTR r,const map<string,string>& m,ostream& os){
+		get_class(r)->t.get_output(r,m,os);
 	}
 }
 void objrdf::to_rdf_xml(ostream& os){

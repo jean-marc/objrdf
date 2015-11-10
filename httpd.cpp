@@ -195,6 +195,9 @@ void httpd::get(http_parser& h,iostream& io){
 			io.flush();
 		}
 	}else if(h.current_path.compare(0,3,"/r/")==0){
+		/*
+ 		*	let's pass the header to the function
+ 		*/ 
 		string id=h.current_path.substr(3);
 		CONST_RESOURCE_PTR r=find(uri(id));
 		if(!r){
@@ -202,7 +205,7 @@ void httpd::get(http_parser& h,iostream& io){
 		}else{
 			//io<<"HTTP/1.1 200 OK\r\n";
 			//a resource can have its own content, could be a static/dynamic document
-			get_output(r,io); //not protected by mutex
+			get_output(r,h.url_arguments,io); //not protected by mutex
 		}	
 	}else if(h.current_path=="/sparql"){//sparql end-point
 		/*
