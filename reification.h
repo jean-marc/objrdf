@@ -1,6 +1,6 @@
 #ifndef REIFICATION_H
 #define REIFICATION_H
-#include <objrdf/objrdf.h>
+#include "objrdf.h"
 namespace rdf{
 	using namespace objrdf;
 	typedef property<rdf::rdfs_namespace,str<'s','u','b','j','e','c','t'>,RESOURCE_PTR> subject;
