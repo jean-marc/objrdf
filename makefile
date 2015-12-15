@@ -43,6 +43,10 @@ _example.%:example.%.cpp libobjrdf.so
 tests = $(basename $(wildcard test*.cpp))
 examples = $(basename $(wildcard example.*.cpp))
 
+libobjrdf.so:objrdf.pic.o uri.pic.o objrdf_time.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o
+	$(CC) $(CFLAGS) $? -lpthread -shared -o $@
+check:
+	echo 'it is all good!'
 dump:dump.cpp $(OBJ1)
 	$(CC) $(CFLAGS) dump.cpp $(OBJ1) schema.so -o dump
 dump_schema:dump_schema.cpp $(OBJ1)
@@ -98,18 +102,23 @@ readme.pdf:readme.md
 #	-rwxrwxr-x 1 user user  939032 Apr 18 10:55 libobjrdf.so
 #	run with /lib64/ld-linux-x86-64.so.2 --library-path /home/user/projects/objrdf/ _example.inventory
 
-libobjrdf.so:objrdf.pic.o uri.pic.o objrdf_time.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o
-	$(CC) $(CFLAGS) $? -lpthread -shared -o $@
 libobjrdf_min.so:objrdf.pic.o uri.pic.o ebnf.pic.o rdf_xml_parser.pic.o
 	$(CC) $(CFLAGS) objrdf.pic.o uri.pic.o ebnf.pic.o rdf_xml_parser.pic.o -shared -o $@
 libobjrdf.arm.so:objrdf.arm.pic.o uri.arm.pic.o objrdf_time.arm.pic.o sparql_engine.arm.pic.o ebnf.arm.pic.o httpd.arm.pic.o rdf_xml_parser.arm.pic.o Sockets.arm.pic.o
 	$(ARM) $(CFLAGS) $? -lpthread -shared -o $@
 #too many include files, need to reorganize the code
+prefix=/usr/local
+exec_prefix=$(prefix)
+includedir=$(prefix)/include
+libdir=$(exec_prefix)/lib/
+INSTALL=install
+INSTALL_PROGRAM=$(INSTALL)
+INSTALL_DATA=$(INSTALL) -m 644
 install:libobjrdf.so
 	strip libobjrdf.so
-	cp libobjrdf.so /usr/local/lib/
-	mkdir -p /usr/local/include/objrdf/
-	cp char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h objrdf_time.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h reification.h versioned.h /usr/local/include/objrdf/
+	$(INSTALL_DATA) libobjrdf.so $(DESTDIR)$(libdir)
+	mkdir -p $(DESTDIR)$(includedir)/objrdf/
+	$(INSTALL_DATA) char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h objrdf_time.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h reification.h versioned.h $(DESTDIR)$(includedir)/objrdf/
 arm_install:libobjrdf.arm.so
 	/opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-strip libobjrdf.arm.so
 	cp libobjrdf.arm.so /opt/ioplex_mx/usr/arm-buildroot-linux-gnueabihf/sysroot/usr/lib/libobjrdf.so
