@@ -107,7 +107,7 @@ libobjrdf_min.so:objrdf.pic.o uri.pic.o ebnf.pic.o rdf_xml_parser.pic.o
 libobjrdf.arm.so:objrdf.arm.pic.o uri.arm.pic.o objrdf_time.arm.pic.o sparql_engine.arm.pic.o ebnf.arm.pic.o httpd.arm.pic.o rdf_xml_parser.arm.pic.o Sockets.arm.pic.o
 	$(ARM) $(CFLAGS) $? -lpthread -shared -o $@
 #too many include files, need to reorganize the code
-prefix=/usr/local
+prefix=/usr
 exec_prefix=$(prefix)
 includedir=$(prefix)/include
 libdir=$(exec_prefix)/lib
@@ -116,10 +116,8 @@ INSTALL_PROGRAM=$(INSTALL)
 INSTALL_DATA=$(INSTALL) -m 644
 install:libobjrdf.so
 	strip libobjrdf.so
-	mkdir -p $(DESTDIR)$(libdir)
-	$(INSTALL_DATA) libobjrdf.so $(DESTDIR)$(libdir)
-	mkdir -p $(DESTDIR)$(includedir)/objrdf
-	$(INSTALL_DATA) char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h objrdf_time.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h reification.h versioned.h $(DESTDIR)$(includedir)/objrdf
+	$(INSTALL_DATA) -D libobjrdf.so $(DESTDIR)$(libdir)
+	$(INSTALL_DATA) -D char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h objrdf_time.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h reification.h versioned.h $(DESTDIR)$(includedir)/objrdf
 arm_install:libobjrdf.arm.so
 	/opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-strip libobjrdf.arm.so
 	cp libobjrdf.arm.so /opt/ioplex_mx/usr/arm-buildroot-linux-gnueabihf/sysroot/usr/lib/libobjrdf.so
