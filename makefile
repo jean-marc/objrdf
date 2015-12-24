@@ -116,8 +116,10 @@ INSTALL_PROGRAM=$(INSTALL)
 INSTALL_DATA=$(INSTALL) -m 644
 install:libobjrdf.so
 	strip libobjrdf.so
-	$(INSTALL_DATA) -D libobjrdf.so $(DESTDIR)$(libdir)
-	$(INSTALL_DATA) -D char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h objrdf_time.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h reification.h versioned.h $(DESTDIR)$(includedir)/objrdf
+	mkdir -p $(DESTDIR)$(libdir)
+	$(INSTALL_DATA) libobjrdf.so $(DESTDIR)$(libdir)
+	mkdir -p $(DESTDIR)$(includedir)/objrdf
+	$(INSTALL_DATA) char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h objrdf_time.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h reification.h versioned.h $(DESTDIR)$(includedir)/objrdf
 arm_install:libobjrdf.arm.so
 	/opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-strip libobjrdf.arm.so
 	cp libobjrdf.arm.so /opt/ioplex_mx/usr/arm-buildroot-linux-gnueabihf/sysroot/usr/lib/libobjrdf.so
