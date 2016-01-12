@@ -596,7 +596,13 @@ namespace objrdf{
 		typename _PROPERTIES_=tuple<>, //MUST BE A tuple !!
 		typename SUBCLASS=NIL,//default should be resource
 		typename _SUPERCLASS_=base_resource,//could we have more than 1 super-class
-		typename TRIGGER=tuple<>, //if you define a trigger you must derive the class to add the handlers: instead_of_insert() and instead_of_delete()
+		/*
+ 		* when using trigger the class must be derived to add the handlers: instead_of_insert() and instead_of_delete()
+ 		* eg. tuple<some_property>
+ 		* 	instead_of_insert(some_property inserted);
+ 		* 	instead_of_delete(some_property& deleted);
+ 		*/
+		typename TRIGGER=tuple<>,
 		typename ALLOCATOR=typename _SUPERCLASS_::allocator_type
 	>
 	struct resource:_SUPERCLASS_{

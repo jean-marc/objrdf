@@ -19,7 +19,8 @@ namespace objrdf{
 //augmented property
 	template<
 		typename _PROPERTY_,
-		typename STATEMENT_PROPERTY=std::tuple<>
+		typename STATEMENT_PROPERTY,
+		typename ALLOCATOR
 	>
 	struct reified:_PROPERTY_{
 		//what if we make just a wrapper and manage the meta member outside?
@@ -27,7 +28,7 @@ namespace objrdf{
 		*	only store information if pointer non-null
 		*	we need to come up with derived class name, should have something to do with property name 
 		*/ 
-		typedef resource<rdf::rdfs_namespace,str<'R'>,STATEMENT_PROPERTY,NIL,rdf::Statement> R;//I guess we could call it statement too
+		typedef resource<rdf::rdfs_namespace,str<'R'>,STATEMENT_PROPERTY,NIL,rdf::Statement,std::tuple<>,ALLOCATOR> R;//I guess we could call it statement too
 		typename R::allocator_type::pointer meta;//could we allocate on the stack?
 	};
 	/*

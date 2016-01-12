@@ -331,6 +331,9 @@ Rather than modify the existing table we can extend it and use offset based on u
 
 Alignment requirements might necessitate padding between members, this will increase the memory usage (bigger database files), the framework offers some information about members (RDF properties) offset and size and can help reorder to limit the padding. Note that data mis-alignment results in slower memory access (more pointer operation) and could be a problem in CPU intensive operation (see here for instance)
 
+## Concurrency
+
+Some literal types can use atomic
 
 ##questions/ideas
 

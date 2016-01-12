@@ -38,7 +38,7 @@ namespace objrdf{
 		template<typename P> void instead_of_delete(P&,typename BASE::allocator_type::pointer){
 
 		}
-		//maybe we should name a more explicit name like snapshot_pointer
+		//maybe we should use a more explicit name like snapshot_pointer
 		struct pointer:BASE::allocator_type::pointer{
 			//could also modify destination 
 			pointer(const typename BASE::allocator_type::pointer& p):BASE::allocator_type::pointer(

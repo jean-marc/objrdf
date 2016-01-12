@@ -40,7 +40,7 @@ namespace rdf{
 	PROPERTY(predicate,rdf::Property::allocator_type::pointer);
 	PROPERTY(object,base_resource::allocator_type::pointer);//no literal for now
 	//char _Statement[]="Statement";
-	struct Statement:resource<rdfs_namespace,_Statement,
+	struct Statement:resource<rdfs_namespace,str<'S','t','a','t','e','m','e','n','t'>,
 		std::tuple<>,//if same size as base class could it use same allocator???
 		Statement
 	>{
@@ -78,7 +78,7 @@ namespace rdf{
 		typename STATEMENT_ALLOCATOR
 	>struct reification:PROPERTY{
 		//create class to store info
-		typedef objrdf::resource<rdfs_namespace,_Statement,STATEMENT_PROPERTY> Statement;
+		typedef objrdf::resource<rdfs_namespace,str<'S','t','a','t','e','m','e','n','t'>,STATEMENT_PROPERTY> Statement;
 		typename reification::Statement::allocator_type::pointer s;//better with ref counting		
 		reification(){
 			Statement::get_class();
@@ -158,6 +158,7 @@ int main(){
 		}
 	}
 	//crashes when iterating through classes in generic fashion
+	/*
 	{
 	rdfs::Class::allocator_type a;
 	//for(auto i=a.cbegin();i!=a.cend();++i){
@@ -172,6 +173,7 @@ int main(){
 		}
 	}
 	}
+	*/
 	//cerr<<"#######"<<endl;
 	to_rdf_xml(cout);
 
