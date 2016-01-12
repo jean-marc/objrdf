@@ -1,7 +1,7 @@
 #ifndef OBJRDF_TIME_H
 #define OBJRDF_TIME_H
 #include <chrono>
-#include <objrdf/objrdf.h>
+#include "objrdf.h"
 
 namespace objrdf{
 	template<> struct selector<std::chrono::system_clock::time_point>{
