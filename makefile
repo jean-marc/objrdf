@@ -117,7 +117,6 @@ INSTALL=install
 INSTALL_PROGRAM=$(INSTALL)
 INSTALL_DATA=$(INSTALL) -m 644
 install:libobjrdf.so
-	strip libobjrdf.so
 	mkdir -p $(DESTDIR)$(libdir)
 	$(INSTALL_DATA) libobjrdf.so $(DESTDIR)$(libdir)
 	mkdir -p $(DESTDIR)$(includedir)/objrdf
