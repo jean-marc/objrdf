@@ -229,7 +229,7 @@ void httpd::get(http_parser& h,iostream& io){
 				io<<"HTTP/1.1 200 OK"<<"\r\n";
 				ostringstream out;
 				auto i=h.url_arguments.find("format");
-				if(i->second=="csv"){
+				if(i!=h.url_arguments.end() && i->second=="csv"){
 					io<<"Content-Type: "<<"text/plain"<<"\r\n";
 					p.out_csv(out);
 				}else{
