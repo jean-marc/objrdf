@@ -1,4 +1,4 @@
-CC = g++ -fdiagnostics-color 
+CC = g++
 ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ 
 
 CFLAGS = -O3 -std=c++0x -Wall -I. -DOBJRDF_VERB -UREF_COUNT -UNEW_HEADER -UOBJRDF_TUPLE -DERROR_PARSER=cerr -UPTHREAD
@@ -45,8 +45,10 @@ examples = $(basename $(wildcard example.*.cpp))
 
 libobjrdf.so:objrdf.pic.o uri.pic.o objrdf_time.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o
 	$(CC) $(CFLAGS) $? -lpthread -shared -o $@
-check:
-	echo 'it is all good!'
+check_impl:check_impl.cpp $(OBJ1)
+	$(CC) $(CFLAGS) $(OBJ1) $< -o $@
+check:check_impl
+	./check_impl
 dump:dump.cpp $(OBJ1)
 	$(CC) $(CFLAGS) dump.cpp $(OBJ1) schema.so -o dump
 dump_schema:dump_schema.cpp $(OBJ1)
