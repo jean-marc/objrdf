@@ -48,7 +48,7 @@ libobjrdf.so:objrdf.pic.o uri.pic.o objrdf_time.pic.o sparql_engine.pic.o ebnf.p
 check_impl:check_impl.cpp $(OBJ1)
 	$(CC) $(CFLAGS) $(OBJ1) $< -o $@
 check:check_impl
-	./check_impl
+	mkdir -p db && ./check_impl
 dump:dump.cpp $(OBJ1)
 	$(CC) $(CFLAGS) dump.cpp $(OBJ1) schema.so -o dump
 dump_schema:dump_schema.cpp $(OBJ1)
