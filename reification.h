@@ -17,18 +17,46 @@ namespace rdf{
 }
 namespace objrdf{
 //augmented property
+//	
+	template<typename STR> struct reified_str:STR{
+		static const char* name(){
+			char prefix[]="reified_";
+			auto s=STR::name();
+			char* ss=new char[strlen(prefix)+strlen(s)+1];
+			strcpy(ss,prefix);			
+			strcat(ss,s);
+			//delete[] s;
+			return ss;
+		}
+	};
 	template<
 		typename _PROPERTY_,
 		typename STATEMENT_PROPERTY,
 		typename ALLOCATOR
 	>
-	struct reified:_PROPERTY_{
+	struct reified;
+	template<
+		typename NAMESPACE,
+		typename NAME,
+		typename RANGE,
+		typename STATEMENT_PROPERTY,
+		typename ALLOCATOR
+	>
+	struct reified<property<NAMESPACE,NAME,RANGE>,STATEMENT_PROPERTY,ALLOCATOR>:property<NAMESPACE,NAME,RANGE>{
 		//what if we make just a wrapper and manage the meta member outside?
 		/*
 		*	only store information if pointer non-null
 		*	we need to come up with derived class name, should have something to do with property name 
+		*	can we have compile time concatenation?
 		*/ 
-		typedef resource<rdf::rdfs_namespace,str<'R'>,STATEMENT_PROPERTY,NIL,rdf::Statement,std::tuple<>,ALLOCATOR> R;//I guess we could call it statement too
+		typedef resource<
+			rdf::rdfs_namespace,
+			reified_str<NAME>,
+			STATEMENT_PROPERTY,
+			NIL,
+			rdf::Statement,
+			std::tuple<>,
+			ALLOCATOR> R;//I guess we could call it statement too
 		typename R::allocator_type::pointer meta;//could we allocate on the stack?
 	};
 	/*
