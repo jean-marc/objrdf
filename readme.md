@@ -396,3 +396,10 @@ int main(){
 ```
 
 comparison with relational db: is a pool similar to a table?...
+
+
+#Reference
+http://www.w3.org/TR/2013/REC-sparql11-protocol-20130321/
+http://www.w3.org/TR/sparql11-http-rdf-update/
+RDF store: https://www.aelius.com/njh/redstore/
+
