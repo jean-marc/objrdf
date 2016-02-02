@@ -69,6 +69,7 @@ struct turtle_parser:char_iterator{
 		or_p<
 			seq<
 				char_p<';'>,
+				kleene_p<white_space>,
 				predicateObjectList<OBJECT> 
 			>,
 		true_p>>{};
