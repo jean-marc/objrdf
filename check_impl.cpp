@@ -28,6 +28,10 @@ int main(){
 		"	<instance> :p_0 12345;\n"
 		"	:p_0 6789 .\n"
 		"}",
+		"PREFIX: <http://www.example.org/#>\n"
+		"DELETE DATA{\n"
+		"	<instance> :p_0 6789 .\n"
+		"}",
 		"DESCRIBE <#instance>"
 	};
 	for(auto q:queries){
@@ -38,8 +42,8 @@ int main(){
 		if(!r) exit(1);
 		p.out(cout);
 	}
-	//problem with pool iterator on ARM
 	{
+		//pool iterator
 		std::set<uri> s;
 		rdfs::Class::allocator_type a;
 		find_if(a.cbegin(),a.cend(),[&](const rdfs::Class& c){
@@ -49,7 +53,25 @@ int main(){
 		});
 		assert(s.size()==a.size());
 	}
-	
+	{
+		//generic pool iterator
+		rdfs::Class::allocator_type a;
+		for(auto i=a.cbegin();i!=a.cend();++i){
+			pool_allocator::pool::POOL_PTR p(i.get_cell_index(),0); //there is a mapping between Class and pools
+			if(p->iterable){
+				cerr<<i->id<<endl;
+				std::set<uri> s;
+				for(
+					auto j=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);
+					j!=pool_allocator::pool::cend<base_resource::allocator_type::pointer::CELL>(p);
+					++j){
+					cerr<<"\t"<<j->id<<endl;
+					s.insert(j->id);
+				}
+				assert(s.size()==p->get_size_generic(*p));//could have nicer syntax
+			}else{
+				LOG<<"pool `"<<i->id<<"' not iterable "<<p->payload_offset<<endl;
+			}
+		}
+	}
 }
-
-
