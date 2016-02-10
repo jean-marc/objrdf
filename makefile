@@ -45,8 +45,8 @@ examples = $(basename $(wildcard example.*.cpp))
 
 libobjrdf.so:objrdf.pic.o uri.pic.o objrdf_time.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o
 	$(CC) $(CFLAGS) $? -lpthread -shared -o $@
-check_impl:check_impl.cpp $(OBJ1)
-	$(CC) $(CFLAGS) $(OBJ1) $< -o $@
+check_impl:check_impl.cpp $(OBJ1) $(OBJ7) $(OBJ9)
+	$(CC) $(CFLAGS) $(OBJ1) $(OBJ7) $(OBJ9) $< -o $@
 check:check_impl
 	mkdir -p db && ./check_impl
 dump:dump.cpp $(OBJ1)
