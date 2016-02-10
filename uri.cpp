@@ -211,7 +211,8 @@ string uri::url_decode() const{
 	//we could also store non valid URI'S (there are shorter) and only encode when needed
 	//would be nice if it was transparent to user
 	url_decoder::my_handler<const char*> h;
-	auto r=url_decoder::word::go(local,local+strlen(local),h);
+	if(!url_decoder::word::go(local,local+strlen(local),h).first)
+		throw std::runtime_error(string("failed URL decode `")+local+"'");
 	return h.decoded;
 }
 namespace objrdf{

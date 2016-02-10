@@ -25,7 +25,6 @@
 //#define ERROR_PARSER cerr<<"ERROR:"
 namespace objrdf{
 	struct rdf_xml_parser:xml_parser<rdf_xml_parser>{
-		PROVENANCE p;
 		bool string_property;
 		std::stack<RESOURCE_PTR> st;
 		typedef multimap<uri,base_resource::instance_iterator> MISSING_OBJECT;
@@ -39,6 +38,7 @@ namespace objrdf{
  		*/ 
 		RESOURCE_PTR placeholder;
 		base_resource::type_iterator current_property;
+		PROVENANCE p;
 		void set_missing_object(RESOURCE_PTR); 
 		rdf_xml_parser(std::istream& is,PROVENANCE p=1);
 		bool start_resource(uri name,ATTRIBUTES att);

@@ -1982,10 +1982,6 @@ namespace objrdf{
 			,objrdf::hashOf(pool_allocator::pool::get_hash<TMP>())
 			#endif
 		));
-		#ifndef NATIVE
-		//is that a good place to generate indexes?
-		static auto tmp=TMP::allocator_type::_index();
-		#endif
 		return p;
 	}
 	//there should be a cleaner way to do that

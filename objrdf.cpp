@@ -39,7 +39,7 @@ base_resource::~base_resource(){
 	LOG<<"delete base_resource `"<<id<<"' "<<this<<endl;
 	#endif
 }
-base_resource& base_resource::operator=(const base_resource& r){}//so id not overriden when copying
+base_resource& base_resource::operator=(const base_resource& r){return *this;}//so id not overriden when copying
 CONST_PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}//strange syntax
 CONST_PROPERTY_PTR base_resource::const_type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}
 size_t base_resource::type_iterator::get_size() const{
@@ -293,7 +293,7 @@ namespace objrdf{
 		#else
 		CONST_CLASS_PTR p(r.pool_ptr.index,0);
 		try{
-			auto r=p.operator->();
+			p.operator->();
 		}catch(std::out_of_range& e){
 			LOG<<"rdfs::Class not defined yet!"<<endl;
 			exit(1);
