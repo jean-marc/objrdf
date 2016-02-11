@@ -3,6 +3,7 @@
 */
 #include "objrdf.h"
 #include "sparql_engine.h"
+#include <set>
 using namespace objrdf;
 namespace test{	
 	RDFS_NAMESPACE("http://www.example.org/#","test");
@@ -37,6 +38,18 @@ int main(){
 		if(!r) exit(1);
 		p.out(cout);
 	}
+	//problem with pool iterator on ARM
+	{
+		std::set<uri> s;
+		rdfs::Class::allocator_type a;
+		find_if(a.cbegin(),a.cend(),[&](const rdfs::Class& c){
+			cerr<<"\t"<<c.id<<endl;
+			s.insert(c.id);
+			return false;
+		});
+		assert(s.size()==a.size());
+	}
+	
 }
 
 
