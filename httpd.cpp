@@ -64,6 +64,7 @@ void* httpd::server(void* s){
 void httpd::run(){
 	TCPSocketWrapper sockserver;
 	sockserver.listen(port);
+	LOG_NOTICE<<"HTTPD server listening on port:"<<port<<endl;
 	for(;;){
 		TCPSocketWrapper::TCPAcceptedSocket sock(sockserver.accept());
 		auto t=std::thread(&httpd::process,this,sock);
@@ -79,7 +80,9 @@ void httpd::process(TCPSocketWrapper::TCPAcceptedSocket sock){
 		while(stream.good()){
 			LOG_DEBUG<<"peek: "<<stream.peek()<<endl;
 			http_parser p(stream);
+			//would be nice to display URL
 			if(p.go()){//blocking
+				LOG_NOTICE<<_sock.address()<<" \""<<p.current_method<<" "<<p.current_path<<"\""<<endl;
 				/*
 				*	we need to add modules here instead of this
 				*/ 
@@ -93,7 +96,7 @@ void httpd::process(TCPSocketWrapper::TCPAcceptedSocket sock){
 					stream.flush();
 				}
 			}else{
-				LOG_ERROR<<"could not parse http header\n";
+				LOG_ERROR<<_sock.address()<<" \""<<p.current_method<<" "<<p.current_path<<"\" 400"<<endl;
 				stream<<"HTTP/1.1 400 Bad Request\r\n";
 				stream.setstate(ios::badbit);
 				stream.flush();
