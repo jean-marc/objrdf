@@ -11,6 +11,7 @@
 #ifndef HTTP_PARSER_H
 #define HTTP_PARSER_H
 #include "ebnf.h"
+#include "log_info.h"
 #include <iostream>
 #include <string>
 #include <map>
