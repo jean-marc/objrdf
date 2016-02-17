@@ -34,7 +34,7 @@ struct match_ns{
 };
 uri::uri():index(0){
 	local[0]=0;//empty string
-	cerr<<"new uri `"<<local<<"'"<<endl;
+	LOG_DEBUG<<"new uri `"<<local<<"'"<<endl;
 }
 //should not use this!, use blank nodes instead
 string get(void* p){
@@ -48,7 +48,7 @@ uri::uri(string _local):index(0){
 		strncpy(local,get(this).c_str(),uri::STR_SIZE-1);
 	else
 		strncpy(local,_local.c_str(),uri::STR_SIZE-1);
-	cerr<<"new uri `"<<local<<"'"<<endl;
+	LOG_DEBUG<<"new uri `"<<local<<"'"<<endl;
 }
 uri::uri(string ns,string _local){
 	//does not use ns!
@@ -142,7 +142,7 @@ uri& uri::operator=(const uri& u){
 }
 void uri::print(){
 	for(vector<ns_prefix>::iterator i=ns_v().begin();i<ns_v().end();++i)
-		cout<<(i-ns_v().begin())<<"\t"<<i->second<<"\t"<<i->first<<endl;
+		LOG_DEBUG<<(i-ns_v().begin())<<"\t"<<i->second<<"\t"<<i->first<<endl;
 }
 bool comp(const uri::ns_prefix& a,const uri::ns_prefix& b){return a.second<b.second;}
 struct pred{
