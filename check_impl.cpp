@@ -70,7 +70,7 @@ int main(){
 				}
 				assert(s.size()==p->get_size_generic(*p));//could have nicer syntax
 			}else{
-				LOG<<"pool `"<<i->id<<"' not iterable "<<p->payload_offset<<endl;
+				cerr<<"pool `"<<i->id<<"' not iterable "<<p->payload_offset<<endl;
 			}
 		}
 	}
