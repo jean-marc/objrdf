@@ -51,10 +51,10 @@ void* httpd::server(void* s){
 	int port=static_cast<httpd*>(s)->port;
 	//can we make it listen only on 127.0.0.1?
 	sockserver.listen(port);
-	LOG << "http server is listening on port "<<port<< endl;
+	LOG_NOTICE << "http server is listening on port "<<port<< endl;
 	for(;;){
 		TCPSocketWrapper* sock=new TCPSocketWrapper(sockserver.accept());
-		LOG<<"accepted connection from: "<<sock->address()<<" port:"<<sock->port()<<endl;
+		LOG_NOTICE<<"accepted connection from: "<<sock->address()<<" port:"<<sock->port()<<endl;
 		request_info* r=new request_info(static_cast<httpd*>(s),sock);
 		pthread_t shell_t;
 		pthread_create(&shell_t,NULL,request,r);
@@ -73,11 +73,11 @@ void httpd::run(){
 void httpd::process(TCPSocketWrapper::TCPAcceptedSocket sock){
 	try{
 		TCPSocketWrapper _sock(sock);
-		LOG<<"HTTPD accepted connection from: "<<_sock.address()<<" port:"<<_sock.port()<<endl;
+		LOG_NOTICE<<"HTTPD accepted connection from: "<<_sock.address()<<" port:"<<_sock.port()<<endl;
 		TCPStream stream(_sock);
 		stream.exceptions(iostream::eofbit|iostream::badbit);
 		while(stream.good()){
-			LOG<<"peek: "<<stream.peek()<<endl;
+			LOG_DEBUG<<"peek: "<<stream.peek()<<endl;
 			http_parser p(stream);
 			if(p.go()){//blocking
 				/*
@@ -93,20 +93,20 @@ void httpd::process(TCPSocketWrapper::TCPAcceptedSocket sock){
 					stream.flush();
 				}
 			}else{
-				LOG<<"could not parse http header\n";
+				LOG_ERROR<<"could not parse http header\n";
 				stream<<"HTTP/1.1 400 Bad Request\r\n";
 				stream.setstate(ios::badbit);
 				stream.flush();
 			}
-			LOG<<"done!"<<endl;
+			LOG_DEBUG<<"done!"<<endl;
 		}
-		LOG<<"ending thread"<<endl;
+		LOG_DEBUG<<"ending thread"<<endl;
 	}catch(SocketRunTimeException& e){
-		LOG<<"****** "<<e.what()<<endl;
+		LOG_INFO<<"****** "<<e.what()<<endl;
 	}catch(SocketLogicException& e){
-		LOG<<"****** "<<e.what()<<endl;
+		LOG_INFO<<"****** "<<e.what()<<endl;
 	}catch(...){
-		LOG<<"****** exception!"<<endl;
+		LOG_INFO<<"****** exception!"<<endl;
 	}
 
 }
@@ -134,13 +134,13 @@ inline ostream& http_400(ostream& stream){
 }
 #ifdef PTHREAD
 void* httpd::request(void* s){
-	LOG<<"new request"<<endl;
+	LOG_NOTICE<<"new request"<<endl;
 	request_info* r=static_cast<request_info*>(s);
 	try{
 		TCPStream stream(*r->second);
 		stream.exceptions(iostream::eofbit|iostream::badbit);
 		while(stream.good()){
-			LOG<<"peek: "<<stream.peek()<<endl;
+			LOG_DEBUG<<"peek: "<<stream.peek()<<endl;
 			http_parser p(stream);
 			if(p.go()){//blocking
 				if(p.current_method=="GET") r->first->get(p,stream);
@@ -151,23 +151,23 @@ void* httpd::request(void* s){
 					stream.flush();
 				}
 			}else{
-				LOG<<"could not parse http header\n";
+				LOG_ERROR<<"could not parse http header\n";
 				stream<<"HTTP/1.1 400 Bad Request\r\n";
 				stream.setstate(ios::badbit);
 				stream.flush();
 			}
-			LOG<<"done!"<<endl;
+			LOG_DEBUG<<"done!"<<endl;
 		}
-		LOG<<"ending thread"<<endl;
+		LOG_DEBUG<<"ending thread"<<endl;
 		delete r->second;
 		delete r;//will attempt a flush here
 		return 0;
 	}catch(SocketRunTimeException& e){
-		LOG<<"****** "<<e.what()<<endl;
+		LOG_INFO<<"****** "<<e.what()<<endl;
 	}catch(SocketLogicException& e){
-		LOG<<"****** "<<e.what()<<endl;
+		LOG_INFO<<"****** "<<e.what()<<endl;
 	}catch(...){
-		LOG<<"****** exception!"<<endl;
+		LOG_INFO<<"****** exception!"<<endl;
 	}
 	//return 0;
 }
@@ -225,7 +225,7 @@ void httpd::get(http_parser& h,iostream& io){
 			//if(p.go()){
 			std::lock_guard<std::mutex> lock(m);
 			if(p._go<seqw<sparql_parser::document,char_p<EOF>>>()){
-				LOG<<"success!"<<endl;
+				LOG_DEBUG<<"success!"<<endl;
 				io<<"HTTP/1.1 200 OK"<<"\r\n";
 				ostringstream out;
 				auto i=h.url_arguments.find("format");
@@ -279,7 +279,7 @@ void httpd::get(http_parser& h,iostream& io){
 		//pass the arguments to the command: http://unix.derkeiler.com/Newsgroups/comp.unix.programmer/2006-12/msg00447.html
 		//string command="./"+h.current_path.substr(9);
 		string command=file_path+h.current_path.substr(9);
-		LOG<<"running command `"<<command<<"'"<<endl;
+		LOG_NOTICE<<"running command `"<<command<<"'"<<endl;
 		popen_streambuf sb;
 		istream in(&sb);
 		if (NULL == sb.open(command.c_str(), "r")) {
@@ -327,7 +327,7 @@ void httpd::get(http_parser& h,iostream& io){
 				stale=(mktime(&t)<mktime(ptm));//does that modify ptm??
 			}
 			if(stale){
-				LOG<<"opening file `"<<path<<"'"<<endl;
+				LOG_NOTICE<<"opening file `"<<path<<"'"<<endl;
 				ifstream file(path.c_str(),ios_base::binary);
 				string::size_type i=path.find_last_of('.');
 				string extension;
@@ -339,12 +339,12 @@ void httpd::get(http_parser& h,iostream& io){
 				//just to be sure
 				ptm=gmtime(&results.st_mtime);//last modification time
 				strftime(buffer,80,"%A, %d %B %Y %T %Z",ptm);
-				LOG<<"time stamp:"<<buffer<<endl;
+				LOG_DEBUG<<"time stamp:"<<buffer<<endl;
 				io<<"Last-Modified:"<<buffer<<"\r\n";
 				io<<"\r\n";
 				io<<file.rdbuf();
 			}else{
-				LOG<<"cached!"<<endl;
+				LOG_NOTICE<<"cached!"<<endl;
 				io<<"HTTP/1.1 304"<<"\r\n";
 				io<<"\r\n";
 			}
@@ -368,13 +368,13 @@ void httpd::post(http_parser& h,iostream& io){
  	*/
 	try{
 		io.exceptions(iostream::eofbit);
-		LOG<<"attempting to get mutex...";
+		LOG_DEBUG<<"attempting to get mutex...";
 		#ifdef PTHREAD
 		pthread_mutex_lock(&mutex);
 		#else
 		std::lock_guard<std::mutex> lock(m);
 		#endif
-		LOG<<"ok"<<endl;
+		LOG_DEBUG<<"ok"<<endl;
 		//problem: no EOF to tell the parser to stop
 		/*
 		if(!h.headers["Content-Length"].empty()){
@@ -385,7 +385,7 @@ void httpd::post(http_parser& h,iostream& io){
 		*/		
 		//need to modify so we can only post to /sparql
 		sparql_parser p(io);
-		LOG<<"peek:`"<<io.peek()<<"'"<<endl;
+		LOG_DEBUG<<"peek:`"<<io.peek()<<"'"<<endl;
 		//a lot of things happening in go, it can be interrupted anytime by socket exception
 		if(p.go()){
 			io<<"HTTP/1.1 200 OK\r\n";
@@ -410,11 +410,11 @@ void httpd::post(http_parser& h,iostream& io){
 				int l=0;
 				in>>l;
 				l-=p.n_read;
-				LOG<<"ignoring "<<l<<" extra characters:";
-				for(int i=0;i<l;++i) LOG<<(char)io.get();
+				LOG_INFO<<"ignoring "<<l<<" extra characters:";
+				for(int i=0;i<l;++i) LOG_DEBUG<<(char)io.get();
 			}
 		}else{
-			LOG<<"could not parse sparql query\n";
+			LOG_ERROR<<"could not parse sparql query\n";
 			io<<http_400;
 			//there might be characters left in the pipe
 			if(!h.headers["Content-Length"].empty()){
@@ -422,8 +422,8 @@ void httpd::post(http_parser& h,iostream& io){
 				int l=0;
 				in>>l;
 				l-=p.n_read;
-				LOG<<"ignoring "<<l<<" extra characters:";
-				for(int i=0;i<l;++i) LOG<<(char)io.get();
+				LOG_DEBUG<<"ignoring "<<l<<" extra characters:";
+				for(int i=0;i<l;++i) LOG_DEBUG<<(char)io.get();
 			}
 		}
 		#ifdef PTHREAD
@@ -433,17 +433,17 @@ void httpd::post(http_parser& h,iostream& io){
 		#ifdef PTHREAD
 		pthread_mutex_unlock(&mutex);
 		#endif
-		LOG<<"http::post "<<e.what()<<endl;
+		LOG_INFO<<"http::post "<<e.what()<<endl;
 	}catch(std::exception& e){
 		#ifdef PTHREAD
 		pthread_mutex_unlock(&mutex);
 		#endif
-		LOG<<"exception: "<<e.what()<<endl;
+		LOG_INFO<<"exception: "<<e.what()<<endl;
 	}catch(...){
 		#ifdef PTHREAD
 		pthread_mutex_unlock(&mutex);
 		#endif
-		LOG<<"unknown exception!!!!!"<<endl;
+		LOG_INFO<<"unknown exception!!!!!"<<endl;
 	}
 }
 void httpd::rest(http_parser& h,iostream& io){

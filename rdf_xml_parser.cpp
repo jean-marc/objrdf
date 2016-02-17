@@ -26,7 +26,7 @@ bool rdf_xml_parser::go(){
 	bool r=xml_parser<rdf_xml_parser>::go();
 	//we need to remove dangling pointers
 	for(auto i=missing_object.begin();i!=missing_object.end();++i){
-		LOG<<"removing statement `"<<i->second.subject->id<<"',`"<<i->second.get_Property()->id<<"',`"<<i->first<<"'"<<endl;
+		LOG_INFO<<"removing statement `"<<i->second.subject->id<<"',`"<<i->second.get_Property()->id<<"',`"<<i->first<<"'"<<endl;
 		//first let's build a base_resource::type_iterator from base_resource::instance_iterator
 		base_resource::type_iterator j(i->second.subject,i->second.i);
 		//then let's iterate through all instances
@@ -48,7 +48,7 @@ bool rdf_xml_parser::go(){
 	return r;
 };
 bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& to spare a map copy?
-	LOG<<"start resource "<<name<<endl;
+	LOG_DEBUG<<"start resource "<<name<<endl;
 	if(current_property!=end(st.top())){
 		#ifdef NATIVE
 		if(current_property->get_Property()->cget<rdfs::range>().t->id==name && !current_property->constp()){
@@ -107,8 +107,8 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 						}
 					}
 				}else{
-					ERROR_PARSER<<"resource `"<<i->second<<"' not found"<<endl;
-					ERROR_PARSER<<"un-typed resource"<<endl;
+					LOG_ERROR<<"resource `"<<i->second<<"' not found"<<endl;
+					LOG_ERROR<<"un-typed resource"<<endl;
 					//the id needs to be set at construction time
 					/*
 					placeholder->id=uri::hash_uri(i->second);
@@ -123,10 +123,10 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 				if(i!=att.end()){
 					st.push(construct(uri(i->second)));
 				}else{
-					ERROR_PARSER<<"anonymous resource"<<endl;
+					LOG_ERROR<<"anonymous resource"<<endl;
 					st.push(placeholder);
 				}
-				ERROR_PARSER<<"un-typed resource"<<endl;
+				LOG_ERROR<<"un-typed resource"<<endl;
 				//LOG<<"placeholder ";st.top()->id.to_uri(cerr); cerr<<endl;
 				/*
 				placeholder->id=uri();//reset
@@ -140,9 +140,9 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 					if(i!=att.end())
 						placeholder->id=uri::hash_uri(i->second);
 					else
-						ERROR_PARSER<<"anonymous resource"<<endl;
+						LOG_ERROR<<"anonymous resource"<<endl;
 				}
-				ERROR_PARSER<<"un-typed resource"<<endl;
+				LOG_ERROR<<"un-typed resource"<<endl;
 				cerr<<"placeholder ";placeholder->id.to_uri(cerr); cerr<<endl;
 				st.push(placeholder);
 				*/
@@ -172,18 +172,18 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 						}
 					}else{
 						#ifdef NATIVE
-						ERROR_PARSER<<name<<" not a sub-class of "<<current_property->get_Property()->cget<rdfs::range>().t->id<<endl;
+						LOG_ERROR<<name<<" not a sub-class of "<<current_property->get_Property()->cget<rdfs::range>().t->id<<endl;
 						#else
-						ERROR_PARSER<<name<<" not a sub-class of "<<current_property->get_Property()->cget<rdfs::range>()->id<<endl;
+						LOG_ERROR<<name<<" not a sub-class of "<<current_property->get_Property()->cget<rdfs::range>()->id<<endl;
 						#endif
 						st.push(placeholder);
 					}
 				}else{
-					ERROR_PARSER<<"resource `"<<name<<"' is not a rdfs:Class\n";
+					LOG_ERROR<<"resource `"<<name<<"' is not a rdfs:Class\n";
 					st.push(placeholder);
 				}
 			}else{
-				ERROR_PARSER<<"resource `"<<name<<"' not found\n";
+				LOG_ERROR<<"resource `"<<name<<"' not found\n";
 				st.push(placeholder);
 			}
 		}
@@ -210,8 +210,8 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 						}
 					}
 				}else{
-					ERROR_PARSER<<"resource `"<<i->second<<"' not found"<<endl;
-					ERROR_PARSER<<"un-typed resource"<<endl;
+					LOG_ERROR<<"resource `"<<i->second<<"' not found"<<endl;
+					LOG_ERROR<<"un-typed resource"<<endl;
 					//placeholder->id=uri::hash_uri(i->second);
 					//st.push(placeholder);
 					st.push(construct(uri::hash_uri(i->second)));
@@ -230,10 +230,10 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 					//if(i!=att.end())
 					//	placeholder->id=uri::hash_uri(i->second);
 					//else
-					ERROR_PARSER<<"anonymous resource"<<endl;
+					LOG_ERROR<<"anonymous resource"<<endl;
 					st.push(placeholder);
 				}
-				ERROR_PARSER<<"un-typed resource"<<endl;
+				LOG_ERROR<<"un-typed resource"<<endl;
 				//cerr<<"placeholder ";st.top()->id.to_uri(cerr); cerr<<endl;
 				//st.push(placeholder);
 			}
@@ -267,7 +267,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 							}
 						}
 					}else{
-						ERROR_PARSER<<"Class `"<<name<<"' not found"<<endl;
+						LOG_ERROR<<"Class `"<<name<<"' not found"<<endl;
 						st.push(construct(uri::hash_uri(i->second)));
 					}
 				}
@@ -293,7 +293,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 							}
 						}
 					}else{
-						ERROR_PARSER<<"Class `"<<name<<"' not found"<<endl;
+						LOG_ERROR<<"Class `"<<name<<"' not found"<<endl;
 						st.push(placeholder);
 						//st.push(RESOURCE_PTR::construct(uri::hash_uri(i->second)));
 					}
@@ -322,7 +322,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 					}
 				}
 			}else{
-				ERROR_PARSER<<"Class `"<<name<<"' not found"<<endl;
+				LOG_ERROR<<"Class `"<<name<<"' not found"<<endl;
 				st.push(placeholder);
 			}*/
 		}
@@ -334,12 +334,12 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
  */
 void rdf_xml_parser::set_missing_object(RESOURCE_PTR object){
 	//need to distinguish blank nodes
-	LOG<<"missing object:"<</*(void*)object.get()<<"\t`"<<*/object->id<<"'"<<endl;
+	LOG_INFO<<"missing object:"<</*(void*)object.get()<<"\t`"<<*/object->id<<"'"<<endl;
 	auto first=missing_object.find(object->id),last=missing_object.upper_bound(object->id);
-	LOG<<(first==missing_object.end())<<"\t"<<(last==missing_object.end())<<"\t"<<(first==last)<<endl;
+	LOG_INFO<<(first==missing_object.end())<<"\t"<<(last==missing_object.end())<<"\t"<<(first==last)<<endl;
 	if(first!=missing_object.end()){//why do we need that???
 		for(auto i=first;i!=last;++i){
-			LOG<<"setting property `"<<i->second->get_Property()->id<<"' of resource `"<<i->second.subject->id<<"' "<<endl;
+			LOG_INFO<<"setting property `"<<i->second->get_Property()->id<<"' of resource `"<<i->second.subject->id<<"' "<<endl;
 			i->second->set_object(object);//???
 		}
 		//need to clean up
@@ -347,18 +347,18 @@ void rdf_xml_parser::set_missing_object(RESOURCE_PTR object){
 	}
 } 
 bool rdf_xml_parser::end_resource(uri name){
-	LOG<<"end resource "<<name<<endl;
+	LOG_DEBUG<<"end resource "<<name<<endl;
 	st.top()->end_resource();
 	st.pop();
 	current_property=end(placeholder);
 	return true;
 }
 bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
-	LOG<<"start property "<<name<<endl;
+	LOG_DEBUG<<"start property "<<name<<endl;
 	current_property=std::find_if(begin(st.top()),end(st.top()),name_p(name));
 	if(current_property!=end(st.top())){
 		if(current_property.constp()){
-			ERROR_PARSER<<"property const"<<endl;
+			LOG_ERROR<<"property const"<<endl;
 		}else if(current_property.literalp()){
 			#ifdef NATIVE
 			if(current_property->get_Property()->cget<rdfs::range>().t==xsd::String::get_class()||
@@ -371,7 +371,7 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 			}else{
 				current_property->add_property(p)->in(is);
 				if(!is.good()){
-					ERROR_PARSER<<"wrong type"<<endl;
+					LOG_ERROR<<"wrong type"<<endl;
 					is.clear();
 				}
 			}
@@ -385,10 +385,10 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 				}else{
 					//problem with current_property->add_property()
 					auto pr=current_property->add_property(p);
-					LOG<<"stowing away property `"<<pr.get_Property()->id<<"' of resource `"<<pr.subject->id<<"' "<<endl;
+					LOG_INFO<<"stowing away property `"<<pr.get_Property()->id<<"' of resource `"<<pr.subject->id<<"' "<<endl;
 					//missing_object.insert(MISSING_OBJECT::value_type(uri::hash_uri(i->second),current_property->add_property(p)));
 					missing_object.insert(MISSING_OBJECT::value_type(uri::hash_uri(i->second),pr));
-					//ERROR_PARSER<<"resource "<<i->second<<" not found"<<endl;
+					//LOG_ERROR<<"resource "<<i->second<<" not found"<<endl;
 				}
 			}else{	
 				ATTRIBUTES::iterator i=att.find(rdf::nodeID);
@@ -397,19 +397,19 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 					if(j!=blank_node.end()){
 						current_property->add_property(p)->set_object(j->second);//NEED TO CHECK THE TYPE!!!!
 					}else{
-						ERROR_PARSER<<"reference to unknown blank node `"<<i->second<<"'"<<endl;	
+						LOG_ERROR<<"reference to unknown blank node `"<<i->second<<"'"<<endl;	
 					}
 				}else{
-					ERROR_PARSER<<"no attribute `rdf:resource' or `rdf:nodeID' present"<<endl;
+					LOG_ERROR<<"no attribute `rdf:resource' or `rdf:nodeID' present"<<endl;
 				}
 			}
 		}
 	}else if(get_class(st.top())==rdf::Statement::get_class()){
 		rdf::Statement::allocator_type::pointer t(st.top());
-		LOG<<"looking for statement..."<<endl;
+		LOG_INFO<<"looking for statement..."<<endl;
 		//need to look through all subclasses of rdf::Statement
 		for(auto s:rdf::Statement::get_class()->cget<rdfs::Class::array_superClassOf>()){
-			LOG<<s->id<<endl;
+			LOG_INFO<<s->id<<endl;
 			pool_allocator::pool::POOL_PTR p(s.index,0); //there is a mapping between Class and pools
 			if(p->iterable){
 				for(auto j=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);j!=pool_allocator::pool::cend<base_resource::allocator_type::pointer::CELL>(p);++j){
@@ -427,18 +427,18 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 						a.destroy(t);
 						a.deallocate(t,1);
 						st.top()=r;
-						LOG<<"swapping statement"<<endl;
+						LOG_INFO<<"swapping statement"<<endl;
 						return start_property(name,att);
 					}
 				}
-				ERROR_PARSER<<"\nno matching statement found"<<endl;
+				LOG_ERROR<<"\nno matching statement found"<<endl;
 
 			}else{
-				ERROR_PARSER<<"pool not iterable"<<endl;
+				LOG_ERROR<<"pool not iterable"<<endl;
 			}
 		}
 	}else{
-		ERROR_PARSER<<"property `"<<name<<"' not found"<<endl;
+		LOG_ERROR<<"property `"<<name<<"' not found"<<endl;
 		if((name==rdf::type::get_property()->id)&&(get_class(st.top())==base_resource::get_class())){
 			/*
  			*	we have a generic resource, we can maybe swap it for a typed resource
@@ -454,20 +454,20 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 					st.pop();
 					st.push(subject);
 				}else{
-					ERROR_PARSER<<"resource `"<<j->second<<"' not found"<<endl;
+					LOG_ERROR<<"resource `"<<j->second<<"' not found"<<endl;
 				}
 			}else{
-				ERROR_PARSER<<rdf::resource<<" must be present"<<endl;
+				LOG_ERROR<<rdf::resource<<" must be present"<<endl;
 			}
 		}else{
-			ERROR_PARSER<<"property `"<<name<<"' not found"<<endl;
+			LOG_ERROR<<"property `"<<name<<"' not found"<<endl;
 		}
 	}
 	return true;
 }
 bool rdf_xml_parser::end_property(uri name){
 	string_property=false;
-	LOG<<"end property "<<name<<endl;
+	LOG_DEBUG<<"end property "<<name<<endl;
 	return true;
 }
 bool rdf_xml_parser::start_element(uri name,ATTRIBUTES att){
@@ -483,7 +483,7 @@ bool rdf_xml_parser::end_element(uri name){
 }
 //there should ne multiple calls if the buffer fills up
 bool rdf_xml_parser::characters(string s){
-	LOG<<"characters "<<s<<endl;
+	LOG_DEBUG<<"characters "<<s<<endl;
 	if(string_property){
 		current_property->add_property(p)->set_string(s);
 		/*istringstream is(s);

@@ -30,14 +30,10 @@ bool type_p::operator()(RESOURCE_PTR r) const{
 }
 base_resource::base_resource(uri id):id(id){
 	//note: not indexed by default, we couldn't anyway because we only have `this' pointer
-	#ifdef OBJRDF_VERB
-	LOG<<"create base_resource `"<<id<<"' "<<this<<endl;
-	#endif
+	LOG_DEBUG<<"create base_resource `"<<id<<"' "<<this<<endl;
 }
 base_resource::~base_resource(){
-	#ifdef OBJRDF_VERB
-	LOG<<"delete base_resource `"<<id<<"' "<<this<<endl;
-	#endif
+	LOG_DEBUG<<"delete base_resource `"<<id<<"' "<<this<<endl;
 }
 base_resource& base_resource::operator=(const base_resource& r){return *this;}//so id not overriden when copying
 CONST_PROPERTY_PTR base_resource::type_iterator::get_Property() const{return static_cast<V::const_iterator>(*this)->p;}//strange syntax
@@ -76,7 +72,7 @@ map<uri,RESOURCE_PTR>& base_resource::get_index(){
 	return *m;
 }
 void base_resource::do_index(RESOURCE_PTR p){
-	LOG<<"indexing resource `"<<p->id<<"'"<<endl;
+	LOG_DEBUG<<"indexing resource `"<<p->id<<"'"<<endl;
 	//throw if duplicate id
 	auto tmp=get_index().insert({p->id,p});
 	if(!tmp.second) throw std::logic_error(string("duplicate rdf:ID `")+p->id.local+"'");
@@ -118,9 +114,7 @@ rdfs::Class::Class(
 	,objrdf::hashOf h
 #endif
 ):SELF(id),t(t){
-	#ifdef OBJRDF_VERB
-	LOG<<"create rdfs::Class `"<<id<<"'\t"<<this<</*"\t"<<t<<*/endl;
-	#endif
+	LOG_DEBUG<<"create rdfs::Class `"<<id<<"'\t"<<this<</*"\t"<<t<<*/endl;
 	get<comment>().set_string(comment_str);
 	get<objrdf::sizeOf>()=size;
 	#ifdef NATIVE
@@ -270,9 +264,7 @@ base_resource::instance_iterator base_resource::type_iterator::add_property(PROV
 	/*
  	*	if the add_property is not defined we can just return an iterator to a constant property
  	*/
-	#ifdef OBJRDF_VERB
-	LOG<<"add_property `"<<get_Property()->id<<"' to resource `"<<subject->id<<"'"<<endl;
-	#endif
+	LOG_DEBUG<<"add_property `"<<get_Property()->id<<"' to resource `"<<subject->id<<"'"<<endl;
 	//awkward
 	auto tmp=*static_cast<V::const_iterator>(*this);
 	#ifdef NEW_FUNC_TABLE
@@ -295,7 +287,7 @@ namespace objrdf{
 		try{
 			p.operator->();
 		}catch(std::out_of_range& e){
-			LOG<<"rdfs::Class not defined yet!"<<endl;
+			LOG_CRITICAL<<"rdfs::Class not defined yet!"<<endl;
 			exit(1);
 		}
 		return p;
@@ -396,7 +388,7 @@ void objrdf::to_rdf_xml(ostream& os){
 				to_rdf_xml(j,cout);
 			}
 		}else{
-			LOG<<"pool `"<<i->id<<"' not iterable "<<p->payload_offset<<endl;
+			LOG_WARNING<<"pool `"<<i->id<<"' not iterable "<<p->payload_offset<<endl;
 		}
 	}
 	#endif
@@ -414,13 +406,13 @@ void objrdf::generate_index(){
 }
 #endif
 RESOURCE_PTR objrdf::find(uri u){
-	LOG<<"looking up uri `"<<u<<"'...";
+	LOG_DEBUG<<"looking up uri `"<<u<<"'...";
 	auto i=base_resource::get_index().find(u);
 	if(i==base_resource::get_index().end()){
-		LOG<<"not found"<<endl;
+		LOG_DEBUG<<"not found"<<endl;
 		return RESOURCE_PTR(nullptr);
 	}
-	LOG<<"found"<<endl;
+	LOG_DEBUG<<"found"<<endl;
 	return i->second;
 }
 RESOURCE_PTR objrdf::create_by_type(CONST_CLASS_PTR c,uri id){
@@ -443,7 +435,7 @@ RESOURCE_PTR objrdf::create_by_type_blank(CONST_CLASS_PTR c){
 	return rp;
 }
 RESOURCE_PTR objrdf::clone(CONST_RESOURCE_PTR r){
-	LOG<<"cloning resource `"<<r->id<<"'"<<endl;
+	LOG_DEBUG<<"cloning resource `"<<r->id<<"'"<<endl;
 	CONST_CLASS_PTR c=get_class(r);
 	RESOURCE_PTR rp(c->t.allocate());
 	#ifdef FIX_AMBIGUITY
@@ -454,7 +446,7 @@ RESOURCE_PTR objrdf::clone(CONST_RESOURCE_PTR r){
 	return rp;
 }
 RESOURCE_PTR objrdf::clone_and_swap(RESOURCE_PTR r){
-	LOG<<"cloning resource `"<<r->id<<"'"<<endl;
+	LOG_DEBUG<<"cloning resource `"<<r->id<<"'"<<endl;
 	CONST_CLASS_PTR c=get_class(r);
 	RESOURCE_PTR rp(c->t.allocate());
 	#ifdef FIX_AMBIGUITY

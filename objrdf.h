@@ -17,6 +17,7 @@
 #include <string>
 #include <complex>
 #include "uri.h"
+#include "log_info.h"
 #ifndef OBJRDF_TUPLE
 #include <tuple>
 #include "tuple_helper.h"
@@ -27,11 +28,6 @@ using objrdf::tuple;
 using objrdf::tuple_element;
 #endif
 #include "ifthenelse.hpp"
-#ifdef OBJRDF_VERB
-#define LOG std::cerr
-#else
-#define LOG if(0) std::cerr
-#endif
 #ifndef NATIVE
 #define FIX_AMBIGUITY
 #include <pool_allocator/pool_allocator.h>
@@ -626,18 +622,16 @@ namespace objrdf{
 		resource(uri id):SUPERCLASS(id){
 			//risk of recursion!
 			//
-			LOG<<"create resource `"<<NAME::name()<<"' `"<<id<<"' "<<this<<std::endl;
+			LOG_DEBUG<<"create resource `"<<NAME::name()<<"' `"<<id<<"' "<<this<<std::endl;
 		}
 		/*
  		*	all properties must be defined at once
  		*/
 		resource(uri id,PROPERTIES p):SUPERCLASS(id),p(p){
-			LOG<<"create resource `"<<NAME::name()<<"' `"<<id<<"' "<<this<<std::endl;
+			LOG_DEBUG<<"create resource `"<<NAME::name()<<"' `"<<id<<"' "<<this<<std::endl;
 		}
 		~resource(){
-			#ifdef OBJRDF_VERB
-			LOG<<"delete resource `"<<this->id<<"' "<<this<<std::endl;
-			#endif
+			LOG_DEBUG<<"delete resource `"<<this->id<<"' "<<this<<std::endl;
 		}
 		/*
 		void operator=(const resource& r){
@@ -703,7 +697,7 @@ namespace objrdf{
 		size_t get_size() const{return 1;}//would be nice to have a bit to tell us if it has been set or not
 		//could also define static functions save one function call
 		int compare(const base_property& a)const{
-			LOG<<"compare `"<<t<<"' and `"<<a.t<<"'"<<std::endl;
+			LOG_INFO<<"compare `"<<t<<"' and `"<<a.t<<"'"<<std::endl;
 			return sgn(t-a.t);
 		}
 		void erase(){t={};}//valid default value
@@ -1271,7 +1265,7 @@ namespace objrdf{
 		}
 	};
 	//what if set_object is invoked on const property?
-	static void set_const_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){LOG<<"error: const property"<<std::endl;}
+	static void set_const_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){LOG_ERROR<<"error: const property"<<std::endl;}
 	template<typename SUBJECT,typename PROPERTY> struct functions<SUBJECT,PROPERTY,CONSTP>:base_f<SUBJECT,PROPERTY>{
 		typedef base_f<SUBJECT,PROPERTY> BASE;
 		static CONST_RESOURCE_PTR get_const_object(CONST_RESOURCE_PTR subject,size_t index){
@@ -1537,7 +1531,6 @@ namespace objrdf{
 				return (CONST_RESOURCE_PTR) static_cast<const BASE_PROPERTY*>((const void*)((const char*)subject+offset))->t;
 			};
 			t.get_size_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset){
-				//LOG<<"get_size_generic"<<std::endl;
 				return size_t(static_cast<const BASE_PROPERTY*>((const void*)((const char*)subject+offset))->t!=0);
 			};
 #else
@@ -1573,7 +1566,6 @@ namespace objrdf{
 				os<<(*static_cast<const BASE_PROPERTY*>((const void*)((const char*)subject+offset)))[index].t;
 			};
 			t.get_size_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t offset){
-				//LOG<<"get_size_generic"<<std::endl;
 				return (static_cast<const BASE_PROPERTY*>((const void*)((const char*)subject+offset)))->size();
 			};
 			t.add_property_generic=[](RESOURCE_PTR subject,ptrdiff_t offset){
@@ -1868,7 +1860,7 @@ namespace rdfs{
 		Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,std::string comment,objrdf::sizeOf,objrdf::hashOf=objrdf::hashOf());
 		#endif
 		~Class(){
-			LOG<<"delete Class `"<<id<<"'"<<std::endl;	
+			LOG_DEBUG<<"delete Class `"<<id<<"'"<<std::endl;	
 		}
 		//why doesn't this compile?
 		//static objrdf::CONST_CLASS_PTR super(objrdf::CLASS_PTR c){
@@ -2179,7 +2171,7 @@ namespace objrdf{
 			return v;	
 		}
 		static V _go(){
-			LOG<<"get_generic_property:`base_resource'"<<std::endl;
+			LOG_DEBUG<<"get_generic_property:`base_resource'"<<std::endl;
 			function_table rdf_type,objrdf_self,objrdf_id;
 		#ifdef NEW_FUNC_TABLE
 			#ifdef __GNUG__
@@ -2199,7 +2191,7 @@ namespace objrdf{
 			rdf_type.get_size=function_table::default_f::always_1;
 			//does not do anything but needed when creating new resources with INSERT DATA{}
 			rdf_type.add_property=[](RESOURCE_PTR subject,PROVENANCE p){};
-			rdf_type.set_object=[](RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){LOG<<"rdf:type property ignored"<<endl;};
+			rdf_type.set_object=[](RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){LOG_WARNING<<"rdf:type property ignored"<<endl;};
 			objrdf_self.cget_object=[](CONST_RESOURCE_PTR subject,size_t index){return subject;};
 			objrdf_self.get_size=function_table::default_f::always_1;
 			objrdf_id.set_string=[](RESOURCE_PTR subject,string s,size_t){
@@ -2239,11 +2231,11 @@ namespace objrdf{
 		V v;
 		add_trigger(const V& v):v(v){}
 		template<typename PROPERTY> void operator()(){
-			LOG<<"trigger on property `"<<PROPERTY::get_property()->id.local<<"'"<<std::endl;
+			LOG_INFO<<"trigger on property `"<<PROPERTY::get_property()->id.local<<"'"<<std::endl;
 			//look-up property in array
 			auto i=find_if(v.begin(),v.end(),[](property_info& p){return p.p==PROPERTY::get_property();});
 			if(i!=v.end()){
-				LOG<<"patching function table for `"<<i->p->id.local<<"'"<<endl;
+				LOG_INFO<<"patching function table for `"<<i->p->id.local<<"'"<<endl;
 				#ifndef NEW_FUNC_TABLE
 				i->t=functions<SUBJECT,PROPERTY>::template trigger<SUBJECT>::patch(i->t);				
 				#endif
@@ -2271,7 +2263,7 @@ namespace objrdf{
 			return v;	
 		}
 		static V _go(){
-			LOG<<"get_generic_property:`"<<NAME::name()<<"'"<<std::endl;
+			LOG_DEBUG<<"get_generic_property:`"<<NAME::name()<<"'"<<std::endl;
 			V v=get_generic_property<typename SUPERCLASS::SELF>::go();
 			/*
  			* multiple rdf:type properties, would be more consistent to have an array or a single type
@@ -2291,13 +2283,13 @@ namespace objrdf{
 			rdf_type.get_size=function_table::default_f::always_1;
 			//does not do anything but needed when creating new resources with INSERT DATA{}
 			rdf_type.add_property=[](RESOURCE_PTR subject,PROVENANCE p){};
-			rdf_type.set_object=[](RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){LOG<<"rdf:type property ignored"<<endl;};
+			rdf_type.set_object=[](RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){LOG_WARNING<<"rdf:type property ignored"<<endl;};
 		#endif
 			v.front()=property_info(rdf::type::get_property(),rdf_type);
 			//filter properties for convenience, we need to store index of first non-const property somewhere
 			auto r=concat(v,objrdf::static_for_each<PROPERTIES>(_meta_<TMP>()).v);
 			//need to process triggers at this stage: 
-			LOG<<"listing triggers for class `"<<NAME::name()<<"'"<<std::endl;
+			LOG_INFO<<"listing triggers for class `"<<NAME::name()<<"'"<<std::endl;
 			r=objrdf::static_for_each<TRIGGER>(add_trigger<TMP>(r)).v;
 			//make sure we only invoke once
 			if(TMP::patch!=SUPERCLASS::patch){
@@ -2325,7 +2317,7 @@ namespace objrdf{
 		auto r=find(u);
 		return static_cast<T*>(r);
 		#else
-		LOG<<"looking up uri `"<<u<<"' in pool `"<<T::get_class()->id<<"'"<<std::endl;
+		LOG_INFO<<"looking up uri `"<<u<<"' in pool `"<<T::get_class()->id<<"'"<<std::endl;
 		typename T::allocator_type a;
 		auto r=find_if(a.cbegin(),a.cend(),test_by_uri(u));
 		return typename T::allocator_type::pointer((r!=a.cend() ? r.get_cell_index() : 0),0);	

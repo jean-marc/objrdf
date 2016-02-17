@@ -171,7 +171,7 @@ template<typename SAX_HANDLER> struct xml_parser:char_iterator{
 	};
 	void print_ns(){
 		for(typename list<ns>::iterator i=ns_v.begin();i!=ns_v.end();++i)
-			LOG<<"\t"<<i->p<<"\t"<<i->s<<"\t"<<i->depth<<endl;
+			LOG_DEBUG<<"\t"<<i->p<<"\t"<<i->s<<"\t"<<i->depth<<endl;
 	}
 	bool callback(start_tag,string s){
 		//need to retrieve all the namespaces
@@ -182,7 +182,7 @@ template<typename SAX_HANDLER> struct xml_parser:char_iterator{
 			if(j!=ns_v.end()){
 				att_list[objrdf::uri(j->s,i->name)]=i->val;
 			}else{
-				LOG<<"Namespace prefix:`"<<i->prefix<<"' no defined"<<endl;
+				LOG_ERROR<<"Namespace prefix:`"<<i->prefix<<"' no defined"<<endl;
 			}	
 		}
 		att_v.clear();
@@ -191,7 +191,7 @@ template<typename SAX_HANDLER> struct xml_parser:char_iterator{
 			if(j!=ns_v.end()){
 				static_cast<SAX_HANDLER*>(this)->start_element(objrdf::uri(j->s,element_name_s),att_list);
 			}else{
-				LOG<<"Namespace prefix:`"<<element_name_p<<"' no defined"<<endl;
+				LOG_ERROR<<"Namespace prefix:`"<<element_name_p<<"' no defined"<<endl;
 			}	
 		//}else
 		//	static_cast<SAX_HANDLER*>(this)->start_element(element_name_p,att_list);
