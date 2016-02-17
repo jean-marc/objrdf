@@ -1,4 +1,5 @@
 #include "uri.h"
+#include "log_info.h"
 #include <sstream>
 #include <string.h>
 #include <iomanip>
