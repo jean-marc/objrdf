@@ -10,7 +10,7 @@ namespace objrdf{
 	};
 	typedef property<objrdf_rdfs_ns,str<'t','s'>,std::chrono::system_clock::time_point> ts;
 	ostream& operator<<(ostream& os,const std::chrono::system_clock::time_point&);
-	istream& operator>>(istream& is,const std::chrono::system_clock::time_point&);
+	istream& operator>>(istream& is,std::chrono::system_clock::time_point&);
 }
 
 #endif
