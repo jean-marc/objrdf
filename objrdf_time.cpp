@@ -30,7 +30,7 @@ struct date_time_parser{
 		void stop(_date_time,ITERATOR begin,ITERATOR end,bool v){
 			if(v){
 				tm _t={};float s=0;
-				auto r=sscanf(string(begin,end).c_str(),
+				/*auto r=*/sscanf(string(begin,end).c_str(),
 					"%i-%i-%iT%i:%i:%f",
 					&_t.tm_year,&_t.tm_mon,&_t.tm_mday,
 					&_t.tm_hour,&_t.tm_min,&s);
