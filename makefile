@@ -1,7 +1,7 @@
 CC = g++
 ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ 
 
-CFLAGS = -O3 -std=c++0x -Wall -I. -DOBJRDF_VERB -UREF_COUNT -UNEW_HEADER -UOBJRDF_TUPLE -DERROR_PARSER=cerr -UPTHREAD
+CFLAGS = -O3 -std=c++0x -Wall -I. -DOBJRDF_VERB -UREF_COUNT -UNEW_HEADER -UOBJRDF_TUPLE -UPTHREAD
 OBJ1 = objrdf.o uri.o objrdf_time.o
 OBJ5 = Sockets.o
 OBJ7 = sparql_engine.o
