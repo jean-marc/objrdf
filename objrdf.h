@@ -631,7 +631,7 @@ namespace objrdf{
 			LOG_DEBUG<<"create resource `"<<NAME::name()<<"' `"<<id<<"' "<<this<<std::endl;
 		}
 		~resource(){
-			LOG_DEBUG<<"delete resource `"<<this->id<<"' "<<this<<std::endl;
+			LOG_DEBUG<<"delete resource `"<<NAME::name()<<"' `"<<this->id<<"' "<<this<<std::endl;
 		}
 		/*
 		void operator=(const resource& r){
