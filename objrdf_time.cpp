@@ -1,6 +1,7 @@
 #include "objrdf_time.h"
 #include <iomanip>
 #include <parser/parser.h>
+#include <parser/char_iterator.h>
 using namespace parser;
 using namespace std;
 ostream& objrdf::operator<<(ostream& os,const std::chrono::system_clock::time_point& _t){
@@ -45,11 +46,18 @@ struct date_time_parser{
 	};
 };
 istream& objrdf::operator>>(istream& is,std::chrono::system_clock::time_point& t){
-	//let's fill string
+	//let's fill string: cannot do that it's inside XML!!!!
 	string ts;
 	is>>ts;
+	//getline(is,ts,'<');
 	date_time_parser::my_handler<string::const_iterator> h;
 	date_time_parser::date_time::go(ts.cbegin(),ts.cend(),h);
+	/*
+	cerr<<"parsing `"<<(char)is.peek()<<"'"<<endl;
+	date_time_parser::my_handler<parser::char_iterator> h;
+	date_time_parser::date_time::go(parser::char_iterator(is),parser::char_iterator(),h);
+	cerr<<"end parsing `"<<(char)is.peek()<<"'"<<endl;
+	*/
 	t=h.t;
 	//only supported in gcc 5.0, shall we build small parser?, still have to deal with ms
 	//2016-02-17T22:27:33.508-0800

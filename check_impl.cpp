@@ -2,16 +2,35 @@
 * basic test
 */
 #include "objrdf.h"
+#include "rdf_xml_parser.h"
 #include "sparql_engine.h"
+#include "objrdf_time.h"
 #include <set>
 using namespace objrdf;
 namespace test{	
 	RDFS_NAMESPACE("http://www.example.org/#","test");
 	typedef property<rdfs_namespace,str<'p','_','0'>,int> p_0;
-	typedef resource<rdfs_namespace,str<'A'>,std::tuple<p_0>> A;
+	typedef property<rdfs_namespace,str<'p','_','1'>,std::chrono::system_clock::time_point> p_1;
+	typedef resource<rdfs_namespace,str<'A'>,std::tuple<p_0,p_1>> A;
 }
 int main(){
 	test::A::get_class();
+	//RDF parsing
+	{
+		string s="<rdf:RDF\n"
+		"xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'\n"
+		"xmlns:test='http://www.example.org/#'\n"
+		">\n"
+		"<test:A rdf:ID='instance_0'>\n"
+		"	<test:p_0>0</test:p_0>\n"
+		"	<test:p_1>2016-02-17T22:27:33.508-0800</test:p_1>\n"
+		"	<test:p_1>0</test:p_1>\n"
+		"</test:A>\n"
+		"</rdf:RDF>\n";
+		istringstream in(s);
+		rdf_xml_parser p(in);
+		assert(p.go());		
+	}	
 	test::A::allocator_type a;
 	auto p=a.allocate(1);
 	a.construct(p,uri("instance"));
@@ -26,7 +45,9 @@ int main(){
 		"PREFIX: <http://www.example.org/#>\n"
 		"INSERT DATA{\n"
 		"	<instance> :p_0 12345;\n"
-		"	:p_0 6789 .\n"
+		"	:p_0 6789;\n"
+		"	:p_1 '0';\n"
+		"	:p_1 '2016-02-17T22:27:33.508-0800' .\n"
 		"}",
 		"PREFIX: <http://www.example.org/#>\n"
 		"DELETE DATA{\n"

@@ -362,10 +362,15 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 		}else if(current_property.literalp()){
 			#ifdef NATIVE
 			if(current_property->get_Property()->cget<rdfs::range>().t==xsd::String::get_class()||
-			   current_property->get_Property()->cget<rdfs::range>().t==xsd::anyURI::get_class()){//if the RANGE is string it could consume the next `<'
+			   current_property->get_Property()->cget<rdfs::range>().t==xsd::anyURI::get_class()||
+			   current_property->get_Property()->cget<rdfs::range>().t==xsd::dateTime::get_class()||
+
+			){//if the RANGE is string it could consume the next `<'
 			#else
 			if(current_property->get_Property()->cget<rdfs::range>()==xsd::String::get_class()||
-			   current_property->get_Property()->cget<rdfs::range>()==xsd::anyURI::get_class()){//if the RANGE is string it could consume the next `<'
+			   current_property->get_Property()->cget<rdfs::range>()==xsd::anyURI::get_class()||
+			   current_property->get_Property()->cget<rdfs::range>()==xsd::dateTime::get_class()
+			){//if the RANGE is string it could consume the next `<'
 			#endif
 				string_property=true;
 			}else{
@@ -485,12 +490,14 @@ bool rdf_xml_parser::end_element(uri name){
 bool rdf_xml_parser::characters(string s){
 	LOG_DEBUG<<"characters "<<s<<endl;
 	if(string_property){
-		current_property->add_property(p)->set_string(s);
-		/*istringstream is(s);
-		current_property->add_property()->in(is);
-		if(!is.good()){
-			ERROR<<"wrong type"<<endl;
-		}*/
+		if(current_property->get_Property()->cget<rdfs::range>()==xsd::dateTime::get_class()){
+			istringstream is(s);
+			current_property->add_property(p)->in(is);
+			if(!is.good()){
+				LOG_ERROR<<"wrong type"<<endl;
+			}
+		}else
+			current_property->add_property(p)->set_string(s);
 	}
 	return true;
 }
