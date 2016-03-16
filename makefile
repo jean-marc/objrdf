@@ -82,8 +82,8 @@ httpd.o:httpd.cpp httpd.h http_parser.h
 	$(CC) -c $(CFLAGS) $< -o $@
 http_parser.test:http_parser.test.cpp http_parser.h ebnf.h
 	$(CC) $(CFLAGS) http_parser.test.cpp $(OBJ5) -o http_parser.test 
-httpd.test:$(OBJ1) $(OBJ6) $(OBJ9) httpd.test.cpp httpd.h http_parser.h ebnf.h
-	$(CC) $(CFLAGS) httpd.test.cpp $(OBJ1) $(OBJ6) $(OBJ9) -lpthread -o httpd.test 
+httpd.test:httpd.test.cpp libobjrdf.so
+	$(CC) $(CFLAGS) httpd.test.cpp -lobjrdf -lpthread -o httpd.test 
 turtle_parser.test:$(OBJ1) ebnf.h turtle_parser.h
 	$(CC) $(CFLAGS) turtle_parser.test.cpp -o turtle_parser.test 
 sparql_engine.test: objrdf.o uri.o sparql_engine.o ebnf.o sparql_engine.test.cpp turtle_parser.h char_iterator.h
