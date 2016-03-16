@@ -29,8 +29,8 @@ struct http_parser:char_iterator/*<128>*/{
 	typedef	seq<char_p<'?'>,or_p<_pairs_,true_p>> arguments; 
 	typedef event<plus_p<not_p<or_p<char_p<' '>,char_p<'?'>>>>> path;
 	typedef seq<path,or_p<arguments,true_p>> url;
-	typedef str version;
-	typedef seq<method,char_p<' '>,url,char_p<' '>,version,crlf> head;
+	typedef event<str> _version;
+	typedef seq<method,char_p<' '>,url,char_p<' '>,_version,crlf> head;
 	typedef event<plus_p<not_p<or_p<char_p<':'>,char_p<'\r'>>>>> key;
 	typedef event<plus_p<not_p<char_p<'\r'>>>> value;	
 	typedef seq<key,seq_p<char_p<':'>,char_p<' '>>,value,crlf> header;
@@ -40,7 +40,11 @@ struct http_parser:char_iterator/*<128>*/{
 	bool go(){return request::go(*this);}
 	typedef map<string,string> M;
 	M headers,url_arguments;
-	string current_key,current_path,current_method;
+	string current_key,current_path,current_method,version;
+	bool callback(_version,string s){
+		version=s;
+		return true;
+	}
 	bool callback(method,string s){
 		current_method=s;
 		LOG_DEBUG<<"method:"<<s<<endl;
@@ -48,12 +52,11 @@ struct http_parser:char_iterator/*<128>*/{
 	}
 	bool callback(key,string s){
 		current_key=s;
-		LOG_DEBUG<<"key:"<<s;
 		return true;
 	}
 	bool callback(value,string s){
 		headers[current_key]=s;
-		LOG_DEBUG<<" value:"<<s<<endl;
+		LOG_DEBUG<<current_key<<" : "<<s<<endl;
 		return true;
 	}
 	bool callback(path,string s){
@@ -63,12 +66,11 @@ struct http_parser:char_iterator/*<128>*/{
 	}
 	bool callback(_key,string s){
 		current_key=s;
-		LOG_DEBUG<<"_key:"<<s<<endl;
 		return true;
 	}
 	bool callback(_value,string s){
 		url_arguments[current_key]=s;
-		LOG_DEBUG<<"_value:"<<s<<endl;
+		LOG_DEBUG<<"\t"<<current_key<<" : "<<s<<endl;
 		return true;
 	}
 };
