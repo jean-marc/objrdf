@@ -82,14 +82,18 @@ void httpd::process(TCPSocketWrapper::TCPAcceptedSocket sock){
 			http_parser p(stream);
 			//would be nice to display URL
 			if(p.go()){//blocking
-				LOG_NOTICE<<_sock.address()<<" \""<<p.current_method<<" "<<p.current_path<<"\""<<endl;
+				LOG_NOTICE<<_sock.address()<<" \""<<p.current_method<<" "<<p.current_path<<" "<<p.version<<"\""<<endl;
 				/*
 				*	we need to add modules here instead of this
 				*/ 
-				if(p.current_path.compare(0,5,"/rest")==0){
+				if(p.current_path.find("/rest")==0){
 					rest(p,stream);
+				/*}else if(p.current_path.find("/sparql")==0){
+					sparql(p,stream);*/
 				}else if(p.current_method=="GET") get(p,stream);
-				else if(p.current_method=="POST") post(p,stream);
+				else if(p.current_method=="POST"){
+					post(p,stream);
+				}
 				else{
 					stream<<"HTTP/1.1 400 Bad Request\r\n";
 					stream.setstate(ios::badbit);//maybe not needed
@@ -102,6 +106,8 @@ void httpd::process(TCPSocketWrapper::TCPAcceptedSocket sock){
 				stream.flush();
 			}
 			LOG_DEBUG<<"done!"<<endl;
+			//HTTP/1.0 does not support keep-alive
+			if(p.version=="HTTP/1.0") break;
 		}
 		LOG_DEBUG<<"ending thread"<<endl;
 	}catch(SocketRunTimeException& e){
@@ -308,6 +314,7 @@ void httpd::get(http_parser& h,iostream& io){
 		io<<"\r\n"<<flush;
 	#endif		
 	}else{
+		//should be able to handle directory!
 		//default to index.html
 		string path=h.current_path.substr(1);
 		if(path.empty()) path="index.html";
@@ -447,6 +454,9 @@ void httpd::post(http_parser& h,iostream& io){
 		#endif
 		LOG_INFO<<"unknown exception!!!!!"<<endl;
 	}
+}
+void httpd::sparql(http_parser& h,iostream& io){
+
 }
 void httpd::rest(http_parser& h,iostream& io){
 	if(h.current_method!="GET"){
