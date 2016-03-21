@@ -12,9 +12,10 @@ namespace objrdf{
 		for(auto i=begin;i!=end;++i){
 			static const char hex[16]={'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
 			auto tmp=*i;
-			char buffer[2*sizeof(tmp)];
-			for(auto j=std::rbegin(buffer);j!=std::rend(buffer);++j,tmp>>=4) *j=hex[tmp&0xf];
-			output_begin=copy(std::cbegin(buffer),std::cend(buffer),output_begin);
+			//char buffer[2*sizeof(tmp)];
+			vector<char> buffer(2*sizeof(tmp));
+			for(auto j=buffer.rbegin();j!=buffer.rend();++j,tmp>>=4) *j=hex[tmp&0xf];
+			output_begin=copy(buffer.cbegin(),buffer.cend(),output_begin);
 		}
 	}
 	template<
