@@ -337,7 +337,6 @@ void httpd::get(http_parser& h,iostream& io){
 				stale=(mktime(&t)<mktime(ptm));//does that modify ptm??
 			}
 			if(stale){
-				LOG_NOTICE<<"opening file `"<<path<<"'"<<endl;
 				ifstream file(path.c_str(),ios_base::binary);
 				string::size_type i=path.find_last_of('.');
 				string extension;
