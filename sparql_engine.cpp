@@ -8,6 +8,7 @@
  *	s_1----+
  */
 #include "sparql_engine.h"
+using namespace objrdf;
 #ifdef NEW_HEADER
 #include "sparql_parser.h"
 bool sparql_engine::parse(istream& in){
@@ -1309,7 +1310,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 	}
 	return true;
 }
-ostream& operator<<(ostream& os,const RESULT& r){
+ostream& objrdf::operator<<(ostream& os,const RESULT& r){
 	for(auto i=r.begin();i<r.end();++i){
 		for(auto j=i->cbegin();j<i->cend();++j){
 			if((*j)!=cbegin(base_resource::nil)->cbegin()){

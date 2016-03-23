@@ -13,6 +13,18 @@ namespace test{
 	typedef property<rdfs_namespace,str<'p','_','1'>,std::chrono::system_clock::time_point> p_1;
 	typedef resource<rdfs_namespace,str<'A'>,std::tuple<p_0,p_1>> A;
 }
+namespace rdfs{
+	int verbosity=7;
+	const char _context_[]="rdfs";
+}
+namespace objrdf{
+	int verbosity=7;
+	const char _context_[]="objrdf";
+}
+namespace pool_allocator{
+	int verbosity=7;
+	const char _context_[]="pool";
+}
 int main(){
 	test::A::get_class();
 	//RDF parsing

@@ -17,7 +17,6 @@
 #include <string>
 #include <complex>
 #include "uri.h"
-#include "log_info.h"
 #ifndef OBJRDF_TUPLE
 #include <tuple>
 #include "tuple_helper.h"
@@ -46,6 +45,16 @@ template <typename T> int sgn(std::complex<T> val){
 using std::istream;
 using std::ostream;
 using std::string;
+
+namespace objrdf{
+	extern int verbosity;
+	extern const char _context_[];
+}
+namespace rdfs{
+	extern int verbosity;
+	extern const char _context_[];
+}
+
 namespace objrdf{
 #ifdef __GNUG__
 	//not supported in MSVC 2010

@@ -396,6 +396,7 @@ int main(){
 ```
 
 comparison with relational db: is a pool similar to a table?...
+could we use the mmap for communication between processes?
 
 
 #Reference

@@ -5,6 +5,8 @@
 #include <algorithm>
 //using namespace std;
 namespace objrdf{
+	extern int verbosity;
+	extern const char _context_[];
 	class uri{
 	public:
 		typedef std::pair<std::string,std::string> ns_prefix;
