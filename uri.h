@@ -15,7 +15,7 @@ namespace objrdf{
  		*	how to build uri from `http://www.w3.org/2000/01/rdf-schema#Class'?
  		*	there are 2 types of uri hash uri
  		*/ 
-		explicit uri(std::string local);
+		uri(std::string local);
 		uri(std::string ns,std::string local);
 		uri(std::string ns,std::string prefix,std::string local);
 		/*
