@@ -111,7 +111,9 @@ rdfs::Class::Class(
 	string comment_str,
 	objrdf::sizeOf size
 #ifndef NATIVE
-	,objrdf::hashOf h
+	,objrdf::hashOf h,
+	objrdf::persistent p
+
 #endif
 ):SELF(id),t(t){
 	LOG_DEBUG<<"create rdfs::Class `"<<id<<"'\t"<<this<</*"\t"<<t<<*/endl;
@@ -122,6 +124,7 @@ rdfs::Class::Class(
 	if(s.t){
 	#else
 	get<objrdf::hashOf>()=h;
+	get<objrdf::persistent>()=p;
 	if(s){
 	#endif
 		get<array_subClassOf>().push_back(s);

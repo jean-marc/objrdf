@@ -1765,6 +1765,7 @@ namespace objrdf{
  	*/ 
 	OBJRDF_PROPERTY(sizeOf,size_t);
 	OBJRDF_PROPERTY(hashOf,hex_adapter<size_t>);
+	OBJRDF_PROPERTY(persistent,bool);
 	#ifndef NATIVE
 	//how many instances of a class, pseudo-property of rdfs::Class, only possible when using pools
 	typedef property<objrdf_rdfs_ns,str<'c','a','r','d','i','n','a','l','i','t','y'>,size_t> cardinality;
@@ -1826,7 +1827,8 @@ namespace rdfs{
 			isDefinedBy,
 			objrdf::sizeOf
 			#ifndef NATIVE
-			,objrdf::hashOf
+			,objrdf::hashOf,
+			objrdf::persistent
 			#endif
 		>,
 		Class,
@@ -1866,7 +1868,7 @@ namespace rdfs{
 		#ifdef NATIVE
 		Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,std::string comment,objrdf::sizeOf);
 		#else
-		Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,std::string comment,objrdf::sizeOf,objrdf::hashOf=objrdf::hashOf());
+		Class(objrdf::uri id,subClassOf s,objrdf::base_resource::class_function_table t,std::string comment,objrdf::sizeOf,objrdf::hashOf=objrdf::hashOf(),objrdf::persistent=false);
 		#endif
 		~Class(){
 			LOG_DEBUG<<"delete Class `"<<id<<"'"<<std::endl;	
@@ -1980,7 +1982,8 @@ namespace objrdf{
 			TMP::get_comment!=SUPERCLASS::get_comment ? TMP::get_comment() : "",
 			objrdf::sizeOf(sizeof(TMP))
 			#ifndef NATIVE
-			,objrdf::hashOf(pool_allocator::pool::get_hash<TMP>())
+			,objrdf::hashOf(pool_allocator::pool::get_hash<TMP>()),
+			objrdf::persistent(!std::is_same<typename ALLOCATOR::_RAW_ALLOCATOR_,std::allocator<char>>::value)
 			#endif
 		));
 		return p;
@@ -2358,6 +2361,7 @@ namespace objrdf{
 			for_each(tmp.begin(),tmp.end(),[](char& c){if (c=='/') c='\\';});
 			return tmp;
 		}
+		//can we add 
 	};
 	template<
 		typename NAMESPACE,
