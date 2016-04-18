@@ -1,6 +1,4 @@
 CC = g++
-ARM =  /opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-g++ 
-
 CFLAGS = -O3 -std=c++0x -Wall -I. -include log_info.h
 OBJ1 = objrdf.o uri.o objrdf_time.o
 OBJ5 = Sockets.o
@@ -19,10 +17,6 @@ NATIVE_PARSER = native/rdf_xml_parser.o native/ebnf.o
 	$(CC) -c $(CFLAGS) $< -o $@
 %.pic.o:%.cpp %.h
 	$(CC) -c $(CFLAGS) -fpic $< -o $@
-%.arm.o:%.cpp %.h
-	$(ARM) -c $(CFLAGS) $< -o $@
-%.arm.pic.o:%.cpp %.h
-	$(ARM) -c $(CFLAGS) -fpic $< -o $@
 native/%.o:%.cpp %.h
 	$(CC) -c $(CFLAGS) -DNATIVE $< -o $@
 #all:test0 test1
@@ -106,8 +100,6 @@ readme.pdf:readme.md
 
 libobjrdf_min.so:objrdf.pic.o uri.pic.o ebnf.pic.o rdf_xml_parser.pic.o
 	$(CC) $(CFLAGS) objrdf.pic.o uri.pic.o ebnf.pic.o rdf_xml_parser.pic.o -shared -o $@
-libobjrdf.arm.so:objrdf.arm.pic.o uri.arm.pic.o objrdf_time.arm.pic.o sparql_engine.arm.pic.o ebnf.arm.pic.o httpd.arm.pic.o rdf_xml_parser.arm.pic.o Sockets.arm.pic.o
-	$(ARM) $(CFLAGS) $? -lpthread -shared -o $@
 #too many include files, need to reorganize the code
 prefix=/usr
 exec_prefix=$(prefix)
@@ -121,10 +113,6 @@ install:libobjrdf.so
 	$(INSTALL_DATA) libobjrdf.so $(DESTDIR)$(libdir)
 	mkdir -p $(DESTDIR)$(includedir)/objrdf
 	$(INSTALL_DATA) char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h objrdf_time.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h reification.h versioned.h conversion.h popen_streambuf.h $(DESTDIR)$(includedir)/objrdf
-arm_install:libobjrdf.arm.so
-	/opt/ioplex_mx/usr/bin/arm-linux-gnueabihf-strip libobjrdf.arm.so
-	cp libobjrdf.arm.so /opt/ioplex_mx/usr/arm-buildroot-linux-gnueabihf/sysroot/usr/lib/libobjrdf.so
-	cp char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h objrdf_time.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h reification.h versioned.h /opt/ioplex_mx/usr/arm-buildroot-linux-gnueabihf/sysroot/usr/include/objrdf/
 %.schema.so:%.schema.pic.o objrdf.o
 	$(CC) $(CFLAGS) $< -shared -o $@ 
 #clean:
