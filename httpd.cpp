@@ -539,7 +539,7 @@ void httpd::rest(http_parser& h,iostream& io){
 								else{
 									auto target=k->cbegin()->get_const_object();
 									if(html)
-										out<<"\"<a href='./"<<objrdf::get_class(target)->id<<"/"<<target->id<<"'>"<<target->id<<"</a>\"";
+										out<<"\"<a href='/rest/"<<objrdf::get_class(target)->id<<"/"<<target->id<<"'>"<<target->id<<"</a>\"";
 									else
 										out<<"\""<<target->id<<"\"";
 								}
@@ -556,7 +556,7 @@ void httpd::rest(http_parser& h,iostream& io){
 										if(l!=k->cbegin()) out<<",";
 										auto target=l->get_const_object();
 										if(html)
-											out<<"\"<a href='./"<<objrdf::get_class(target)->id<<"/"<<target->id<<"'>"<<target->id<<"</a>\"";
+											out<<"\"<a href='/rest/"<<objrdf::get_class(target)->id<<"/"<<target->id<<"'>"<<target->id<<"</a>\"";
 										else
 											out<<"\""<<target->id<<"\"";
 									}
@@ -585,7 +585,7 @@ void httpd::rest(http_parser& h,iostream& io){
 						else{
 							auto target=k->cbegin()->get_const_object();
 							if(html)
-								out<<"\"<a href='../"<<objrdf::get_class(target)->id<<"/"<<target->id<<"'>"<<target->id<<"</a>\"";
+								out<<"\"<a href='/rest/"<<objrdf::get_class(target)->id<<"/"<<target->id<<"'>"<<target->id<<"</a>\"";
 							else
 								out<<"\""<<target->id<<"\"";
 						}
@@ -602,7 +602,7 @@ void httpd::rest(http_parser& h,iostream& io){
 								if(l!=k->cbegin()) out<<",";
 								auto target=l->get_const_object();
 								if(html)
-									out<<"\"<a href='../"<<objrdf::get_class(target)->id<<"/"<<target->id<<"'>"<<target->id<<"</a>\"";
+									out<<"\"<a href='/rest/"<<objrdf::get_class(target)->id<<"/"<<target->id<<"'>"<<target->id<<"</a>\"";
 								else
 									out<<"\""<<target->id<<"\"";
 							}
