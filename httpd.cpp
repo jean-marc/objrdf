@@ -469,11 +469,17 @@ void httpd::rest(http_parser& h,iostream& io){
 	vector<string> tokens;
 	istringstream in(h.current_path);
 	for(std::string each;std::getline(in,each,'/'); tokens.push_back(each));
-	//for(auto t:tokens) cerr<<t<<"\n";
+	for(auto t:tokens) cerr<<t<<"\n";
 	//we need to be able to detect array properties so we can serialize as [a,b,c,...]
 	//let's start with JSON serialization, let's select all rdfs::Classes
+	/*
+ 	* 	/rest	all the classes
+ 	*	/rest/rdfs:Class
+ 	*	/rest/some_class/id
+ 	*/ 	
 	//always start with a rdfs:Class
 	vector<CONST_CLASS_PTR> _classes;
+	vector<CONST_RESOURCE_PTR> _instances;
 	if(tokens.size()>2){
 		auto c=find_t<rdfs::Class>(uri::qname_uri(tokens[2]));
 		if(c){
@@ -482,64 +488,143 @@ void httpd::rest(http_parser& h,iostream& io){
 			io<<http_404;
 			return;
 		}
+		if(tokens.size()>3){
+			//maybe unique id present, we might get inconsistent state where instance does not belong to class
+			auto i=objrdf::find(uri::qname_uri(tokens[3]));
+			if(i){
+				_instances={i};
+			}else{
+				io<<http_404;
+				return;
+			}
+		}
 	}else{//copy all classes
 		rdfs::Class::allocator_type a;
 		for(auto i=a.cbegin();i!=a.cend();++i) _classes.push_back(CONST_CLASS_PTR(i));
 	}
+	bool html=true;
 	ostringstream out;
-	//out<<"<pre>";//so we can render svg
+	if(html){
+		out<<"<html xmlns='http://www.w3.org/1999/xhtml'><head><title></title>";
+		auto j=h.url_arguments.find("css");
+		if(j!=h.url_arguments.end())
+			out<<"<link rel='stylesheet' type='text/css' href='"<<j->second<<"' media='all'/>";
+		out<<"</head><body><pre>";//so we can render svg
+	}
 	out<<"{\""<<rdfs::Class::get_class()->id<<"\" :{\n";
 	for(auto i=_classes.cbegin();i!=_classes.cend();++i){
 		if(i!=_classes.cbegin()) out<<",\n";
 		out<<"\t\""<<(*i)->id<<"\":{\n";//which attributes do we serialize?
-		//if it is a class we should list all instances
-		pool_allocator::pool::POOL_PTR p((*i).index,0); //there is a mapping between Class and pools
-		if(p->iterable){
-			for(
-				auto j=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);
-				j!=pool_allocator::pool::cend<base_resource::allocator_type::pointer::CELL>(p);
-				++j){
-					if(j!=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p)) out<<",\n";
-					out<<"\t\t\""<<j->id<<"\":{\n";
-					for(auto k=cbegin(j);k!=cend(j);++k){
-						auto size=k.get_size();//iterator should support that
-						if(size==1){
-							if(k!=cbegin(j)) out<<",\n";	
-							out<<"\t\t\t\""<<k->get_Property()->id<<"\":";
-							if(k->get_Property()->cget<rdfs::range>()==rdfs::XML_Literal::get_class())
-								out<<"\"XML content...\"";
-							else if(k->literalp())
-								out<<"\""<<*k->cbegin()<<"\"";
-							else
-								out<<"\""<<k->cbegin()->get_const_object()->id.local<<"\"";
-						}else if(size>1){
-							if(k!=cbegin(j)) out<<",\n";	
-							out<<"\t\t\t\""<<k->get_Property()->id<<"\":[";
-							if(k->literalp()){
-								for(base_resource::const_instance_iterator l=k->cbegin();l!=k->cend();++l){
-									if(l!=k->cbegin()) out<<",";
-									out<<"\""<<*l<<"\"";
+		if(_instances.empty()){//iterate through all instances
+			pool_allocator::pool::POOL_PTR p((*i).index,0); //there is a mapping between Class and pools
+			if(p->iterable){
+				for(
+					auto j=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p);
+					j!=pool_allocator::pool::cend<base_resource::allocator_type::pointer::CELL>(p);
+					++j){
+						if(j!=pool_allocator::pool::cbegin<base_resource::allocator_type::pointer::CELL>(p)) out<<",\n";
+						out<<"\t\t\""<<j->id<<"\":{\n";
+						for(auto k=cbegin(j);k!=cend(j);++k){
+							auto size=k.get_size();//iterator should support that
+							if(size==1){
+								if(k!=cbegin(j)) out<<",\n";	
+								out<<"\t\t\t\""<<k->get_Property()->id<<"\":";
+								if(k->get_Property()->cget<rdfs::range>()==rdfs::XML_Literal::get_class()){
+									if(html)
+										out<<*k->cbegin();
+									else
+										out<<"\"XML content...\"";
+								}else if(k->literalp())
+									out<<"\""<<*k->cbegin()<<"\"";
+								else{
+									auto target=k->cbegin()->get_const_object();
+									if(html)
+										out<<"\"<a href='./"<<objrdf::get_class(target)->id<<"/"<<target->id<<"'>"<<target->id<<"</a>\"";
+									else
+										out<<"\""<<target->id<<"\"";
 								}
-							}else{
-								for(base_resource::const_instance_iterator l=k->cbegin();l!=k->cend();++l){
-									if(l!=k->cbegin()) out<<",";
-									out<<"\""<<l->get_const_object()->id.local<<"\"";
+							}else if(size>1){
+								if(k!=cbegin(j)) out<<",\n";	
+								out<<"\t\t\t\""<<k->get_Property()->id<<"\":[";
+								if(k->literalp()){
+									for(base_resource::const_instance_iterator l=k->cbegin();l!=k->cend();++l){
+										if(l!=k->cbegin()) out<<",";
+										out<<"\""<<*l<<"\"";
+									}
+								}else{
+									for(base_resource::const_instance_iterator l=k->cbegin();l!=k->cend();++l){
+										if(l!=k->cbegin()) out<<",";
+										auto target=l->get_const_object();
+										if(html)
+											out<<"\"<a href='./"<<objrdf::get_class(target)->id<<"/"<<target->id<<"'>"<<target->id<<"</a>\"";
+										else
+											out<<"\""<<target->id<<"\"";
+									}
 								}
+								out<<"]";
 							}
-							out<<"]";
 						}
+						out<<"\n\t\t}";
+				}	
+			}
+		}else{//serialize single instance
+			//	/rest/some_class/some_instance
+			for(const auto& j:_instances){
+				for(auto k=cbegin(j);k!=cend(j);++k){
+					auto size=k.get_size();//iterator should support that
+					if(size==1){
+						if(k!=cbegin(j)) out<<",\n";	
+						out<<"\t\t\""<<k->get_Property()->id<<"\":";
+						if(k->get_Property()->cget<rdfs::range>()==rdfs::XML_Literal::get_class()){
+							if(html)
+								out<<*k->cbegin();
+							else
+								out<<"\"XML content...\"";
+						}else if(k->literalp())
+							out<<"\""<<*k->cbegin()<<"\"";
+						else{
+							auto target=k->cbegin()->get_const_object();
+							if(html)
+								out<<"\"<a href='../"<<objrdf::get_class(target)->id<<"/"<<target->id<<"'>"<<target->id<<"</a>\"";
+							else
+								out<<"\""<<target->id<<"\"";
+						}
+					}else if(size>1){
+						if(k!=cbegin(j)) out<<",\n";	
+						out<<"\t\t\""<<k->get_Property()->id<<"\":[";
+						if(k->literalp()){
+							for(base_resource::const_instance_iterator l=k->cbegin();l!=k->cend();++l){
+								if(l!=k->cbegin()) out<<",";
+								out<<"\""<<*l<<"\"";
+							}
+						}else{
+							for(base_resource::const_instance_iterator l=k->cbegin();l!=k->cend();++l){
+								if(l!=k->cbegin()) out<<",";
+								auto target=l->get_const_object();
+								if(html)
+									out<<"\"<a href='../"<<objrdf::get_class(target)->id<<"/"<<target->id<<"'>"<<target->id<<"</a>\"";
+								else
+									out<<"\""<<target->id<<"\"";
+							}
+						}
+						out<<"]";
 					}
-					out<<"\n\t\t}";
-			}	
+				}
+
+			}
 		}
 		out<<"\n\t}";
 	}
 	out<<"\n}}\n";
-	//out<<"</pre>";
+	if(html){
+		out<<"</pre></body></html>";
+	}
 	io<<"HTTP/1.1 200 OK\r\n";
+	if(html)
+		io<<"Content-Type: "<<"text/html"<<"\r\n";
+	else
+		io<<"Content-Type: "<<"application/json"<<"\r\n";
 	io<<"Content-Length: "<<out.str().size()<<"\r\n";
-	io<<"Content-Type: "<<"application/json"<<"\r\n";
-	//io<<"Content-Type: "<<"text/html"<<"\r\n";
 	io<<"\r\n";
 	io<<out.str();//for some reason throws here and not caught anywhere?
 	io.flush();

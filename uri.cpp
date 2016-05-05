@@ -103,7 +103,7 @@ uri uri::hash_uri(string s){
 //look up prefix
 uri uri::qname_uri(std::string s){
 	size_t i=s.find_first_of(':');
-	if(i==string::npos) return uri();
+	if(i==string::npos) return {s};
 	auto prefix=s.substr(0,i+1);//`kkk:'
 	auto j=find_if(ns_v().cbegin(),ns_v().cend(),[&](const ns_prefix& n){return n.second==prefix;});
 	if(j==ns_v().cend()) return uri();
