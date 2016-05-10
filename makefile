@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -O3 -std=c++0x -Wall -I. -include log_info.h
+CFLAGS = -O3 -std=c++0x -Wall -I. -lpthread -include log_info.h
 OBJ1 = objrdf.o uri.o objrdf_time.o
 OBJ5 = Sockets.o
 OBJ7 = sparql_engine.o
@@ -38,7 +38,7 @@ tests = $(basename $(wildcard test*.cpp))
 examples = $(basename $(wildcard example.*.cpp))
 
 libobjrdf.so:objrdf.pic.o uri.pic.o objrdf_time.pic.o sparql_engine.pic.o ebnf.pic.o httpd.pic.o rdf_xml_parser.pic.o Sockets.pic.o
-	$(CC) $(CFLAGS) $^ -lpthread -shared -o $@
+	$(CC) $(CFLAGS) $^ -shared -o $@
 check_impl:check_impl.cpp libobjrdf.so
 	$(CC) $(CFLAGS) libobjrdf.so $< -o $@
 check:check_impl
@@ -48,8 +48,8 @@ dump:dump.cpp $(OBJ1)
 dump_schema:dump_schema.cpp $(OBJ1)
 	$(CC) $(CFLAGS) dump_schema.cpp $(OBJ1) schema.so -o dump_schema
 objrdf_ctl:objrdf_ctl.cpp $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) 
-	#$(CC) $(CFLAGS) objrdf_ctl.cpp $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) schema.so -lpthread -o objrdf_ctl
-	$(CC) -Os $(CFLAGS) objrdf_ctl.cpp $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) inventory.schema.pic.o -lpthread -o objrdf_ctl
+	#$(CC) $(CFLAGS) objrdf_ctl.cpp $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) schema.so -o objrdf_ctl
+	$(CC) -Os $(CFLAGS) objrdf_ctl.cpp $(OBJ1) $(OBJ6) $(OBJ8) $(OBJ9) inventory.schema.pic.o -o objrdf_ctl
 	ln -fs run_objrdf_ctl.sh dump
 	ln -fs run_objrdf_ctl.sh dump_schema
 	ln -fs run_objrdf_ctl.sh parser
@@ -77,7 +77,7 @@ httpd.o:httpd.cpp httpd.h http_parser.h
 http_parser.test:http_parser.test.cpp http_parser.h ebnf.h
 	$(CC) $(CFLAGS) http_parser.test.cpp $(OBJ5) -o http_parser.test 
 httpd.test:httpd.test.cpp libobjrdf.so
-	$(CC) $(CFLAGS) httpd.test.cpp -lobjrdf -lpthread -o httpd.test 
+	$(CC) $(CFLAGS) httpd.test.cpp libobjrdf.so -o httpd.test 
 turtle_parser.test:$(OBJ1) ebnf.h turtle_parser.h
 	$(CC) $(CFLAGS) turtle_parser.test.cpp -o turtle_parser.test 
 sparql_engine.test: objrdf.o uri.o sparql_engine.o ebnf.o sparql_engine.test.cpp turtle_parser.h char_iterator.h

@@ -34,7 +34,8 @@
 #endif
 namespace objrdf{
 	struct httpd{
-		httpd(short port=1080);
+		httpd();
+		httpd(short port);
 		void run();//blocking
 		short port;
 		#ifdef PTHREAD

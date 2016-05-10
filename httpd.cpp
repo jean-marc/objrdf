@@ -32,6 +32,11 @@ string url_decode(string in){
 	return u.decoded;	
 }
 string httpd::file_path="www/";
+httpd::httpd(){
+	auto s=getenv("HTTPD_PORT");
+	port=s ? atoi(s) : 80;
+	socketsInit();
+}
 httpd::httpd(short port):port(port){
 	socketsInit();
 	#ifdef PTHREAD
