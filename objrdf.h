@@ -2147,7 +2147,7 @@ namespace objrdf{
 		typename PROPERTY
 	> property_info get_property_info(){
 		//what happens when array of properties?
-		PROPERTY::get_property()->get<rdf::Property::domains>().push_back(rdfs::domain(SUBJECT::get_class()));
+		PROPERTY::get_property()->template get<rdf::Property::domains>().push_back(rdfs::domain(SUBJECT::get_class()));
 		#ifdef NEW_FUNC_TABLE
 		auto p=property_info(PROPERTY::get_property(),get_ftable<PROPERTY::TYPE,typename PROPERTY::BASE_PROPERTY>::go());
 		//calculate offset
