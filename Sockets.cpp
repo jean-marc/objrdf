@@ -196,6 +196,17 @@ void TCPSocketWrapper::connect(const string &address, int port)
         throw SocketRunTimeException("socket failed");
     }
 
+	//set timeout
+	struct timeval timeout;      
+    timeout.tv_sec = 10;
+    timeout.tv_usec = 0;
+
+    if (setsockopt (sock_, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+        throw SocketRunTimeException("setsockopt failed\n");
+
+    if (setsockopt (sock_, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+        throw SocketRunTimeException("setsockopt failed\n");
+   	
     hostent *hp;
     hp = gethostbyname(address.c_str());
 
