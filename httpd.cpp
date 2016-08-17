@@ -119,8 +119,8 @@ void httpd::process(TCPSocketWrapper::TCPAcceptedSocket sock){
 		LOG_INFO<<"****** "<<e.what()<<endl;
 	}catch(SocketLogicException& e){
 		LOG_INFO<<"****** "<<e.what()<<endl;
-	}catch(...){
-		LOG_INFO<<"****** exception!"<<endl;
+	}catch(...){//not great to catch all
+		LOG_ERROR<<"****** exception!"<<endl;
 	}
 
 }
@@ -475,6 +475,7 @@ void httpd::rest(http_parser& h,iostream& io){
 	istringstream in(h.current_path);
 	for(std::string each;std::getline(in,each,'/'); tokens.push_back(each));
 	for(auto t:tokens) cerr<<t<<"\n";
+	//http://stackoverflow.com/questions/13872273/api-pagination-best-practices
 	//we need to be able to detect array properties so we can serialize as [a,b,c,...]
 	//let's start with JSON serialization, let's select all rdfs::Classes
 	/*
