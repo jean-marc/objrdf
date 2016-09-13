@@ -27,7 +27,7 @@ namespace objrdf{
 		typedef plus_p<not_p<or_p<char_p<' '>,or_p<char_p<'\t'>,or_p<char_p<'\r'>,char_p<'\n'>>>>>> str;//a string
 		typedef event<plus_p<not_p<or_p<char_p<'='>,char_p<' '>>>>> _key;
 		typedef event<plus_p<not_p<or_p<char_p<'&'>,char_p<' '>>>>> _value;
-		typedef seq<_key,char_p<'='>,_value> _pair_;
+		typedef or_p<seq<_key,char_p<'='>,_value>,true_p> _pair_;//accept empty pairs
 		struct _pairs_:seq<_pair_,or_p<seq<char_p<'&'>,_pairs_>,true_p>>{}; //recursive
 		typedef	seq<char_p<'?'>,or_p<_pairs_,true_p>> arguments; 
 		typedef event<plus_p<not_p<or_p<char_p<' '>,char_p<'?'>>>>> path;
