@@ -508,7 +508,14 @@ void httpd::rest(http_parser& h,iostream& io){
 		rdfs::Class::allocator_type a;
 		for(auto i=a.cbegin();i!=a.cend();++i) _classes.push_back(CONST_CLASS_PTR(i));
 	}
-	bool html=true;
+	/*
+ 	*	based on content negotiation: check if client accepts text/html
+ 	*/ 
+	bool html=false;
+	auto i=h.headers.find("Accept");
+	if(i!=h.headers.cend()){
+		html=(i->second.find("text/html")!=string::npos)||(i->second.find("*/*")!=string::npos);
+	}
 	ostringstream out;
 	if(html){
 		out<<"<html xmlns='http://www.w3.org/1999/xhtml'><head><title></title>";
