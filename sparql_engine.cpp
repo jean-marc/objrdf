@@ -595,6 +595,18 @@ void sparql_parser::out_csv(ostream& os){
 		}break;
 	}
 }
+void sparql_parser::out_json_ld(ostream& os){
+	//only makes sense for DESCRIBE query
+	switch(q){
+		case simple_describe_q:{
+			if(d_resource)
+				to_json_ld(d_resource,os);
+		}break;
+		default:{
+			os<<"can only be used with DESCRIBE query"<<endl;
+		}break;
+	}
+}
 bool sparql_parser::callback(PARSE_RES_TREE& r){
 	LOG_DEBUG<<r<<endl;
 	switch(r.t.first){

@@ -224,6 +224,7 @@ namespace objrdf{
 		}
 		void out(ostream& os);
 		void out_csv(ostream& os);
+		void out_json_ld(ostream& os);
 		bool callback(PARSE_RES_TREE& r);
 		bool parse_where_statement(PARSE_RES_TREE& r);
 		bool parse_extra_statement(PARSE_RES_TREE& r);

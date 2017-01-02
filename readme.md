@@ -398,6 +398,9 @@ int main(){
 comparison with relational db: is a pool similar to a table?...
 could we use the mmap for communication between processes?
 
+###Compilation Time
+
+Would it make sense to put the introspection code in a different header?
 
 #Reference
 http://www.w3.org/TR/2013/REC-sparql11-protocol-20130321/

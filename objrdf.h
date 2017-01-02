@@ -166,6 +166,10 @@ namespace objrdf{
 		typedef void (*set_object_generic_f)(RESOURCE_PTR,RESOURCE_PTR,ptrdiff_t,size_t);
 		typedef size_t (*get_size_generic_f)(CONST_RESOURCE_PTR,ptrdiff_t);
 		typedef void (*add_property_generic_f)(RESOURCE_PTR,ptrdiff_t);
+		struct default_f{
+			static size_t always_1(CONST_RESOURCE_PTR,ptrdiff_t){return 1;}
+			static void add_property_generic_def(RESOURCE_PTR,ptrdiff_t){}
+		};
 #ifdef __GNUG__
 		set_string_generic_f set_string_generic=0;
 		in_generic_f in_generic=0;
@@ -173,8 +177,8 @@ namespace objrdf{
 		get_object_generic_f get_object_generic=0;
 		cget_object_generic_f cget_object_generic=0;
 		set_object_generic_f set_object_generic=0;
-		get_size_generic_f get_size_generic=0;
-		add_property_generic_f add_property_generic=0;
+		get_size_generic_f get_size_generic=default_f::always_1;
+		add_property_generic_f add_property_generic=default_f::add_property_generic_def;
 #else
 		set_string_generic_f set_string_generic;
 		in_generic_f in_generic;
@@ -194,14 +198,18 @@ namespace objrdf{
 		typedef void (*set_object_f)(RESOURCE_PTR,RESOURCE_PTR,size_t);
 		typedef size_t (*get_size_f)(CONST_RESOURCE_PTR);
 		typedef void (*add_property_f)(RESOURCE_PTR,PROVENANCE);
+		struct default_f{
+			static size_t always_1(CONST_RESOURCE_PTR){return 1;}
+			static void add_property_def(RESOURCE_PTR,PROVENANCE){}
+		};
 		set_string_f set_string=0;
 		in_f in=0;
 		out_f out=0;
 		get_object_f get_object=0;
 		cget_object_f cget_object=0;
 		set_object_f set_object=0;
-		get_size_f get_size=0;
-		add_property_f add_property=0;
+		get_size_f get_size=default_f::always_1;
+		add_property_f add_property=default_f::add_property_def;
 	#endif
 		typedef void (*erase_f)(RESOURCE_PTR,size_t,size_t);
 		//let's make this more general using reification 
@@ -219,16 +227,6 @@ namespace objrdf{
 		get_statement_f get_statement;
 		compare_f compare;
 #endif
-		//let's define a few functions
-		struct default_f{
-			#ifdef NEW_FUNC_TABLE
-			static size_t always_1(CONST_RESOURCE_PTR,ptrdiff_t){return 1;}
-			static void add_property_generic_def(RESOURCE_PTR,ptrdiff_t){}
-			#else
-			static size_t always_1(CONST_RESOURCE_PTR){return 1;}
-			static void add_property_def(RESOURCE_PTR){}
-			#endif
-		};
 		#ifndef __GNUG__
 		function_table(){
 			#ifdef NEW_FUNC_TABLE			
@@ -585,6 +583,8 @@ namespace objrdf{
 	base_resource::const_instance_iterator get_const_self_iterator(CONST_RESOURCE_PTR r);
 	base_resource::instance_iterator get_self_iterator(RESOURCE_PTR r);
 	void to_rdf_xml(CONST_RESOURCE_PTR r,ostream& os);
+	//json-ld https://www.w3.org/TR/json-ld/
+	void to_json_ld(CONST_RESOURCE_PTR r,ostream& os);
 	void erase(RESOURCE_PTR r,base_resource::instance_iterator first,base_resource::instance_iterator last);
 	void erase(RESOURCE_PTR r,base_resource::instance_iterator position);
 	
@@ -1126,7 +1126,7 @@ namespace objrdf{
 			#endif
 		}
 		static size_t get_size(CONST_RESOURCE_PTR subject){return get_const(subject,0).get_size();}
-		static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
+		//static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
 		struct normal{
 			static void erase(RESOURCE_PTR subject,size_t first,size_t last){
 				get(subject,0).erase();
@@ -1151,7 +1151,7 @@ namespace objrdf{
 		static function_table get_table(){
 			function_table t;
 			t.get_size=get_size;
-			t.add_property=add_property;
+			//t.add_property=add_property;
 			t.erase=ERASE::erase;
 			t.get_provenance=get_provenance;
 			return t;	
@@ -1245,7 +1245,7 @@ namespace objrdf{
 			BASE::get(subject,index).in(is);
 		}
 		template<typename LEAF> struct trigger{
-			static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
+			//static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
 			static void in(RESOURCE_PTR subject,istream& is,size_t index){
 				PROPERTY tmp;
 				tmp.in(is);
@@ -1253,7 +1253,7 @@ namespace objrdf{
 				static_cast<typename LEAF::allocator_type::generic_pointer>(subject)->set_p(tmp,static_cast<typename LEAF::allocator_type::generic_pointer>(subject));
 			}
 			static function_table patch(function_table t){
-				t.add_property=add_property;
+				//t.add_property=add_property;
 				t.in=in;
 				return t;
 			}
@@ -1286,7 +1286,7 @@ namespace objrdf{
 		template<typename LEAF> struct trigger{
 			//let's override add_property so it does not modify 
 			//it is now the trigger's responsibility to add property
-			static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
+			//static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
 			static void set_object(RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){
 				typename BASE::PP tmp;
 				tmp.set_object(object);
@@ -1306,7 +1306,7 @@ namespace objrdf{
 			}
 			static function_table patch(function_table t){
 				t.erase=erase;
-				t.add_property=add_property;
+				//t.add_property=add_property;
 				t.set_object=set_object;
 				return t;
 			}
@@ -1372,7 +1372,7 @@ namespace objrdf{
 			property<NAMESPACE,NAME,RANGE,NIL> tmp;//very awkward
 			static_cast<typename SUBJECT::allocator_type::const_generic_pointer>(subject)->out_p(tmp,os);
 		}
-		static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
+		//static void add_property(RESOURCE_PTR subject,PROVENANCE p){}//does not have to do anything
 		static void erase(RESOURCE_PTR subject,size_t first,size_t last){}//idem
 		static function_table get_table(){
 			function_table t;
@@ -1380,7 +1380,7 @@ namespace objrdf{
 			t.out=out;
 			//t.set_object=set_const_object;
 			t.get_size=get_size;
-			t.add_property=add_property;
+			//t.add_property=add_property;
 			t.erase=erase;
 			return t;
 		}
@@ -2202,7 +2202,7 @@ namespace objrdf{
 			rdf_type.cget_object=[](CONST_RESOURCE_PTR subject,size_t){return (CONST_RESOURCE_PTR)base_resource::get_class();};
 			rdf_type.get_size=function_table::default_f::always_1;
 			//does not do anything but needed when creating new resources with INSERT DATA{}
-			rdf_type.add_property=[](RESOURCE_PTR subject,PROVENANCE p){};
+			//rdf_type.add_property=[](RESOURCE_PTR subject,PROVENANCE p){};
 			rdf_type.set_object=[](RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){LOG_WARNING<<"rdf:type property ignored"<<endl;};
 			objrdf_self.cget_object=[](CONST_RESOURCE_PTR subject,size_t index){return subject;};
 			objrdf_self.get_size=function_table::default_f::always_1;
@@ -2294,7 +2294,7 @@ namespace objrdf{
 			rdf_type.cget_object=[](CONST_RESOURCE_PTR subject,size_t){return (CONST_RESOURCE_PTR)RESOURCE::get_class();};
 			rdf_type.get_size=function_table::default_f::always_1;
 			//does not do anything but needed when creating new resources with INSERT DATA{}
-			rdf_type.add_property=[](RESOURCE_PTR subject,PROVENANCE p){};
+			//rdf_type.add_property=[](RESOURCE_PTR subject,PROVENANCE p){};
 			rdf_type.set_object=[](RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){LOG_WARNING<<"rdf:type property ignored"<<endl;};
 		#endif
 			v.front()=property_info(rdf::type::get_property(),rdf_type);

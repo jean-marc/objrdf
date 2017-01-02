@@ -366,6 +366,82 @@ namespace objrdf{
 		}
 		os<<"\n</"<<get_class(r)->id<<">";
 	}
+	void to_json_ld(CONST_RESOURCE_PTR r,ostream& os){
+		/*
+		{
+		  "@context": {
+			...
+			"Restaurant": "http://schema.org/Restaurant", 
+			"Brewery": "http://schema.org/Brewery"
+		  }
+		  "@id": "http://example.org/places#BrewEats",
+		  "@type": [ "Restaurant", "Brewery" ],
+		  ...
+		}
+		*/
+		os<<"{\n";
+		//need to define a context
+		os<<"\t\"@context\":{";
+		//namespace declaration
+		for(auto i=uri::ns_v().cbegin()+2;i<uri::ns_v().cend();){
+			if(i->second.empty())
+				os<<"\n\t\t\"@vocab\":\""<<i->first<<"\"";
+			else
+				os<<"\n\t\t\""<<i->second.substr(0,i->second.length()-1)<<"\":\""<<i->first<<"\"";
+			++i;
+			if(i!=uri::ns_v().cend()) os<<",";
+		}
+		os<<"\n\t},\n";
+		os<<"\t\"@id\":\""<<r->id<<"\",\n";
+		os<<"\t\"@type\":\""<<get_class(r)->id<<"\"";
+		//properties
+		for(auto i=cbegin(r);i!=cend(r);++i){
+			if(i->get_Property()!=rdf::type::get_property()&&
+				i->get_Property()!=objrdf::self::get_property()&&
+				i->get_Property()!=objrdf::id::get_property()&&
+				i->get_Property()->cget<rdfs::range>()!=rdfs::XML_Literal::get_class()&&
+				i->cbegin()!=i->cend())
+			{
+				os<<",\n\t";
+				//we need to know if there might be multiple instances of the same property
+				//also some literal types do not have to be quoted because native types in JSON
+				bool un_quoted=i->literalp()&&
+					(i->get_Property()->cget<rdfs::range>()==xsd::Double::get_class()||
+					i->get_Property()->cget<rdfs::range>()==xsd::Float::get_class()||
+					i->get_Property()->cget<rdfs::range>()==xsd::integer::get_class()||
+					i->get_Property()->cget<rdfs::range>()==xsd::Short::get_class());
+				if((*i).t.add_property==function_table::default_f::add_property_def){
+					for(auto j=i->cbegin();j!=i->cend();++j){
+						if(i->literalp()){
+							if(un_quoted)
+								os<<"\""<<i->get_Property()->id<<"\":"<<*j;
+							else
+								os<<"\""<<i->get_Property()->id<<"\":\""<<*j<<"\"";
+						}else{
+							os<<"\""<<i->get_Property()->id<<"\":\""<<j->get_const_object()->id<<"\"";
+						}
+					}
+				}else{
+					os<<"\""<<i->get_Property()->id<<"\":[";
+					for(auto j=i->cbegin();j!=i->cend();){
+						if(i->literalp()){
+							if(un_quoted)
+								os<<*j;
+							else
+								os<<"\""<<*j<<"\"";
+						}else{
+							os<<"\""<<j->get_const_object()->id<<"\"";
+						}
+						++j;
+						if(j!=i->cend()) os<<",";
+					}
+					os<<"]";
+				}
+			}
+		}
+		os<<"}\n";
+	}
+
 	void get_output(CONST_RESOURCE_PTR r,const map<string,string>& m,ostream& os){
 		get_class(r)->t.get_output(r,m,os);
 	}

@@ -17,7 +17,7 @@ namespace pool_allocator{
 
 int main(){
 	objrdf::generate_index();
-	objrdf::httpd h;
+	objrdf::httpd h(8080);
 	auto t=std::thread(&objrdf::httpd::run,&h);
 	t.join();
 };

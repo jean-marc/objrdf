@@ -242,10 +242,14 @@ void httpd::get(http_parser& h,iostream& io){
 				LOG_DEBUG<<"success!"<<endl;
 				io<<"HTTP/1.1 200 OK"<<"\r\n";
 				ostringstream out;
-				auto i=h.url_arguments.find("format");
+				auto i=h.url_arguments.find("format");//could also do content negotiation
 				if(i!=h.url_arguments.end() && i->second=="csv"){
 					io<<"Content-Type: "<<"text/plain"<<"\r\n";
 					p.out_csv(out);
+				}else if(i!=h.url_arguments.end() && i->second=="json-ld"){
+					//io<<"Content-Type: "<<"application/ld+json"<<"\r\n";//not recognized by mozilla
+					io<<"Content-Type: "<<"application/json"<<"\r\n";
+					p.out_json_ld(out);
 				}else{
 					io<<"Content-Type:"<<get_mime("xml")<<"\r\n";
 					auto j=h.url_arguments.find("xsl");
