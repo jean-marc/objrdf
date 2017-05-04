@@ -1283,7 +1283,14 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 											++k;
 										}
 									}else{
-										current_property->add_property(0)->set_string(object_str);
+										//set_string might not be defined
+										auto p=current_property->add_property(0);
+										if(p.i->t.set_string)
+											p->set_string(object_str);
+										else{
+											istringstream in(object_str);
+											p->in(in);
+										}
 									}	
 								}else{
 									LOG_ERROR<<"current property `"<<current_property->get_Property()->id<<"' is literal"<<endl;
