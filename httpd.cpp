@@ -18,10 +18,12 @@ map<string,string> httpd::mimes={{"html","text/html"},{"xhtml","text/html"},
 					{"rdf","application/rdf+xml"},
 					{"svg","image/svg+xml"},
 					{"png","image/png"},
+					{"pdf","application/pdf"},
 					{"css","text/css"},
 					{"js","application/javascript"},
 					{"mat","application/octet-stream"}};
 string get_mime(string extension){
+	std::transform(extension.begin(),extension.end(),extension.begin(),::tolower);
 	auto i=httpd::mimes.find(extension);
 	return i==httpd::mimes.end() ? "text/plain" : i->second;
 }
