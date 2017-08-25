@@ -8,7 +8,7 @@
 
 # Maintainer: Your Name <lefebure.jeanmarc@gmail.com>
 pkgname=objrdf # '-bzr', '-git', '-hg' or '-svn'
-pkgver=r458.a803fab
+pkgver=r480.64acd1e
 pkgrel=1
 pkgdesc="RDF/SPARQL template library"
 arch=('x86_64' 'armv7h')
@@ -24,7 +24,7 @@ backup=()
 options=()
 install=
 #source=('git+https://github.com/jean-marc/objrdf.git')
-source=('git+ssh://linux-dev0/opt/git/objrdf.git')
+source=('git+ssh://git@linux-dev0/opt/git/objrdf.git')
 #source=('git+file:///mnt/opt/git/objrdf.git')
 noextract=()
 md5sums=('SKIP')
