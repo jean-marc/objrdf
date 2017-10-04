@@ -26,7 +26,7 @@ bool rdf_xml_parser::go(){
 	bool r=xml_parser<rdf_xml_parser>::go();
 	//we need to remove dangling pointers
 	for(auto i=missing_object.begin();i!=missing_object.end();++i){
-		LOG_INFO<<"removing statement `"<<i->second.subject->id<<"',`"<<i->second.get_Property()->id<<"',`"<<i->first<<"'"<<endl;
+		LOG_ERROR<<"removing statement `"<<i->second.subject->id<<"',`"<<i->second.get_Property()->id<<"',`"<<i->first<<"'"<<endl;
 		//first let's build a base_resource::type_iterator from base_resource::instance_iterator
 		base_resource::type_iterator j(i->second.subject,i->second.i);
 		//then let's iterate through all instances
