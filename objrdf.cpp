@@ -1,4 +1,5 @@
 #include "objrdf.h"
+#include "introspection.h"
 #include <sstream>
 #include <algorithm>
 #include <fstream>

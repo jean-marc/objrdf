@@ -1,4 +1,5 @@
 #include "objrdf_time.h"
+#include "introspection.h"
 #include <iomanip>
 #include <parser/parser.h>
 #include <parser/char_iterator.h>

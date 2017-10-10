@@ -1,4 +1,5 @@
 #include "rdf_xml_parser.h"
+#include "introspection.h"
 #include <sstream>
 #include <algorithm>
 #include "reification.h"
