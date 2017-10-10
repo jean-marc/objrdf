@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -O3 -std=c++0x -Wall -I. -lpthread -include log_info.h
+CFLAGS = -O3 -std=c++0x -Wall -I. -lpthread -include log_info.h -DOPTIMIZE_HEADER
 OBJ1 = objrdf.o uri.o objrdf_time.o
 OBJ5 = Sockets.o
 OBJ7 = sparql_engine.o
@@ -112,7 +112,7 @@ install:libobjrdf.so
 	mkdir -p $(DESTDIR)$(libdir)
 	$(INSTALL_DATA) libobjrdf.so $(DESTDIR)$(libdir)
 	mkdir -p $(DESTDIR)$(includedir)/objrdf
-	$(INSTALL_DATA) char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h objrdf_time.h ebnf.h objrdf.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h reification.h versioned.h conversion.h popen_streambuf.h $(DESTDIR)$(includedir)/objrdf
+	$(INSTALL_DATA) char_iterator.h http_parser.h result.h turtle_parser.h ifthenelse.hpp uri.h objrdf_time.h ebnf.h objrdf.h introspect.h Sockets.h xml_parser.h geo.h sparql_engine.h httpd.h rdf_xml_parser.h tuple_helper.h reification.h versioned.h conversion.h popen_streambuf.h $(DESTDIR)$(includedir)/objrdf
 %.schema.so:%.schema.pic.o objrdf.o
 	$(CC) $(CFLAGS) $< -shared -o $@ 
 #clean:

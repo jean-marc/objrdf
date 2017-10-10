@@ -8,6 +8,7 @@
  *	s_1----+
  */
 #include "sparql_engine.h"
+#include "introspect.h"
 using namespace objrdf;
 #ifdef NEW_HEADER
 #include "sparql_parser.h"

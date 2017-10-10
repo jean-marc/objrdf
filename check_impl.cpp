@@ -5,6 +5,7 @@
 #include "rdf_xml_parser.h"
 #include "sparql_engine.h"
 #include "objrdf_time.h"
+#include "introspect.h"
 #include <set>
 using namespace objrdf;
 namespace test{	
