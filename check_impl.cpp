@@ -5,7 +5,7 @@
 #include "rdf_xml_parser.h"
 #include "sparql_engine.h"
 #include "objrdf_time.h"
-#include "introspection.h"
+#include "introspect.h"
 #include <set>
 using namespace objrdf;
 namespace test{	
@@ -27,7 +27,7 @@ namespace pool_allocator{
 	const char _context_[]="pool";
 }
 int main(){
-	test::A::get_class();
+	introspect<test::A>::get_class();
 	//RDF parsing
 	{
 		string s="<rdf:RDF\n"

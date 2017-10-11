@@ -8,7 +8,7 @@
  *	s_1----+
  */
 #include "sparql_engine.h"
-#include "introspection.h"
+#include "introspect.h"
 using namespace objrdf;
 #ifdef NEW_HEADER
 #include "sparql_parser.h"
@@ -124,7 +124,7 @@ RESULT subject::run(size_t n){
 	/*
 	* before going through all the resources let's look at the properties bound and un-bound
 	*/
-	auto i=find_if(verbs.begin(),verbs.end(),match_property(rdf::type::get_property()));	
+	auto i=find_if(verbs.begin(),verbs.end(),match_property(introspect<rdf::type>::get_property()));	
 	if(i!=verbs.end()&&i->object&&i->object->bound){
 		if(!i->object->r){
 			i->object->r=find_t<rdfs::Class>(i->object->u);
@@ -135,7 +135,7 @@ RESULT subject::run(size_t n){
 		//we have to make sure it is not base_resource::nil, why can't we use null??
 		LOG_DEBUG<<"optimization..."<<i->object->r->id<<endl;
 		if(i->object->r==CLASS_PTR(0)) return RESULT();
-		if(get_class(i->object->r)!=rdfs::Class::get_class()) return RESULT();
+		if(get_class(i->object->r)!=introspect<rdfs::Class>::get_class()) return RESULT();
 		CONST_CLASS_PTR c(static_cast<CONST_CLASS_PTR>(i->object->r));
 		//check if the pool exists
 		pool::POOL_PTR p(c.index,0);
@@ -176,9 +176,9 @@ RESULT subject::run(size_t n){
 		for(auto i=verbs.begin();i<verbs.end();++i){
 			LOG_DEBUG<<"current property: `"<<i->p->id<<"'"<<endl;
 			//is_Property|=(i->p==rdfs::domain::get_property())||(i->p==rdfs::range::get_property());
-			is_Property|=(i->p==rdf::Property::domains::get_property())||(i->p==rdfs::range::get_property());
+			is_Property|=(i->p==introspect<rdf::Property::domains>::get_property())||(i->p==introspect<rdfs::range>::get_property());
 			//ugly but problem with array of properties
-			is_Class|=(i->p==rdfs::Class::array_subClassOf::get_property());
+			is_Class|=(i->p==introspect<rdfs::Class::array_subClassOf>::get_property());
 		}
 		if(is_Property){
 			LOG_DEBUG<<"optimization: Property only"<<endl;
@@ -258,7 +258,7 @@ RESULT subject::run(base_resource::const_instance_iterator i,CONST_PROPERTY_PTR 
 				return (i.str()==s) ? RESULT(1) : RESULT(0);
 				#endif
 			}else{
-				if(i.get_Property()->cget<rdfs::range>()==rdfs::XML_Literal::get_class()){
+				if(i.get_Property()->cget<rdfs::range>()==introspect<rdfs::XML_Literal>::get_class()){
 					/*
  					*	shouldn't bind if empty, shouldn't be here in the first place
  					*/ 
@@ -289,7 +289,7 @@ RESULT subject::run(base_resource::const_instance_iterator i,CONST_PROPERTY_PTR 
 			bool result=false;
 			if(r==_r){
 				result=true;
-			}else if(get_class(r)==rdfs::Class::get_class()&&get_class(_r)==rdfs::Class::get_class()){
+			}else if(get_class(r)==introspect<rdfs::Class>::get_class()&&get_class(_r)==introspect<rdfs::Class>::get_class()){
 				LOG_DEBUG<<"entailment"<<endl;
 				CONST_CLASS_PTR a(static_cast<CONST_CLASS_PTR>(r));		
 				CONST_CLASS_PTR b(static_cast<CONST_CLASS_PTR>(_r));		
@@ -297,9 +297,9 @@ RESULT subject::run(base_resource::const_instance_iterator i,CONST_PROPERTY_PTR 
 				//what about rdf::type?
 				CONST_PROPERTY_PTR p=i->get_Property();
 				//if(p==rdfs::domain::get_property()) result=*b<*a;
-				if(p==rdfs::domain::get_property()) result=is_subclass(a,b);
+				if(p==introspect<rdfs::domain>::get_property()) result=is_subclass(a,b);
 				//else if(p==rdfs::range::get_property()||p==rdfs::subClassOf::get_property()||p==rdf::type::get_property()) result=*a<*b;
-				else if(p==rdfs::range::get_property()||p==rdfs::subClassOf::get_property()||p==rdf::type::get_property()) result=is_subclass(b,a);
+				else if(p==introspect<rdfs::range>::get_property()||p==introspect<rdfs::subClassOf>::get_property()||p==introspect<rdf::type>::get_property()) result=is_subclass(b,a);
 			}
 			if(!result) return RESULT();
 		}else if(!u.empty()){
@@ -312,16 +312,16 @@ RESULT subject::run(base_resource::const_instance_iterator i,CONST_PROPERTY_PTR 
 				LOG_DEBUG<<"URI comparison: "<<_r->id<<"=="<<u<<endl;
 				r=_r;//bind!
 				result=true;
-			}else if(get_class(_r)==rdfs::Class::get_class()){
+			}else if(get_class(_r)==introspect<rdfs::Class>::get_class()){
 				//now we have to look up the resource but we know it is a Class
 				CONST_CLASS_PTR a(find_t<rdfs::Class>(u)),b(static_cast<CONST_CLASS_PTR>(_r));
 				if(a){
 					r=a;//bind!
 					CONST_PROPERTY_PTR p=i->get_Property();
 					//if(p==rdfs::domain::get_property()) result=*b<*a;
-					if(p==rdfs::domain::get_property()) result=is_subclass(a,b);
+					if(p==introspect<rdfs::domain>::get_property()) result=is_subclass(a,b);
 					//else if(p==rdfs::range::get_property()||p==rdfs::subClassOf::get_property()||p==rdf::type::get_property()) result=*a<*b;
-					else if(p==rdfs::range::get_property()||p==rdfs::subClassOf::get_property()||p==rdf::type::get_property()) result=is_subclass(b,a);
+					else if(p==introspect<rdfs::range>::get_property()||p==introspect<rdfs::subClassOf>::get_property()||p==introspect<rdf::type>::get_property()) result=is_subclass(b,a);
 				}
 			}
 			if(!result) return RESULT();
@@ -397,7 +397,7 @@ RESULT verb::run(SPARQL_RESOURCE_PTR r){
 				*	how do we deal with optional results, let's say that rdfs::subPropertyOf should be optional
 				*/ 
 				LOG_DEBUG<<"optional? "<<p->id<<endl;
-				if(p==rdfs::subPropertyOf::get_property()){
+				if(p==introspect<rdfs::subPropertyOf>::get_property()){
 					RESULT tmp=object->run(get_const_self_iterator(objrdf::base_resource::nil),p);	
 					LOG_DEBUG<<tmp<<endl;
 					ret.insert(ret.end(),tmp.begin(),tmp.end());
@@ -819,7 +819,7 @@ bool sparql_parser::parse_where_statement(PARSE_RES_TREE& r){
 					}
 					break;
 					case turtle_parser::is_a::id:{
-						current_sbj->verbs.push_back(verb(rdf::type::get_property(),0,user));
+						current_sbj->verbs.push_back(verb(introspect<rdf::type>::get_property(),0,user));
 					}
 					break;
 				}
@@ -902,7 +902,7 @@ CONST_PROPERTY_PTR sparql_parser::parse_property(const PARSE_RES_TREE& r){
 				return CONST_PROPERTY_PTR();
 			}
 		}break;
-		case turtle_parser::is_a::id:return rdf::type::get_property();
+		case turtle_parser::is_a::id:return introspect<rdf::type>::get_property();
 		default:return CONST_PROPERTY_PTR();	
 	}
 }
@@ -960,12 +960,12 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 							while(j<end&&j->t.first!=turtle_parser::subject::id){
 								if(j->t.first==turtle_parser::verb::id){
 									LOG_DEBUG<<"verb:\n"<<*j<<endl;
-									if(parse_property(j->v[0])==rdf::type::get_property()){
+									if(parse_property(j->v[0])==introspect<rdf::type>::get_property()){
 										LOG_DEBUG<<"rdf:type!"<<endl;
 										//the next object will be the rdfs::Class
 										CONST_RESOURCE_PTR r=parse_object((j+1)->v[0]);
 										if(r){
-											if(get_class(r)==rdfs::Class::get_class()){
+											if(get_class(r)==introspect<rdfs::Class>::get_class()){
 												LOG_DEBUG<<"rdfs:Class!"<<endl;
 												CONST_CLASS_PTR c(r);
 												sub=create_by_type(c,u);
@@ -1000,11 +1000,11 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 								while(j<end&&j->t.first!=turtle_parser::subject::id){
 									if(j->t.first==turtle_parser::verb::id){//is there a chance we get to next statement?
 										LOG_DEBUG<<"verb:\n"<<*j<<endl;
-										if(parse_property(j->v[0])==rdf::type::get_property()){
+										if(parse_property(j->v[0])==introspect<rdf::type>::get_property()){
 											LOG_DEBUG<<"rdf:type!"<<endl;
 											//the next object will be the rdfs::Class
 											SPARQL_RESOURCE_PTR r=parse_object((j+1)->v[0]);
-											if(r&&get_class(r)==rdfs::Class::get_class()){
+											if(r&&get_class(r)==introspect<rdfs::Class>::get_class()){
 												LOG_DEBUG<<"rdfs:Class!"<<endl;
 												CONST_CLASS_PTR c(r);
 												sub=create_by_type(c,u);
@@ -1050,12 +1050,12 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 							while(j<end&&j->t.first!=turtle_parser::subject::id){
 								if(j->t.first==turtle_parser::verb::id){
 									LOG_DEBUG<<"verb:\n"<<*j<<endl;
-									if(parse_property(j->v[0])==rdf::type::get_property()){
+									if(parse_property(j->v[0])==introspect<rdf::type>::get_property()){
 										LOG_DEBUG<<"rdf:type!"<<endl;
 										//the next object will be the rdfs::Class
 										CONST_RESOURCE_PTR r=parse_object((j+1)->v[0]);
 										if(r){
-											if(get_class(r)==rdfs::Class::get_class()){
+											if(get_class(r)==introspect<rdfs::Class>::get_class()){
 												LOG_DEBUG<<"rdfs:Class!"<<endl;
 												CONST_CLASS_PTR c(r);
 												sub=create_by_type_blank(c);
@@ -1167,7 +1167,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 									++j;
 								}
 							}else{
-								if(current_property->get_Property()->get_const<rdfs::range>()==xsd::String::get_class()){
+								if(current_property->get_Property()->get_const<rdfs::range>()==introspect<xsd::String>::get_class()){
 									current_property->add_property(0)->set_string(i->v[0].v[0].t.second);
 								}else{
 									istringstream is(i->v[0].v[0].t.second);
@@ -1254,7 +1254,7 @@ bool sparql_parser::parse_update_data_statement(PARSE_RES_TREE::V::const_iterato
 						*/
 						//what if the type is defined inside the predicate list?, it could be a sub-class
 						//in case of an unknown property being replaced by rdfs:type the resource creation will fail
-						if(current_property->get_Property()!=rdf::type::get_property()){
+						if(current_property->get_Property()!=introspect<rdf::type>::get_property()){
 							RESOURCE_PTR tmp=create_by_type_blank(current_property->get_Property()->get_const<rdfs::range>());	
 							parse_update_data_statement(i->v[0].v.cbegin(),i->v[0].v.cend(),do_delete,v,tmp);
 							current_property->add_property(0)->set_object(tmp);
@@ -1334,7 +1334,7 @@ ostream& objrdf::operator<<(ostream& os,const RESULT& r){
 	for(auto i=r.begin();i<r.end();++i){
 		for(auto j=i->cbegin();j<i->cend();++j){
 			if((*j)!=cbegin(base_resource::nil)->cbegin()){
-				if(j->get_Property()->get_const<rdfs::range>()==rdfs::XML_Literal::get_class())
+				if(j->get_Property()->get_const<rdfs::range>()==introspect<rdfs::XML_Literal>::get_class())
 					os<<"XML_Literal ...\t|";
 				else{
 					os<<*j<<"\t|";

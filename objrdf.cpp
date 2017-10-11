@@ -1,5 +1,5 @@
 #include "objrdf.h"
-#include "introspection.h"
+#include "introspect.h"
 #include <sstream>
 #include <algorithm>
 #include <fstream>
@@ -149,9 +149,10 @@ void rdfs::Class::patch(V& _v){
 		os<<p->get_size_generic(*p);
 	};
 	t.get_size=function_table::default_f::always_1;
-	_v.push_back(property_info(objrdf::cardinality::get_property(),t));
+	_v.push_back(property_info(introspect<objrdf::cardinality>::get_property(),t));
 }
 #endif
+#if 0
 CONST_CLASS_PTR base_resource::get_class(){
 	#ifdef NATIVE
 	static CONST_CLASS_PTR p=new rdfs::Class(
@@ -181,6 +182,7 @@ CONST_CLASS_PTR base_resource::get_class(){
 	);
 	return p;
 }
+#endif
 rdf::Property::Property(objrdf::uri id):SELF(id),literalp(true){}
 rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp):rdf::Property::SELF(id),literalp(literalp){
 	get<rdfs::range>()=r;
@@ -397,20 +399,20 @@ namespace objrdf{
 		os<<"\t\"@type\":\""<<get_class(r)->id<<"\"";
 		//properties
 		for(auto i=cbegin(r);i!=cend(r);++i){
-			if(i->get_Property()!=rdf::type::get_property()&&
-				i->get_Property()!=objrdf::self::get_property()&&
-				i->get_Property()!=objrdf::id::get_property()&&
-				i->get_Property()->cget<rdfs::range>()!=rdfs::XML_Literal::get_class()&&
+			if(i->get_Property()!=introspect<rdf::type>::get_property()&&
+				i->get_Property()!=introspect<objrdf::self>::get_property()&&
+				i->get_Property()!=introspect<objrdf::id>::get_property()&&
+				i->get_Property()->cget<rdfs::range>()!=introspect<rdfs::XML_Literal>::get_class()&&
 				i->cbegin()!=i->cend())
 			{
 				os<<",\n\t";
 				//we need to know if there might be multiple instances of the same property
 				//also some literal types do not have to be quoted because native types in JSON
 				bool un_quoted=i->literalp()&&
-					(i->get_Property()->cget<rdfs::range>()==xsd::Double::get_class()||
-					i->get_Property()->cget<rdfs::range>()==xsd::Float::get_class()||
-					i->get_Property()->cget<rdfs::range>()==xsd::integer::get_class()||
-					i->get_Property()->cget<rdfs::range>()==xsd::Short::get_class());
+					(i->get_Property()->cget<rdfs::range>()==introspect<xsd::Double>::get_class()||
+					i->get_Property()->cget<rdfs::range>()==introspect<xsd::Float>::get_class()||
+					i->get_Property()->cget<rdfs::range>()==introspect<xsd::integer>::get_class()||
+					i->get_Property()->cget<rdfs::range>()==introspect<xsd::Short>::get_class());
 				if((*i).t.add_property==function_table::default_f::add_property_def){
 					for(auto j=i->cbegin();j!=i->cend();++j){
 						if(i->literalp()){

@@ -1,5 +1,5 @@
 #include "rdf_xml_parser.h"
-#include "introspection.h"
+#include "introspect.h"
 #include <sstream>
 #include <algorithm>
 #include "reification.h"
@@ -151,7 +151,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 		}else{//could be a sub-class
 			RESOURCE_PTR r=find(name);
 			if(r){
-				if(get_class(r)==rdfs::Class::get_class()){
+				if(get_class(r)==introspect<rdfs::Class>::get_class()){
 					#ifdef NATIVE
 					CONST_CLASS_PTR c=static_cast<CONST_CLASS_PTR>(r);
 					if(is_subclass(c,current_property->get_Property()->cget<rdfs::range>().t)){
@@ -305,7 +305,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 			}
 			/*
 			shared_ptr<base_resource> r=doc.find(name);
-			if(r&&r->get_Class()==rdfs::Class::get_class().get()){
+			if(r&&r->get_Class()==introspect<rdfs::Class>::get_class().get()){
 				rdfs::Class& c=*static_cast<rdfs::Class*>(r.get());
 				assert(c.f);
 				shared_ptr<base_resource> subject(c.f(uri(att[rdf::ID])));
@@ -362,15 +362,15 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 			LOG_ERROR<<"property const"<<endl;
 		}else if(current_property.literalp()){
 			#ifdef NATIVE
-			if(current_property->get_Property()->cget<rdfs::range>().t==xsd::String::get_class()||
-			   current_property->get_Property()->cget<rdfs::range>().t==xsd::anyURI::get_class()||
-			   current_property->get_Property()->cget<rdfs::range>().t==xsd::dateTime::get_class()||
+			if(current_property->get_Property()->cget<rdfs::range>().t==introspect<xsd::String>::get_class()||
+			   current_property->get_Property()->cget<rdfs::range>().t==introspect<xsd::anyURI>::get_class()||
+			   current_property->get_Property()->cget<rdfs::range>().t==introspect<xsd::dateTime>::get_class()||
 
 			){//if the RANGE is string it could consume the next `<'
 			#else
-			if(current_property->get_Property()->cget<rdfs::range>()==xsd::String::get_class()||
-			   current_property->get_Property()->cget<rdfs::range>()==xsd::anyURI::get_class()||
-			   current_property->get_Property()->cget<rdfs::range>()==xsd::dateTime::get_class()
+			if(current_property->get_Property()->cget<rdfs::range>()==introspect<xsd::String>::get_class()||
+			   current_property->get_Property()->cget<rdfs::range>()==introspect<xsd::anyURI>::get_class()||
+			   current_property->get_Property()->cget<rdfs::range>()==introspect<xsd::dateTime>::get_class()
 			){//if the RANGE is string it could consume the next `<'
 			#endif
 				string_property=true;
@@ -410,11 +410,11 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 				}
 			}
 		}
-	}else if(get_class(st.top())==rdf::Statement::get_class()){
+	}else if(get_class(st.top())==introspect<rdf::Statement>::get_class()){
 		rdf::Statement::allocator_type::pointer t(st.top());
 		LOG_INFO<<"looking for statement..."<<endl;
 		//need to look through all subclasses of rdf::Statement
-		for(auto s:rdf::Statement::get_class()->cget<rdfs::Class::array_superClassOf>()){
+		for(auto s:introspect<rdf::Statement>::get_class()->cget<rdfs::Class::array_superClassOf>()){
 			LOG_INFO<<s->id<<endl;
 			pool_allocator::pool::POOL_PTR p(s.index,0); //there is a mapping between Class and pools
 			if(p->iterable){
@@ -445,7 +445,7 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 		}
 	}else{
 		LOG_ERROR<<"property `"<<name<<"' not found"<<endl;
-		if((name==rdf::type::get_property()->id)&&(get_class(st.top())==base_resource::get_class())){
+		if((name==introspect<rdf::type>::get_property()->id)&&(get_class(st.top())==introspect<base_resource>::get_class())){
 			/*
  			*	we have a generic resource, we can maybe swap it for a typed resource
  			*	all XML attributes have been lost
@@ -453,7 +453,7 @@ bool rdf_xml_parser::start_property(uri name,ATTRIBUTES att){
 			ATTRIBUTES::iterator j=att.find(rdf::resource);
 			if(j!=att.end()){
 				RESOURCE_PTR r=find(uri::hash_uri(j->second));
-				if(r&&get_class(r)==rdfs::Class::get_class()){
+				if(r&&get_class(r)==introspect<rdfs::Class>::get_class()){
 					RESOURCE_PTR subject=create_by_type(CONST_CLASS_PTR(r),st.top()->id);
 					//LOG<<"new resource:"<<subject.get()<<endl;
 					set_missing_object(subject);
@@ -491,7 +491,7 @@ bool rdf_xml_parser::end_element(uri name){
 bool rdf_xml_parser::characters(string s){
 	LOG_DEBUG<<"characters "<<s<<endl;
 	if(string_property){
-		if(current_property->get_Property()->cget<rdfs::range>()==xsd::dateTime::get_class()){
+		if(current_property->get_Property()->cget<rdfs::range>()==introspect<xsd::dateTime>::get_class()){
 			istringstream is(s);
 			current_property->add_property(p)->in(is);
 			if(!is.good()){

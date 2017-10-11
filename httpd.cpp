@@ -1,4 +1,5 @@
 #include "httpd.h"
+#include "introspect.h"
 //#include "rdf_xml_parser.h"
 #include "sparql_engine.h"
 #ifdef NEW_HEADER
@@ -530,7 +531,7 @@ void httpd::rest(http_parser& h,iostream& io){
 			out<<"<link rel='stylesheet' type='text/css' href='"<<j->second<<"' media='all'/>";
 		out<<"</head><body><pre>";//so we can render svg
 	}
-	out<<"{\""<<rdfs::Class::get_class()->id<<"\" :{\n";
+	out<<"{\""<<introspect<rdfs::Class>::get_class()->id<<"\" :{\n";
 	for(auto i=_classes.cbegin();i!=_classes.cend();++i){
 		if(i!=_classes.cbegin()) out<<",\n";
 		out<<"\t\""<<(*i)->id<<"\":{\n";//which attributes do we serialize?
@@ -548,7 +549,7 @@ void httpd::rest(http_parser& h,iostream& io){
 							if(size==1){
 								if(k!=cbegin(j)) out<<",\n";	
 								out<<"\t\t\t\""<<k->get_Property()->id<<"\":";
-								if(k->get_Property()->cget<rdfs::range>()==rdfs::XML_Literal::get_class()){
+								if(k->get_Property()->cget<rdfs::range>()==introspect<rdfs::XML_Literal>::get_class()){
 									if(html)
 										out<<*k->cbegin();
 									else
@@ -594,7 +595,7 @@ void httpd::rest(http_parser& h,iostream& io){
 					if(size==1){
 						if(k!=cbegin(j)) out<<",\n";	
 						out<<"\t\t\""<<k->get_Property()->id<<"\":";
-						if(k->get_Property()->cget<rdfs::range>()==rdfs::XML_Literal::get_class()){
+						if(k->get_Property()->cget<rdfs::range>()==introspect<rdfs::XML_Literal>::get_class()){
 							if(html)
 								out<<*k->cbegin();
 							else
