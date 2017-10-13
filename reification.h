@@ -6,7 +6,7 @@ namespace rdf{
 	typedef property<rdf::rdfs_namespace,str<'s','u','b','j','e','c','t'>,RESOURCE_PTR> subject;
 	typedef property<rdf::rdfs_namespace,str<'p','r','e','d','i','c','a','t','e'>,PROPERTY_PTR> predicate;
 	typedef property<rdf::rdfs_namespace,str<'o','b','j','e','c','t'>,RESOURCE_PTR> object;
-	struct Statement:resource<rdf::rdfs_namespace,str<'S','t','a','t','e','m','e','n','t'>,
+	struct Statement:objrdf::resource<rdf::rdfs_namespace,str<'S','t','a','t','e','m','e','n','t'>,
 		std::tuple<subject,predicate,object>,
 		Statement
 	>{
