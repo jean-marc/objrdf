@@ -3,6 +3,90 @@
 #include <sstream>
 #include <algorithm>
 #include <fstream>
+//template instantiation, not needed because introspect.h is included
+namespace objrdf{
+	//template struct introspect<rdfs::Class>;
+	V get_vtable_once(){
+		LOG_DEBUG<<"get_vtable:`base_resource'"<<std::endl;
+		function_table rdf_type,objrdf_self,objrdf_id;
+	#ifdef NEW_FUNC_TABLE
+		rdf_type.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t,size_t){return (CONST_RESOURCE_PTR)introspect<base_resource>::get_class();};
+		objrdf_self.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t,size_t index){return subject;};
+		objrdf_id.out_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t,ostream& os,size_t){os<<subject->id;};
+		rdf_type.get_size_generic=function_table::default_f::always_1;
+		objrdf_self.get_size_generic=function_table::default_f::always_1;
+		objrdf_id.get_size_generic=function_table::default_f::always_1;
+	#else
+		rdf_type.cget_object=[](CONST_RESOURCE_PTR subject,size_t){return (CONST_RESOURCE_PTR)introspect<base_resource>::get_class();};
+		rdf_type.get_size=function_table::default_f::always_1;
+		//does not do anything but needed when creating new resources with INSERT DATA{}
+		rdf_type.add_property=function_table::default_f::add_property_def;
+		rdf_type.set_object=[](RESOURCE_PTR subject,RESOURCE_PTR object,size_t index){LOG_WARNING<<"rdf:type property ignored"<<endl;};
+		objrdf_self.cget_object=[](CONST_RESOURCE_PTR subject,size_t index){return subject;};
+		objrdf_self.get_size=function_table::default_f::always_1;
+		objrdf_id.set_string=[](RESOURCE_PTR subject,string s,size_t){
+			if(subject->id.is_local()) //only makes sense with local resources
+				subject->id=uri(s);//could add code to detect duplicate id's
+		};
+		objrdf_id.in=[](RESOURCE_PTR subject,istream& is,size_t){
+			string tmp;
+			is>>tmp;
+			if(subject->id.is_local()) //only makes sense with local resources
+				subject->id=uri(tmp);//could add code to detect duplicate id's
+		};	
+		objrdf_id.out=[](CONST_RESOURCE_PTR subject,ostream& os,size_t){os<<subject->id;};	
+		objrdf_id.get_size=function_table::default_f::always_1;
+	#endif
+		V v={
+			property_info(introspect<rdf::type>::get_property(),rdf_type),//missing rdfs:domain
+			property_info(introspect<objrdf::self>::get_property(),objrdf_self),
+			property_info(introspect<objrdf::id>::get_property(),objrdf_id)
+		};
+		/*
+		*	since we don't use get_property_info we need to set the rdfs::domain of rdf::type
+		*	we can not use property_info::p because it is a pointer to const
+		*/ 
+		introspect<rdf::type>::get_property()->get<rdf::Property::domains>().push_back(rdfs::domain(introspect<base_resource>::get_class()));
+		return v;
+	}
+	V introspect<base_resource>::get_vtable(){
+		static auto v=get_vtable_once();
+		return v;
+	}
+	CONST_CLASS_PTR introspect<base_resource>::get_class(){
+		#ifdef NATIVE
+		static CONST_CLASS_PTR p=new rdfs::Class(
+		#else
+		static CONST_CLASS_PTR p=rdfs::Class::allocator_type::construct_allocate_at(
+			base_resource::allocator_type::get_pool().index,
+		#endif
+			objrdf::get_uri<rdfs::rdfs_namespace>("Resource"),
+			rdfs::subClassOf(),
+			objrdf::base_resource::class_function_table(
+				f_ptr::constructor<base_resource>,
+				f_ptr::destructor<base_resource>,
+				f_ptr::copy_constructor<base_resource>,
+				f_ptr::begin<base_resource>,
+				f_ptr::end<base_resource>,
+				f_ptr::cbegin<base_resource>,
+				f_ptr::cend<base_resource>,
+				f_ptr::allocate<base_resource>,
+				f_ptr::deallocate<base_resource>,
+				f_ptr::get_output<base_resource>
+			)			
+			,base_resource::get_comment()
+			,objrdf::sizeOf(sizeof(base_resource))
+			#ifndef NATIVE
+			,objrdf::hashOf(pool_allocator::pool::get_hash<base_resource>())
+			#endif
+		);
+		return p;
+	}
+
+}
+
+
+
 namespace objrdf{
 	//color scheme in bash, could be customized by namespace
 	char start_id[]="\033[32m";
@@ -200,9 +284,9 @@ rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp,rdfs::s
 #ifdef NATIVE
 RESOURCE_PTR base_resource::nil=new base_resource(uri("nil"));
 #else
-RESOURCE_PTR base_resource::nil=base_resource::allocator_type::construct_allocate(uri("nil"));
+RESOURCE_PTR base_resource::nil;//=base_resource::allocator_type::construct_allocate(uri("nil"));
 #endif
-V base_resource::v=get_generic_property<base_resource>::go();
+V base_resource::v;//=get_generic_property<base_resource>::go();
 CONST_PROPERTY_PTR base_resource::instance_iterator::get_Property() const{return i->p;}
 CONST_PROPERTY_PTR base_resource::const_instance_iterator::get_Property() const{return i->p;}
 bool base_resource::instance_iterator::literalp() const{return i->literalp;}

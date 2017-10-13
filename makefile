@@ -90,6 +90,9 @@ persistence.objrdf: persistence.objrdf.cpp objrdf.o uri.o rdf_xml_parser.o ebnf.
 	$(CC) $(CFLAGS) persistence.objrdf.cpp objrdf.o uri.o rdf_xml_parser.o -o persistence.objrdf
 readme.pdf:readme.md
 	pandoc -V geometry:margin=1in -o $@ $<
+introspect/main: introspect/main.cpp objrdf.o uri.o introspect/test.o introspect/introspection.o
+	$(CC) $(CFLAGS) $^ -o $@
+introspect/test.o:introspect.h
 
 #shared library experiment, total size is 25% bigger, could be improved
 #	ls -l libobjrdf.so example.inventory _example.inventory 
