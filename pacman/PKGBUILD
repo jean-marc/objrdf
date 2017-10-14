@@ -24,7 +24,7 @@ backup=()
 options=()
 install=
 #source=('git+https://github.com/jean-marc/objrdf.git')
-source=('git+ssh://git@linux-dev0/opt/git/objrdf.git')
+source=('git+ssh://git@linux-dev0/opt/git/objrdf.git#branch=develop')
 #source=('git+file:///mnt/opt/git/objrdf.git')
 noextract=()
 md5sums=('SKIP')
