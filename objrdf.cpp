@@ -284,9 +284,9 @@ rdf::Property::Property(objrdf::uri id,rdfs::range r,const bool literalp,rdfs::s
 #ifdef NATIVE
 RESOURCE_PTR base_resource::nil=new base_resource(uri("nil"));
 #else
-RESOURCE_PTR base_resource::nil;//=base_resource::allocator_type::construct_allocate(uri("nil"));
+RESOURCE_PTR base_resource::nil=base_resource::allocator_type::construct_allocate(uri("nil"));
 #endif
-V base_resource::v;//=get_generic_property<base_resource>::go();
+V base_resource::v=introspect<base_resource>::get_vtable();
 CONST_PROPERTY_PTR base_resource::instance_iterator::get_Property() const{return i->p;}
 CONST_PROPERTY_PTR base_resource::const_instance_iterator::get_Property() const{return i->p;}
 bool base_resource::instance_iterator::literalp() const{return i->literalp;}
