@@ -10,10 +10,28 @@
 using namespace objrdf;
 namespace test{	
 	RDFS_NAMESPACE("http://www.example.org/#","test");
+	typedef resource<rdfs_namespace,str<'B'>,std::tuple<>/*,NIL,base_resource,std::tuple<>,std::allocator<void>,true*/> B;
 	typedef property<rdfs_namespace,str<'p','_','0'>,int> p_0;
 	typedef property<rdfs_namespace,str<'p','_','1'>,std::chrono::system_clock::time_point> p_1;
-	typedef resource<rdfs_namespace,str<'A'>,std::tuple<p_0,p_1>> A;
+	typedef property<rdfs_namespace,str<'p','_','2'>,B::allocator_type::const_pointer> p_2;
+	typedef property<rdfs_namespace,str<'p','_','3'>,int> p_3;
+	typedef property<rdfs_namespace,str<'p','_','4'>,B::allocator_type::pointer> p_4;
+	typedef resource<rdfs_namespace,str<'A'>,
+		std::tuple<
+			p_0,
+			p_1,
+			p_2,
+			objrdf::array<p_3,std::allocator<p_3>>,
+			objrdf::array<p_4,std::allocator<p_4>>
+		>
+	> A;
 }
+/*
+namespace objrdf{
+	template<> struct introspect<test::A>;
+	template<> struct introspect<test::B>;
+}
+*/
 namespace rdfs{
 	int verbosity=7;
 	const char _context_[]="rdfs";
@@ -27,7 +45,7 @@ namespace pool_allocator{
 	const char _context_[]="pool";
 }
 int main(){
-	introspect<test::A>::get_class();
+	introspect<test::A>::get_vtable();
 	//RDF parsing
 	{
 		string s="<rdf:RDF\n"
@@ -35,15 +53,22 @@ int main(){
 		"xmlns:test='http://www.example.org/#'\n"
 		">\n"
 		"<test:A rdf:ID='instance_0'>\n"
-		"	<test:p_0>0</test:p_0>\n"
+		"	<test:p_0>1234</test:p_0>\n"
 		"	<test:p_1>2016-02-17T22:27:33.508-0800</test:p_1>\n"
 		"	<test:p_1>0</test:p_1>\n"
+		"	<test:p_2><test:B rdf:ID='instance_B'/></test:p_2>\n"
+		"	<test:p_3>1</test:p_3>\n"
+		"	<test:p_3>2</test:p_3>\n"
+		"	<test:p_3>3</test:p_3>\n"
+		"	<test:p_4><test:B/></test:p_4>\n"
+		"	<test:p_4><test:B/></test:p_4>\n"
 		"</test:A>\n"
 		"</rdf:RDF>\n";
 		istringstream in(s);
 		rdf_xml_parser p(in);
 		assert(p.go());		
 	}	
+	to_rdf_xml(introspect<rdfs::Class>::get_class(),cout);
 	test::A::allocator_type a;
 	auto p=a.allocate(1);
 	a.construct(p,uri("instance"));
@@ -55,6 +80,7 @@ int main(){
 	vector<string> queries={
 		"PREFIX: <http://www.example.org/#>"
 		"INSERT DATA{<instance> :p_0 12345 .}",
+
 		"PREFIX: <http://www.example.org/#>\n"
 		"INSERT DATA{\n"
 		"	<instance> :p_0 12345;\n"
@@ -64,9 +90,15 @@ int main(){
 		"}",
 		"PREFIX: <http://www.example.org/#>\n"
 		"DELETE DATA{\n"
-		"	<instance> :p_0 6789 .\n"
+		"	<instance_0> :p_0 1234 .\n"
 		"}",
-		"DESCRIBE <#instance>"
+
+		"PREFIX: <http://www.example.org/#>\n"
+		"DELETE DATA{\n"
+		"	<instance_0> :p_2 <instance_B> .\n"
+		"}",
+
+		"DESCRIBE <#instance_0>"
 	};
 	for(auto q:queries){
 		cerr<<"parsing query `"<<q<<"'..."<<endl;

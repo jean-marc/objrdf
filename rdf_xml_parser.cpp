@@ -65,11 +65,7 @@ bool rdf_xml_parser::start_resource(uri name,ATTRIBUTES att){//use ATTRIBUTES& t
 			auto j=att.find(rdf::ID);
 			//if resource stored inside property, do not allocate memory but constructor
 			RESOURCE_PTR r;
-			#ifdef NEW_FUNC_TABLE
-			if((*current_property).t.set_object_generic){
-			#else
 			if((*current_property).t.set_object){
-			#endif
 				/*RESOURCE_PTR*/ r=(j!=att.end()) ? create_by_type(cl,uri(j->second)):create_by_type_blank(cl);
 				auto k=att.find(rdf::nodeID);
 				if(k!=att.end()){

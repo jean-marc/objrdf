@@ -5,6 +5,21 @@
 #include <parser/char_iterator.h>
 using namespace parser;
 using namespace std;
+#if 0
+namespace objrdf{
+	template<> PROPERTY_PTR introspect<ts>::get_property(){
+		/*
+		static PROPERTY_PTR c=rdf::Property::allocator_type::construct_allocate(
+			objrdf::get_uri<objrdf::objrdf_rdfs_ns,NAME>(),
+			rdfs::range(introspect<typename selector<RANGE>::ResultT>::get_class()),
+			property<objrdf::objrdf_rdfs_ns,NAME,RANGE,BASE_PROPERTY>::TYPE&LITERAL
+		);
+		return c;
+		*/
+		return nullptr;
+	}
+}
+#endif
 ostream& objrdf::operator<<(ostream& os,const std::chrono::system_clock::time_point& _t){
 	std::time_t t=std::chrono::system_clock::to_time_t(_t);
 	char buffer[80];

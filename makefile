@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -O3 -std=c++0x -Wall -I. -lpthread -include log_info.h
+CFLAGS = -O3 -std=c++0x -Wall -I. -lpthread -include log_info.h -UNEW_FUNC_TABLE
 OBJ1 = objrdf.o uri.o objrdf_time.o
 OBJ5 = Sockets.o
 OBJ7 = sparql_engine.o
@@ -22,6 +22,8 @@ native/%.o:%.cpp %.h
 #all:test0 test1
 #clean:
 #	rm $(OBJS)
+objrdf.cpp:introspect.h
+
 test%:test%.cpp $(OBJ1) $(OBJ8) objrdf.h
 	$(CC) $(CFLAGS) $< $(OBJ1) $(OBJ8) -o $@ 
 examples/%:examples/%.cpp $(OBJ1) $(OBJ8) $(OBJ9) objrdf.h

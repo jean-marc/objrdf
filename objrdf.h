@@ -69,7 +69,8 @@ namespace objrdf{
 #define PROPERTY(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::property<rdfs_namespace,n_##n,__VA_ARGS__> n
 #define OBJRDF_PROPERTY(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::property<objrdf_rdfs_ns,n_##n,__VA_ARGS__> n
 #define CLASS(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::resource<rdfs_namespace,n_##n,__VA_ARGS__> n
-#define OBJRDF_CLASS(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::resource<objrdf_rdfs_ns,n_##n,__VA_ARGS__> n
+#define LOCAL_CLASS(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::local_resource<rdfs_namespace,n_##n,__VA_ARGS__> n
+#define OBJRDF_CLASS(n,...) struct n_##n{static const char* name(){return #n;};};typedef objrdf::local_resource<objrdf_rdfs_ns,n_##n,__VA_ARGS__> n
 /*
  *	could we define lightweight classes? to reuse code?, that would all use the same pool because they are identical
  *	they only differ by their rdfs::type
@@ -148,26 +149,19 @@ namespace objrdf{
  	*/ 
 	struct function_table{
 		#ifdef NEW_FUNC_TABLE
-		typedef void (*set_string_generic_f)(RESOURCE_PTR,string,ptrdiff_t,size_t);
-		typedef void (*in_generic_f)(RESOURCE_PTR,ptrdiff_t,istream&,size_t);
-		typedef void (*out_generic_f)(CONST_RESOURCE_PTR,ptrdiff_t offset,ostream&,size_t);
-		typedef RESOURCE_PTR (*get_object_generic_f)(RESOURCE_PTR,ptrdiff_t,size_t);//could we use CONST_RESOURCE_PTR?
-		typedef CONST_RESOURCE_PTR (*cget_object_generic_f)(CONST_RESOURCE_PTR,ptrdiff_t,size_t);
-		typedef void (*set_object_generic_f)(RESOURCE_PTR,RESOURCE_PTR,ptrdiff_t,size_t);
-		typedef size_t (*get_size_generic_f)(CONST_RESOURCE_PTR,ptrdiff_t);
-		typedef void (*add_property_generic_f)(RESOURCE_PTR,ptrdiff_t);
+		typedef void (*set_string_f)(RESOURCE_PTR,string,ptrdiff_t,size_t);
+		typedef void (*in_f)(RESOURCE_PTR,ptrdiff_t,istream&,size_t);
+		typedef void (*out_f)(CONST_RESOURCE_PTR,ptrdiff_t offset,ostream&,size_t);
+		typedef RESOURCE_PTR (*get_object_f)(RESOURCE_PTR,ptrdiff_t,size_t);//could we use CONST_RESOURCE_PTR?
+		typedef CONST_RESOURCE_PTR (*cget_object_f)(CONST_RESOURCE_PTR,ptrdiff_t,size_t);
+		typedef void (*set_object_f)(RESOURCE_PTR,RESOURCE_PTR,ptrdiff_t,size_t);
+		typedef size_t (*get_size_f)(CONST_RESOURCE_PTR,ptrdiff_t);
+		typedef void (*add_property_f)(RESOURCE_PTR,ptrdiff_t);
+		typedef void (*erase_f)(RESOURCE_PTR,ptrdiff_t,size_t,size_t);
 		struct default_f{
 			static size_t always_1(CONST_RESOURCE_PTR,ptrdiff_t){return 1;}
-			static void add_property_generic_def(RESOURCE_PTR,ptrdiff_t){}
+			static void add_property_def(RESOURCE_PTR,ptrdiff_t){}
 		};
-		set_string_generic_f set_string_generic=0;
-		in_generic_f in_generic=0;
-		out_generic_f out_generic=0;
-		get_object_generic_f get_object_generic=0;
-		cget_object_generic_f cget_object_generic=0;
-		set_object_generic_f set_object_generic=0;
-		get_size_generic_f get_size_generic=default_f::always_1;
-		add_property_generic_f add_property_generic=default_f::add_property_generic_def;
 	#else
 		typedef void (*set_string_f)(RESOURCE_PTR,string,size_t);
 		typedef void (*in_f)(RESOURCE_PTR,istream&,size_t);
@@ -177,10 +171,12 @@ namespace objrdf{
 		typedef void (*set_object_f)(RESOURCE_PTR,RESOURCE_PTR,size_t);
 		typedef size_t (*get_size_f)(CONST_RESOURCE_PTR);
 		typedef void (*add_property_f)(RESOURCE_PTR,PROVENANCE);
+		typedef void (*erase_f)(RESOURCE_PTR,size_t,size_t);
 		struct default_f{
 			static size_t always_1(CONST_RESOURCE_PTR){return 1;}
 			static void add_property_def(RESOURCE_PTR,PROVENANCE){}
 		};
+	#endif
 		set_string_f set_string=0;
 		in_f in=0;
 		out_f out=0;
@@ -189,8 +185,6 @@ namespace objrdf{
 		set_object_f set_object=0;
 		get_size_f get_size=default_f::always_1;
 		add_property_f add_property=default_f::add_property_def;
-	#endif
-		typedef void (*erase_f)(RESOURCE_PTR,size_t,size_t);
 		//let's make this more general using reification 
 		typedef PROVENANCE (*get_provenance_f)(CONST_RESOURCE_PTR,size_t);
 		typedef RESOURCE_PTR (*get_statement_f)(CONST_RESOURCE_PTR,size_t);
@@ -200,15 +194,6 @@ namespace objrdf{
 		get_statement_f get_statement=0;
 		compare_f compare=0;
 		friend ostream& operator<<(ostream& os,const function_table& f){
-			#ifdef NEW_FUNC_TABLE
-			os<<"in_generic\t"<<(void*)f.in_generic<<"\n";
-			os<<"out_generic\t"<<(void*)f.out_generic<<"\n";
-			os<<"get_object_generic\t"<<(void*)f.get_object_generic<<"\n";
-			os<<"cget_object_generic\t"<<(void*)f.cget_object_generic<<"\n";
-			os<<"set_object_generic\t"<<(void*)f.set_object_generic<<"\n";
-			os<<"get_size_generic\t"<<(void*)f.get_size_generic<<"\n";
-			os<<"add_property_generic\t"<<(void*)f.add_property_generic<<"\n";
-			#else
 			os<<"in\t"<<(void*)f.in<<"\n";
 			os<<"out\t"<<(void*)f.out<<"\n";
 			os<<"get_object\t"<<(void*)f.get_object<<"\n";
@@ -216,7 +201,6 @@ namespace objrdf{
 			os<<"set_object\t"<<(void*)f.set_object<<"\n";
 			os<<"get_size\t"<<(void*)f.get_size<<"\n";
 			os<<"add_property\t"<<(void*)f.add_property<<"\n";
-			#endif
 			os<<"erase\t"<<(void*)f.erase<<"\n";
 			os<<"get_provenance\t"<<(void*)f.get_provenance<<"\n";
 			os<<"get_statement\t"<<(void*)f.get_statement<<"\n";
@@ -231,7 +215,7 @@ namespace objrdf{
 		/*const*/ bool literalp;
 		#ifdef NEW_FUNC_TABLE
 		ptrdiff_t offset;//=0;//offset of property within class
-		property_info(CONST_PROPERTY_PTR p,function_table t,ptrdiff_t offset=0);
+		property_info(CONST_PROPERTY_PTR p,function_table t,ptrdiff_t offset);
 		template<typename PROPERTY> static property_info go(ptrdiff_t offset);
 		#else
 		property_info(CONST_PROPERTY_PTR p,function_table t);
@@ -553,7 +537,7 @@ namespace objrdf{
 		typename _NAMESPACE_,
 		typename _NAME_,
 		typename _PROPERTIES_=tuple<>, //MUST BE A tuple !!
-		typename SUBCLASS=NIL,//default should be resource
+		typename _SUBCLASS_=NIL,//default should be resource
 		typename _SUPERCLASS_=base_resource,//could we have more than 1 super-class
 		/*
  		* when using trigger the class must be derived to add the handlers: instead_of_insert() and instead_of_delete()
@@ -561,14 +545,18 @@ namespace objrdf{
  		* 	instead_of_insert(some_property inserted);
  		* 	instead_of_delete(some_property& deleted);
  		*/
-		typename TRIGGER=tuple<>,
-		typename ALLOCATOR=typename _SUPERCLASS_::allocator_type
+		typename _TRIGGER_=tuple<>,
+		typename _ALLOCATOR_=typename _SUPERCLASS_::allocator_type,
+		bool LOCAL_COMPILE=false
 	>
 	struct resource:_SUPERCLASS_{
 		typedef _NAMESPACE_ NAMESPACE;
 		typedef _NAME_ NAME;
 		typedef _PROPERTIES_ PROPERTIES;
+		typedef _SUBCLASS_ SUBCLASS;
 		typedef _SUPERCLASS_ SUPERCLASS;
+		typedef _TRIGGER_ TRIGGER;
+		typedef _ALLOCATOR_ ALLOCATOR;
 		typedef resource SELF;
 		typedef typename IfThenElse<std::is_same<SUBCLASS,NIL>::value,resource,SUBCLASS>::ResultT TMP;
 		/*
@@ -619,17 +607,62 @@ namespace objrdf{
  		*	};
  		*/ 
 		template<typename U> void set(U u){get<U>()=u;}
+		/*
+		*	where does it get defined?
+		*/
 		static V v;
 		base_resource::type_iterator begin(){return base_resource::type_iterator(this,v.begin());}
-		base_resource::type_iterator end(){return base_resource::type_iterator(this,v.end());}  
-		base_resource::const_type_iterator cbegin() const{return base_resource::const_type_iterator(this,v.cbegin());}
-		base_resource::const_type_iterator cend() const{return base_resource::const_type_iterator(this,v.cend());}  
+		//base_resource::type_iterator end(){return base_resource::type_iterator(this,v.end());}  
+		//base_resource::const_type_iterator cbegin() const{return base_resource::const_type_iterator(this,v.cbegin());}
+		//base_resource::const_type_iterator cend() const{return base_resource::const_type_iterator(this,v.cend());}  
 		//static CONST_CLASS_PTR get_class();	
 		#ifdef NATIVE
 		virtual CONST_CLASS_PTR _get_class() const{return get_class();}
 		#endif
 	};
+	//specialize resource for local resources
+	//let's derive to separate local from user's	
+	template<
+		typename _NAMESPACE_,
+		typename _NAME_,
+		typename _PROPERTIES_,
+		typename _SUBCLASS_,
+		typename _SUPERCLASS_,
+		typename _TRIGGER_,
+		typename _ALLOCATOR_
+	>
+	struct resource<_NAMESPACE_,_NAME_,_PROPERTIES_,_SUBCLASS_,_SUPERCLASS_,_TRIGGER_,_ALLOCATOR_,true>:_SUPERCLASS_{
+		typedef _NAMESPACE_ NAMESPACE;
+		typedef _NAME_ NAME;
+		typedef _PROPERTIES_ PROPERTIES;
+		typedef _SUBCLASS_ SUBCLASS;
+		typedef _SUPERCLASS_ SUPERCLASS;
+		typedef _TRIGGER_ TRIGGER;
+		typedef _ALLOCATOR_ ALLOCATOR;
+		typedef resource SELF;
+		typedef typename IfThenElse<std::is_same<SUBCLASS,NIL>::value,resource,SUBCLASS>::ResultT TMP;
+		/*
+ 		*	by default allocator should be the same as base class's 
+ 		*/ 
+		typedef typename ALLOCATOR::template rebind<TMP>::other allocator_type;
+		PROPERTIES p;
+		template<typename U> U& get(){return helper<resource,U>::hget(*this);}
+		template<typename U> const U& get_const() const{return helper<resource,U>::hcget(*this);}
+		template<typename U> const U& cget() const{return helper<resource,U>::hcget(*this);}
+		resource(uri id):SUPERCLASS(id){}
+		static V v;
 
+	};
+	template<
+		typename _NAMESPACE_,
+		typename _NAME_,
+		typename _PROPERTIES_=std::tuple<>,
+		typename _SUBCLASS_=NIL,
+		typename _SUPERCLASS_=base_resource,
+		typename _TRIGGER_=std::tuple<>,
+		typename _ALLOCATOR_=typename _SUPERCLASS_::allocator_type
+	>
+	using local_resource=resource<_NAMESPACE_,_NAME_,_PROPERTIES_,_SUBCLASS_,_SUPERCLASS_,_TRIGGER_,_ALLOCATOR_,true>;	
 	template<
 		typename _RANGE_
 	> struct base_property{
@@ -1096,7 +1129,7 @@ namespace rdfs{
 	PROPERTY(member,objrdf::RESOURCE_PTR);
 }
 namespace rdf{
-	struct Literal:objrdf::resource<rdfs_namespace,Literal,tuple<>,Literal>{
+	struct Literal:objrdf::local_resource<rdfs_namespace,Literal,tuple<>,Literal>{
 		static const char* name(){return "Literal";}
 		Literal(objrdf::uri u):SELF(u){}
 		COMMENT("The class of literal values, eg. textual strings and integers")
@@ -1108,16 +1141,16 @@ namespace xsd{
  	*	not clear what the syntax should be
  	*/ 
 	RDFS_NAMESPACE("http://www.w3.org/2001/XMLSchema#","xsd");//or xs?
-	CLASS(integer,tuple<>,objrdf::NIL,rdf::Literal);
-	CLASS(unsignedInt,tuple<>,objrdf::NIL,rdf::Literal);
-	CLASS(anyURI,tuple<>,objrdf::NIL,rdf::Literal);
-	CLASS(date,tuple<>,objrdf::NIL,rdf::Literal);
-	CLASS(dateTime,tuple<>,objrdf::NIL,rdf::Literal);
-	CLASS(unsignedShort,tuple<>,objrdf::NIL,rdf::Literal);
-	typedef objrdf::resource<rdfs_namespace,objrdf::str<'d','o','u','b','l','e'>,tuple<>,objrdf::NIL,rdf::Literal> Double;
-	typedef objrdf::resource<rdfs_namespace,objrdf::str<'f','l','o','a','t'>,tuple<>,objrdf::NIL,rdf::Literal> Float;
-	typedef objrdf::resource<rdfs_namespace,objrdf::str<'s','h','o','r','t'>,tuple<>,objrdf::NIL,rdf::Literal> Short;
-	typedef objrdf::resource<rdfs_namespace,objrdf::str<'s','t','r','i','n','g'>,tuple<>,objrdf::NIL,rdf::Literal> String;
+	LOCAL_CLASS(integer,tuple<>,objrdf::NIL,rdf::Literal);
+	LOCAL_CLASS(unsignedInt,tuple<>,objrdf::NIL,rdf::Literal);
+	LOCAL_CLASS(anyURI,tuple<>,objrdf::NIL,rdf::Literal);
+	LOCAL_CLASS(date,tuple<>,objrdf::NIL,rdf::Literal);
+	LOCAL_CLASS(dateTime,tuple<>,objrdf::NIL,rdf::Literal);
+	LOCAL_CLASS(unsignedShort,tuple<>,objrdf::NIL,rdf::Literal);
+	typedef objrdf::local_resource<rdfs_namespace,objrdf::str<'d','o','u','b','l','e'>,tuple<>,objrdf::NIL,rdf::Literal> Double;
+	typedef objrdf::local_resource<rdfs_namespace,objrdf::str<'f','l','o','a','t'>,tuple<>,objrdf::NIL,rdf::Literal> Float;
+	typedef objrdf::local_resource<rdfs_namespace,objrdf::str<'s','h','o','r','t'>,tuple<>,objrdf::NIL,rdf::Literal> Short;
+	typedef objrdf::local_resource<rdfs_namespace,objrdf::str<'s','t','r','i','n','g'>,tuple<>,objrdf::NIL,rdf::Literal> String;
 }
 namespace objrdf{
 	OBJRDF_CLASS(Char,tuple<>,NIL,rdf::Literal);
@@ -1153,7 +1186,7 @@ namespace rdfs{
 		but NOT when using XML serialization of SPARQL reply
 	*/
 	struct XMLLiteral{}; //symbolic type
-	CLASS(XML_Literal,tuple<>,objrdf::NIL,rdf::Literal);
+	LOCAL_CLASS(XML_Literal,tuple<>,objrdf::NIL,rdf::Literal);
 }
 namespace objrdf{
 	template<> struct get_Literal<rdfs::XMLLiteral>:rdfs::XML_Literal{};
@@ -1180,7 +1213,7 @@ namespace objrdf{
  	*/ 
 	/*
 	PROPERTY(on,rdfs::Class::allocator_type::const_pointer);
-	CLASS(Privilege,tuple<type,array<on>>);
+	LOCAL_CLASS(Privilege,tuple<type,array<on>>);
 	*/
 	#ifdef NATIVE
 	OBJRDF_CLASS(User,tuple<>,NIL,base_resource,tuple<>);
@@ -1214,7 +1247,7 @@ namespace objrdf{
 	*/
 }
 namespace rdfs{
-	struct Class:objrdf::resource<rdfs_namespace,Class,
+	struct Class:objrdf::local_resource<rdfs_namespace,Class,
 		tuple<
 			#ifdef NATIVE
 			objrdf::array<subClassOf,std::allocator<subClassOf>>,
@@ -1308,7 +1341,7 @@ namespace objrdf{
 	//OBJRDF_PROPERTY(_id,size_t);
 }
 namespace rdf{
-	struct Property:objrdf::resource<rdfs_namespace,Property,
+	struct Property:objrdf::local_resource<rdfs_namespace,Property,
 		tuple<
 			//rdfs::domain,//same property could applies to different unrelated classes (might be in conflict with strict RDFS)
 			#ifdef NATIVE
@@ -1338,7 +1371,6 @@ namespace rdf{
 
 namespace objrdf{
 	template<typename RESOURCE> struct introspect:introspect<typename RESOURCE::SELF>{};
-	
 	template<
 		typename NAMESPACE,
 		typename NAME,
@@ -1346,17 +1378,19 @@ namespace objrdf{
 		typename SUBCLASS,
 		typename SUPERCLASS,
 		typename TRIGGER,
-		typename ALLOCATOR
+		typename ALLOCATOR,
+		bool LOCAL_COMPILE
 	>
-	struct introspect<resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,TRIGGER,ALLOCATOR>>{
+	struct introspect<resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,TRIGGER,ALLOCATOR,LOCAL_COMPILE>>{
 		static CONST_CLASS_PTR get_class();
 		static V get_vtable();
 	};
+	//will be defined in objrdf.cpp
 	template<> struct introspect<base_resource>{
 		static CONST_CLASS_PTR get_class();
 		static V get_vtable();
 	};
-	
+	//
 	template<
 		typename NAMESPACE,
 		typename NAME,
@@ -1365,6 +1399,7 @@ namespace objrdf{
 	> struct introspect<property<NAMESPACE,NAME,RANGE,BASE_PROPERTY>>{
 		static PROPERTY_PTR get_property();
 	};
+
 	template<typename RANGE> struct selector{
 		typedef get_Literal<RANGE> ResultT;
 		enum{IS_LITERAL=1};
@@ -1440,7 +1475,8 @@ namespace objrdf{
 		typename SUBCLASS,
 		typename SUPERCLASS,
 		typename TRIGGER,
-		typename ALLOCATOR
-	> V resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,TRIGGER,ALLOCATOR>::v=introspect<resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,TRIGGER,ALLOCATOR>>::get_vtable();
+		typename ALLOCATOR,
+		bool LOCAL_COMPILE
+	> V resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,TRIGGER,ALLOCATOR,LOCAL_COMPILE>::v=introspect<resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,TRIGGER,ALLOCATOR,LOCAL_COMPILE>>::get_vtable();
 }
 #endif

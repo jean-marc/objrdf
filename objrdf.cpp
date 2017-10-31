@@ -3,19 +3,32 @@
 #include <sstream>
 #include <algorithm>
 #include <fstream>
-//template instantiation, not needed because introspect.h is included
 namespace objrdf{
-	//template struct introspect<rdfs::Class>;
+	template struct introspect<xsd::integer>;
+	template struct introspect<xsd::unsignedInt>;
+	template struct introspect<xsd::anyURI>;
+	template struct introspect<xsd::date>;
+	template struct introspect<xsd::dateTime>;
+	template struct introspect<xsd::unsignedShort>;
+	template struct introspect<xsd::Double>;
+	template struct introspect<xsd::Float>;
+	template struct introspect<xsd::Short>;
+	template struct introspect<xsd::String>;
 	V get_vtable_once(){
 		LOG_DEBUG<<"get_vtable:`base_resource'"<<std::endl;
 		function_table rdf_type,objrdf_self,objrdf_id;
 	#ifdef NEW_FUNC_TABLE
-		rdf_type.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t,size_t){return (CONST_RESOURCE_PTR)introspect<base_resource>::get_class();};
-		objrdf_self.cget_object_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t,size_t index){return subject;};
-		objrdf_id.out_generic=[](CONST_RESOURCE_PTR subject,ptrdiff_t,ostream& os,size_t){os<<subject->id;};
-		rdf_type.get_size_generic=function_table::default_f::always_1;
-		objrdf_self.get_size_generic=function_table::default_f::always_1;
-		objrdf_id.get_size_generic=function_table::default_f::always_1;
+		rdf_type.cget_object=[](CONST_RESOURCE_PTR subject,ptrdiff_t,size_t){return (CONST_RESOURCE_PTR)introspect<base_resource>::get_class();};
+		objrdf_self.cget_object=[](CONST_RESOURCE_PTR subject,ptrdiff_t,size_t index){return subject;};
+		objrdf_id.out=[](CONST_RESOURCE_PTR subject,ptrdiff_t,ostream& os,size_t){os<<subject->id;};
+		rdf_type.get_size=function_table::default_f::always_1;
+		objrdf_self.get_size=function_table::default_f::always_1;
+		objrdf_id.get_size=function_table::default_f::always_1;
+		V v={
+			property_info(introspect<rdf::type>::get_property(),rdf_type,0),//missing rdfs:domain
+			property_info(introspect<objrdf::self>::get_property(),objrdf_self,0),
+			property_info(introspect<objrdf::id>::get_property(),objrdf_id,0)
+		};
 	#else
 		rdf_type.cget_object=[](CONST_RESOURCE_PTR subject,size_t){return (CONST_RESOURCE_PTR)introspect<base_resource>::get_class();};
 		rdf_type.get_size=function_table::default_f::always_1;
@@ -36,12 +49,12 @@ namespace objrdf{
 		};	
 		objrdf_id.out=[](CONST_RESOURCE_PTR subject,ostream& os,size_t){os<<subject->id;};	
 		objrdf_id.get_size=function_table::default_f::always_1;
-	#endif
 		V v={
 			property_info(introspect<rdf::type>::get_property(),rdf_type),//missing rdfs:domain
 			property_info(introspect<objrdf::self>::get_property(),objrdf_self),
 			property_info(introspect<objrdf::id>::get_property(),objrdf_id)
 		};
+	#endif
 		/*
 		*	since we don't use get_property_info we need to set the rdfs::domain of rdf::type
 		*	we can not use property_info::p because it is a pointer to const
@@ -83,9 +96,16 @@ namespace objrdf{
 		return p;
 	}
 
+	template<
+		typename NAMESPACE,
+		typename NAME,
+		typename PROPERTIES,
+		typename SUBCLASS,
+		typename SUPERCLASS,
+		typename TRIGGER,
+		typename ALLOCATOR
+	> V local_resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,TRIGGER,ALLOCATOR>::v=introspect<local_resource<NAMESPACE,NAME,PROPERTIES,SUBCLASS,SUPERCLASS,TRIGGER,ALLOCATOR>>::get_vtable();
 }
-
-
 
 namespace objrdf{
 	//color scheme in bash, could be customized by namespace
@@ -126,8 +146,8 @@ CONST_PROPERTY_PTR base_resource::const_type_iterator::get_Property() const{retu
 size_t base_resource::type_iterator::get_size() const{
 	auto tmp=*static_cast<V::const_iterator>(*this);
 	#ifdef NEW_FUNC_TABLE
-	assert(tmp.t.get_size_generic);
-	return tmp.t.get_size_generic(subject,tmp.offset);
+	assert(tmp.t.get_size);
+	return tmp.t.get_size(subject,tmp.offset);
 	#else
 	return tmp.t.get_size(subject);
 	#endif
@@ -135,8 +155,8 @@ size_t base_resource::type_iterator::get_size() const{
 size_t base_resource::const_type_iterator::get_size() const{
 	auto tmp=*static_cast<V::const_iterator>(*this);
 	#ifdef NEW_FUNC_TABLE
-	assert(tmp.t.get_size_generic);
-	return tmp.t.get_size_generic(subject,tmp.offset);
+	assert(tmp.t.get_size);
+	return tmp.t.get_size(subject,tmp.offset);
 	#else
 	return tmp.t.get_size(subject);
 	#endif
@@ -144,8 +164,8 @@ size_t base_resource::const_type_iterator::get_size() const{
 bool base_resource::type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
 bool base_resource::const_type_iterator::literalp() const{return static_cast<V::const_iterator>(*this)->literalp;}
 #ifdef NEW_FUNC_TABLE
-bool base_resource::type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property_generic;}
-bool base_resource::const_type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property_generic;}
+bool base_resource::type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property;}
+bool base_resource::const_type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property;}
 #else
 bool base_resource::type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property;}
 bool base_resource::const_type_iterator::constp() const{return !static_cast<V::const_iterator>(*this)->t.add_property;}
@@ -228,12 +248,20 @@ rdfs::Class::Class(
 #ifndef NATIVE
 void rdfs::Class::patch(V& _v){
 	function_table t;
+	t.get_size=function_table::default_f::always_1;
+	#ifdef NEW_FUNC_TABLE
+	t.out=[](CONST_RESOURCE_PTR subject,ptrdiff_t,ostream& os,size_t index){
+		pool_allocator::pool::POOL_PTR p(subject.index,0); 
+		os<<p->get_size_generic(*p);
+	};
+	_v.push_back(property_info(introspect<objrdf::cardinality>::get_property(),t,0));
+	#else
 	t.out=[](CONST_RESOURCE_PTR subject,ostream& os,size_t index){
 		pool_allocator::pool::POOL_PTR p(subject.index,0); 
 		os<<p->get_size_generic(*p);
 	};
-	t.get_size=function_table::default_f::always_1;
 	_v.push_back(property_info(introspect<objrdf::cardinality>::get_property(),t));
+	#endif
 }
 #endif
 #if 0
@@ -292,14 +320,14 @@ CONST_PROPERTY_PTR base_resource::const_instance_iterator::get_Property() const{
 bool base_resource::instance_iterator::literalp() const{return i->literalp;}
 bool base_resource::const_instance_iterator::literalp() const{return i->literalp;}
 #ifdef NEW_FUNC_TABLE
-void base_resource::instance_iterator::in(istream& is){i->t.in_generic(subject,i->offset,is,index);}
-void base_resource::instance_iterator::out(ostream& os) const{i->t.out_generic(subject,i->offset,os,index);}
-void base_resource::const_instance_iterator::out(ostream& os) const{i->t.out_generic(subject,i->offset,os,index);}
-void base_resource::instance_iterator::set_string(string s){i->t.set_string_generic(subject,s,i->offset,index);}
-RESOURCE_PTR base_resource::instance_iterator::get_object() const{return i->t.get_object_generic(subject,i->offset,index);}
-CONST_RESOURCE_PTR base_resource::instance_iterator::get_const_object() const{return i->t.cget_object_generic(subject,i->offset,index);}
-CONST_RESOURCE_PTR base_resource::const_instance_iterator::get_const_object() const{return i->t.cget_object_generic(subject,i->offset,index);}
-void base_resource::instance_iterator::set_object(RESOURCE_PTR r){i->t.set_object_generic(subject,r,i->offset,index);}
+void base_resource::instance_iterator::in(istream& is){i->t.in(subject,i->offset,is,index);}
+void base_resource::instance_iterator::out(ostream& os) const{i->t.out(subject,i->offset,os,index);}
+void base_resource::const_instance_iterator::out(ostream& os) const{i->t.out(subject,i->offset,os,index);}
+void base_resource::instance_iterator::set_string(string s){i->t.set_string(subject,s,i->offset,index);}
+RESOURCE_PTR base_resource::instance_iterator::get_object() const{return i->t.get_object(subject,i->offset,index);}
+CONST_RESOURCE_PTR base_resource::instance_iterator::get_const_object() const{return i->t.cget_object(subject,i->offset,index);}
+CONST_RESOURCE_PTR base_resource::const_instance_iterator::get_const_object() const{return i->t.cget_object(subject,i->offset,index);}
+void base_resource::instance_iterator::set_object(RESOURCE_PTR r){i->t.set_object(subject,r,i->offset,index);}
 #else
 void base_resource::instance_iterator::in(istream& is){i->t.in(subject,is,index);}
 void base_resource::instance_iterator::out(ostream& os) const{i->t.out(subject,os,index);}
@@ -358,8 +386,8 @@ base_resource::instance_iterator base_resource::type_iterator::add_property(PROV
 	//awkward
 	auto tmp=*static_cast<V::const_iterator>(*this);
 	#ifdef NEW_FUNC_TABLE
-	assert(tmp.t.add_property_generic);
-	tmp.t.add_property_generic(subject,tmp.offset);
+	assert(tmp.t.add_property);
+	tmp.t.add_property(subject,tmp.offset);
 	#else
 	assert(tmp.t.add_property);
 	tmp.t.add_property(subject,0);
@@ -415,11 +443,19 @@ namespace objrdf{
 
 	void erase(RESOURCE_PTR r,base_resource::instance_iterator first,base_resource::instance_iterator last){
 		assert(first.i->t.erase);
+	#ifdef NEW_FUNC_TABLE
+		first.i->t.erase(r,first.i->offset,first.index,last.index);
+	#else
 		first.i->t.erase(r,first.index,last.index);
+	#endif
 	}
 	void erase(RESOURCE_PTR r,base_resource::instance_iterator position){
 		assert(position.i->t.erase);
+	#ifdef NEW_FUNC_TABLE
+		position.i->t.erase(r,position.i->offset,position.index,position.index+1);
+	#else
 		position.i->t.erase(r,position.index,position.index+1);
+	#endif
 	}
 	base_resource::const_instance_iterator get_const_self_iterator(CONST_RESOURCE_PTR r){
 		return base_resource::const_instance_iterator(r,base_resource::v.cbegin()+1,0);//hard-coded index, careful!
