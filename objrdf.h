@@ -1146,6 +1146,7 @@ namespace xsd{
 	LOCAL_CLASS(anyURI,tuple<>,objrdf::NIL,rdf::Literal);
 	LOCAL_CLASS(date,tuple<>,objrdf::NIL,rdf::Literal);
 	LOCAL_CLASS(dateTime,tuple<>,objrdf::NIL,rdf::Literal);
+	LOCAL_CLASS(duration,tuple<>,objrdf::NIL,rdf::Literal);
 	LOCAL_CLASS(unsignedShort,tuple<>,objrdf::NIL,rdf::Literal);
 	typedef objrdf::local_resource<rdfs_namespace,objrdf::str<'d','o','u','b','l','e'>,tuple<>,objrdf::NIL,rdf::Literal> Double;
 	typedef objrdf::local_resource<rdfs_namespace,objrdf::str<'f','l','o','a','t'>,tuple<>,objrdf::NIL,rdf::Literal> Float;

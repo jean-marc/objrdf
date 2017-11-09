@@ -5,6 +5,7 @@
 #include <parser/char_iterator.h>
 using namespace parser;
 using namespace std;
+using namespace objrdf;
 #if 0
 namespace objrdf{
 	template<> PROPERTY_PTR introspect<ts>::get_property(){
@@ -80,3 +81,85 @@ istream& objrdf::operator>>(istream& is,std::chrono::system_clock::time_point& t
 	//is>>get_time(&timeinfo,"%FT%T");	
 	return is;
 }
+//https://www.w3.org/TR/xmlschema11-2/#duration
+//PnYnMnDTnHnMnS
+struct duration_parser{
+	typedef _rc<'0','9'> digit;
+	struct digits:_pl<digit>{};
+	typedef _sq<digits,_c<'Y'>> year;
+	typedef _sq<digits,_c<'M'>> month;
+	typedef _sq<digits,_c<'D'>> day;
+	typedef _sq<digits,_c<'H'>> hour;
+	struct minute:_sq<digits,_c<'M'>>{};//because identical to month otherwise
+	//typedef _sq<digits,_or<_sq<_c<'.'>,digits>,_t>,_c<'S'>> sec;
+	typedef _sq<digits,_c<'S'>> sec;
+	typedef _sq<
+		_c<'P'>,_or<year,_t>,_or<month,_t>,_or<day,_t>,
+		_or<
+			_sq<_c<'T'>,_or<hour,_t>,_or<minute,_t>,_or<sec,_t>>,
+			_t
+		>> duration;	
+	template<typename ITERATOR> struct my_handler:parser::handler<
+		ITERATOR,
+		std::tuple<
+			digits,
+			year,
+			month,
+			day,
+			hour,
+			minute,
+			sec
+		>
+	>{
+		std::chrono::milliseconds d{};
+		int last_digit=0;
+		void start(digits){}
+		void stop(digits,ITERATOR begin,ITERATOR end,bool v){
+			if(v){
+				LOG_DEBUG<<"digits:`"<<string(begin,end)<<"'\n";
+				last_digit=stoi(string(begin,end));
+			}	
+		}
+		void start(year){}
+		void stop(year,ITERATOR begin,ITERATOR end,bool v){
+			constexpr auto _year = 31556952ll; // seconds in average Gregorian year
+			if(v) d+=chrono::seconds(_year)*last_digit;
+		}
+		void start(month){}
+		void stop(month,ITERATOR begin,ITERATOR end,bool v){
+			constexpr auto _month = 31556952ll/12; // seconds in average Gregorian year
+			if(v) d+=chrono::seconds(_month)*last_digit;
+		}
+		void start(day){}
+		void stop(day,ITERATOR begin,ITERATOR end,bool v){
+			if(v) d+=chrono::hours(24*last_digit);
+		}
+		void start(hour){}
+		void stop(hour,ITERATOR begin,ITERATOR end,bool v){
+			if(v) d+=chrono::hours(last_digit);
+		}
+		void start(minute){}
+		void stop(minute,ITERATOR begin,ITERATOR end,bool v){
+			if(v) d+=chrono::minutes(last_digit);
+		}
+		void start(sec){}
+		void stop(sec,ITERATOR begin,ITERATOR end,bool v){
+			if(v) d+=chrono::seconds(last_digit);
+		}
+	};
+};
+ostream& objrdf::operator<<(ostream& os,const std::chrono::milliseconds& d){
+	
+	return os<<d.count();
+}
+istream& objrdf::operator>>(istream& is,std::chrono::milliseconds& d){
+	string ts;
+	is>>ts;
+	//getline(is,ts,'<');
+	duration_parser::my_handler<string::const_iterator> h;
+	auto r=duration_parser::duration::go(ts.cbegin(),ts.cend(),h);
+	LOG_DEBUG<<"parsing duration:"<<r.first<<"\t"<<h.d<<"\n";
+	d=h.d;	
+	return is;
+}
+
