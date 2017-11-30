@@ -426,7 +426,6 @@ namespace objrdf{
 		const_type_iterator cbegin() const;
 		const_type_iterator cend() const;
 		*/
-		virtual void end_resource(){};//will be invoked when finished parsing the element
 		/*
  		*	do we have to use functions? what about storing type_iterator begin,end,...
  		*	it could work as long as iterators don't get invalidated by container (resource::v) modification, it means

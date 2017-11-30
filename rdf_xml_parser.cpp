@@ -345,7 +345,6 @@ void rdf_xml_parser::set_missing_object(RESOURCE_PTR object){
 } 
 bool rdf_xml_parser::end_resource(uri name){
 	LOG_DEBUG<<"end resource "<<name<<endl;
-	st.top()->end_resource();
 	st.pop();
 	current_property=end(placeholder);
 	return true;
