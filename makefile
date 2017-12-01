@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -O3 -std=c++0x -Wall -I. -lpthread -include log_info.h -UNEW_FUNC_TABLE
+CFLAGS = -O3 -std=c++1y -Wall -I. -lpthread -include log_info.h -UNEW_FUNC_TABLE
 OBJ1 = objrdf.o uri.o objrdf_time.o
 OBJ5 = Sockets.o
 OBJ7 = sparql_engine.o
